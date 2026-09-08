@@ -1,20 +1,29 @@
-/* Functional styling only for this scaffold — the real design system from
-   IMPLEMENTATION_PLAN.md §3 (sidebar / canvas / backlinks, command palette,
-   Krug-informed conventions) gets built out once the data layer is proven. */
-* {
-  box-sizing: border-box;
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import "tailwindcss";
+
+/* Design tokens from IMPLEMENTATION_PLAN.md §3 — the same "library card
+   catalog" palette used across the planning artifacts, now applied to the
+   real app rather than a mockup. */
+@theme {
+  --color-bg: #e9ebe1;
+  --color-surface: #fbfbf6;
+  --color-surface-2: #f2f3eb;
+  --color-ink: #1e2a20;
+  --color-ink-muted: #57614f;
+  --color-ink-faint: #8b9481;
+  --color-line: #c8ccb8;
+  --color-line-soft: #dbdecb;
+  --color-accent: #2e6f5a;
+  --color-accent-ink: #1d4a3c;
+  --color-accent-soft: #dce8dd;
+  --color-accent-2: #93602a;
+  --color-accent-2-soft: #ede0cb;
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-body: "Newsreader", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
+
 body {
-  margin: 0;
-  font-family: system-ui, sans-serif;
-  color: #1e2a20;
-  background: #f6f7f2;
-}
-button {
-  cursor: pointer;
-  font: inherit;
-}
-input,
-textarea {
-  font: inherit;
+  @apply bg-bg text-ink font-body;
 }
