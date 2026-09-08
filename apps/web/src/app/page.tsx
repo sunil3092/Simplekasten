@@ -2,7 +2,7 @@
 
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@vaultvista/api";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../lib/session";
@@ -145,6 +145,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
   const pendingRef = useRef<PendingSave | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAutoOpenedRef = useRef(false);
+  const justCreatedIdRef = useRef<string | null>(null);
   const kbMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -252,6 +253,16 @@ function Vault({ onLogout }: { onLogout: () => void }) {
       refreshNotes(kb.id, activeTag);
       refreshTags(kb.id);
     }
+    // Saving can change this note's own resolved backlinks (a title edit can
+    // resolve a link another note was waiting on) or its tags (a content
+    // edit can add/remove #hashtags) — refresh just those derived fields so
+    // the open panels don't go stale until the user navigates away and back.
+    const fresh = await trpc.note.getById.query({ id: payload.id });
+    setSelected((current) =>
+      current && current.id === payload.id
+        ? { ...current, backlinks: fresh.backlinks, tagNames: fresh.tagNames, outboundLinks: fresh.outboundLinks }
+        : current,
+    );
   }
 
   function scheduleSave(next: PendingSave) {
@@ -276,13 +287,25 @@ function Vault({ onLogout }: { onLogout: () => void }) {
     await flushPending();
     const note = await trpc.note.create.mutate({ kbId: kb.id, title, content: "", type: "fleeting" });
     await refreshNotes(kb.id);
+    justCreatedIdRef.current = note.id;
     setSelected(await trpc.note.getById.query({ id: note.id }));
     setSaveStatus("saved");
-    requestAnimationFrame(() => {
-      titleInputRef.current?.focus();
-      titleInputRef.current?.select();
-    });
   }
+
+  // Pre-selects the title of a note the user just created, so they can type
+  // a real title immediately — but only via a layout effect, which commits
+  // synchronously right after the title input mounts. The requestAnimationFrame
+  // this replaced fired a frame later, which was late enough that a fast
+  // click into the editor (test automation, or just a quick typist) could
+  // already have moved focus there, and the rAF's focus() would then steal
+  // it back mid-keystroke, scattering the rest of the typed text into the
+  // title field instead of the body.
+  useLayoutEffect(() => {
+    if (!selected || selected.id !== justCreatedIdRef.current) return;
+    justCreatedIdRef.current = null;
+    titleInputRef.current?.focus();
+    titleInputRef.current?.select();
+  }, [selected]);
 
   async function navigateToTitle(title: string) {
     const found = notes.find((n) => n.title.toLowerCase() === title.toLowerCase());

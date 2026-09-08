@@ -19,3 +19,9 @@ apps/desktop/src-tauri/gen/
 
 # TypeScript build info
 *.tsbuildinfo
+
+# Playwright
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+e2e/.cache/
