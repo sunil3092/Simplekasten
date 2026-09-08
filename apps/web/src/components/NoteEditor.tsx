@@ -7,11 +7,17 @@ import { minimalSetup } from "codemirror";
 import { useEffect, useRef } from "react";
 
 const WIKI_LINK_PATTERN = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
+// Mirrors packages/core/src/links.ts's extractHashtags — excludes markdown
+// headings ("# Heading") by requiring a letter right after the `#`.
+const HASHTAG_PATTERN = /(?<![#\w])#([a-zA-Z][\w/-]*)/g;
 
-// Underlines [[Title]] spans and lets Cmd/Ctrl+click follow them — plain click
-// still just places the cursor, same convention Obsidian uses in edit mode so
-// you can click into link text to fix a typo without navigating away.
-function wikiLinks(onNavigate: (title: string) => void) {
+/**
+ * Decorates every match of `pattern` with `className` and a `data-value`
+ * attribute (the marked capture group), and lets Cmd/Ctrl+click on one fire
+ * `onActivate` — plain click still just places the cursor, the same
+ * convention Obsidian uses so you can fix a typo without navigating away.
+ */
+function clickableSpans(pattern: RegExp, className: string, onActivate: (value: string) => void) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
@@ -27,16 +33,12 @@ function wikiLinks(onNavigate: (title: string) => void) {
         const builder = new RangeSetBuilder<Decoration>();
         for (const { from, to } of view.visibleRanges) {
           const text = view.state.doc.sliceString(from, to);
-          WIKI_LINK_PATTERN.lastIndex = 0;
+          pattern.lastIndex = 0;
           let match: RegExpExecArray | null;
-          while ((match = WIKI_LINK_PATTERN.exec(text))) {
+          while ((match = pattern.exec(text))) {
             const start = from + match.index;
             const end = start + match[0].length;
-            builder.add(
-              start,
-              end,
-              Decoration.mark({ class: "cm-wikilink", attributes: { "data-link-title": match[1].trim() } }),
-            );
+            builder.add(start, end, Decoration.mark({ class: className, attributes: { "data-value": match[1].trim() } }));
           }
         }
         return builder.finish();
@@ -47,11 +49,11 @@ function wikiLinks(onNavigate: (title: string) => void) {
       eventHandlers: {
         mousedown(event, view) {
           if (!(event.metaKey || event.ctrlKey)) return false;
-          const el = (event.target as HTMLElement).closest<HTMLElement>(".cm-wikilink");
-          const title = el?.dataset.linkTitle;
-          if (!title) return false;
+          const el = (event.target as HTMLElement).closest<HTMLElement>(`.${className}`);
+          const value = el?.dataset.value;
+          if (!value) return false;
           event.preventDefault();
-          onNavigate(title);
+          onActivate(value);
           return true;
         },
       },
@@ -74,12 +76,16 @@ const theme = EditorView.theme({
     textDecoration: "underline",
     textUnderlineOffset: "2px",
   },
+  ".cm-hashtag": {
+    color: "var(--color-accent-2)",
+  },
 });
 
 interface NoteEditorProps {
   initialValue: string;
   onChange: (content: string) => void;
   onNavigateLink: (title: string) => void;
+  onTagClick: (tag: string) => void;
   autoFocus?: boolean;
 }
 
@@ -89,12 +95,14 @@ interface NoteEditorProps {
  * that — syncing `value` back in on every keystroke would fight the editor
  * for cursor position.
  */
-export function NoteEditor({ initialValue, onChange, onNavigateLink, autoFocus }: NoteEditorProps) {
+export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick, autoFocus }: NoteEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onNavigateRef = useRef(onNavigateLink);
   onNavigateRef.current = onNavigateLink;
+  const onTagClickRef = useRef(onTagClick);
+  onTagClickRef.current = onTagClick;
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -106,7 +114,8 @@ export function NoteEditor({ initialValue, onChange, onNavigateLink, autoFocus }
         minimalSetup,
         markdown(),
         EditorView.lineWrapping,
-        wikiLinks((title) => onNavigateRef.current(title)),
+        clickableSpans(WIKI_LINK_PATTERN, "cm-wikilink", (title) => onNavigateRef.current(title)),
+        clickableSpans(HASHTAG_PATTERN, "cm-hashtag", (tag) => onTagClickRef.current(tag)),
         theme,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) onChangeRef.current(update.state.doc.toString());

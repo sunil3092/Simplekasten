@@ -1,4 +1,4 @@
-import { extractWikiLinkTitles } from "@vaultvista/core";
+import { extractHashtags, extractWikiLinkTitles } from "@vaultvista/core";
 import { prisma } from "@vaultvista/db";
 
 /** Next zettel ID for a new top-level note in this knowledge base — "1", "2", ... */
@@ -36,6 +36,31 @@ export async function syncOutboundLinks(noteId: string, kbId: string, content: s
       };
     }),
   });
+}
+
+/**
+ * Re-derives a note's tags from #hashtags in its content — same "content is
+ * the source of truth" pattern as syncOutboundLinks, so there's no separate
+ * tag-editing UI to keep in sync with what's actually written.
+ */
+export async function syncTags(noteId: string, kbId: string, content: string): Promise<void> {
+  const names = extractHashtags(content);
+
+  await prisma.noteTag.deleteMany({ where: { noteId } });
+  if (names.length === 0) return;
+
+  for (const name of names) {
+    const tag = await prisma.tag.upsert({
+      where: { kbId_name: { kbId, name } },
+      create: { kbId, name },
+      update: {},
+    });
+    await prisma.noteTag.upsert({
+      where: { noteId_tagId: { noteId, tagId: tag.id } },
+      create: { noteId, tagId: tag.id },
+      update: {},
+    });
+  }
 }
 
 /** Resolves any pre-existing [[links]] that were waiting for this note to exist. */

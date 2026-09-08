@@ -2,52 +2,94 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-interface Item {
+interface RecentItem {
   id: string;
   title: string;
   zettelId: string;
 }
 
+interface SearchResultItem {
+  id: string;
+  title: string;
+  zettelId: string;
+  snippet: string;
+}
+
 interface QuickSwitcherProps {
-  notes: Item[];
+  recentNotes: RecentItem[];
+  onSearch: (query: string) => Promise<SearchResultItem[]>;
   onSelect: (id: string) => void;
   onCreate: (title: string) => void;
   onClose: () => void;
 }
 
-// Ctrl/Cmd+K jump-to-anything — the one shortcut every Obsidian and Logseq
-// user already has muscle memory for. Typing a title with no match and
+// ts_headline wraps matches in \u0001...\u0002 sentinels (see apps/api note.search) —
+// split on those instead of dangerouslySetInnerHTML, since a snippet is built
+// from the user's own note content and shouldn't be parsed as HTML.
+function Snippet({ text }: { text: string }) {
+  const parts = text.split(/[\u0001\u0002]/);
+  return (
+    <p className="mt-0.5 truncate text-xs text-ink-faint">
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <mark key={i} className="rounded-sm bg-accent-2-soft px-0.5 text-accent-2">
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
+// Ctrl/Cmd+K jump-or-search — the one shortcut every Obsidian and Logseq user
+// already has muscle memory for. Searches full note content (via Postgres
+// full-text search), not just titles; typing a title with no match and
 // pressing Enter creates it, same as Obsidian's Quick Switcher.
-export function QuickSwitcher({ notes, onSelect, onCreate, onClose }: QuickSwitcherProps) {
+export function QuickSwitcher({ recentNotes, onSearch, onSelect, onCreate, onClose }: QuickSwitcherProps) {
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchResultItem[] | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const requestIdRef = useRef(0);
 
   useEffect(() => inputRef.current?.focus(), []);
 
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return notes;
-    return notes.filter((n) => n.title.toLowerCase().includes(q));
-  }, [notes, query]);
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setResults(null);
+      return;
+    }
+    const requestId = ++requestIdRef.current;
+    const timer = setTimeout(() => {
+      onSearch(trimmed).then((found) => {
+        if (requestIdRef.current === requestId) setResults(found);
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [query, onSearch]);
 
-  const exactMatch = matches.some((n) => n.title.toLowerCase() === query.trim().toLowerCase());
+  const items = useMemo(() => {
+    if (!query.trim()) return recentNotes.slice(0, 20).map((n) => ({ ...n, snippet: undefined as string | undefined }));
+    return results ?? [];
+  }, [query, recentNotes, results]);
+
+  const exactMatch = items.some((n) => n.title.toLowerCase() === query.trim().toLowerCase());
 
   useEffect(() => setActiveIndex(0), [query]);
 
   function commit() {
-    if (matches[activeIndex]) {
-      onSelect(matches[activeIndex].id);
-    } else if (query.trim() && !exactMatch) {
-      onCreate(query.trim());
-    }
+    if (items[activeIndex]) onSelect(items[activeIndex].id);
+    else if (query.trim() && !exactMatch) onCreate(query.trim());
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") onClose();
     else if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, Math.max(matches.length - 1, 0)));
+      setActiveIndex((i) => Math.min(i + 1, Math.max(items.length - 1, 0)));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActiveIndex((i) => Math.max(i - 1, 0));
@@ -68,31 +110,32 @@ export function QuickSwitcher({ notes, onSelect, onCreate, onClose }: QuickSwitc
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Jump to a note, or type a new title…"
+          placeholder="Search notes, or type a new title…"
           className="w-full border-b border-line bg-transparent px-4 py-3 font-mono text-sm text-ink outline-none placeholder:text-ink-faint"
         />
-        <ul className="max-h-80 overflow-y-auto py-1">
-          {matches.map((n, i) => (
+        <ul className="max-h-96 overflow-y-auto py-1">
+          {items.map((n, i) => (
             <li key={n.id}>
               <button
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => onSelect(n.id)}
-                className={`flex w-full items-baseline gap-2 px-4 py-2 text-left text-sm ${
-                  i === activeIndex ? "bg-accent-soft text-accent-ink" : "text-ink"
-                }`}
+                className={`block w-full px-4 py-2 text-left ${i === activeIndex ? "bg-accent-soft" : ""}`}
               >
-                <span className="font-mono text-[11px] text-ink-faint">{n.zettelId}</span>
-                {n.title}
+                <span className="flex items-baseline gap-2 text-sm">
+                  <span className="font-mono text-[11px] text-ink-faint">{n.zettelId}</span>
+                  <span className={i === activeIndex ? "text-accent-ink" : "text-ink"}>{n.title}</span>
+                </span>
+                {n.snippet && <Snippet text={n.snippet} />}
               </button>
             </li>
           ))}
           {query.trim() && !exactMatch && (
             <li>
               <button
-                onMouseEnter={() => setActiveIndex(matches.length)}
+                onMouseEnter={() => setActiveIndex(items.length)}
                 onClick={() => onCreate(query.trim())}
                 className={`flex w-full items-baseline gap-2 px-4 py-2 text-left text-sm ${
-                  activeIndex === matches.length ? "bg-accent-2-soft text-accent-2" : "text-ink-muted"
+                  activeIndex === items.length ? "bg-accent-2-soft text-accent-2" : "text-ink-muted"
                 }`}
               >
                 <span className="font-mono text-[11px]">+ new</span>
@@ -100,7 +143,8 @@ export function QuickSwitcher({ notes, onSelect, onCreate, onClose }: QuickSwitc
               </button>
             </li>
           )}
-          {matches.length === 0 && !query.trim() && (
+          {query.trim() && results === null && <li className="px-4 py-3 text-sm text-ink-faint">Searching…</li>}
+          {!query.trim() && items.length === 0 && (
             <li className="px-4 py-3 text-sm text-ink-faint">No notes yet — type a title to create one.</li>
           )}
         </ul>

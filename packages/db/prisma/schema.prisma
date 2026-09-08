@@ -84,6 +84,14 @@ model Note {
   updatedAt   DateTime @updatedAt
   deletedAt   DateTime?
 
+  // Generated column (title weighted above content) + GIN index — both
+  // hand-written in this field's migration, since Prisma can't express a
+  // STORED GENERATED ALWAYS AS expression. Never read or written through
+  // Prisma Client; only used via $queryRaw in note.search. Its presence
+  // forces every other Note query below onto an explicit `select`, because
+  // Prisma Client cannot represent an Unsupported type in a default result.
+  searchVector Unsupported("tsvector")?
+
   tags        NoteTag[]
   outboundLinks Link[] @relation("SourceNote")
   inboundLinks  Link[] @relation("TargetNote")

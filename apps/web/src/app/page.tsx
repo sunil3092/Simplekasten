@@ -13,6 +13,7 @@ type NoteListItem = RouterOutputs["note"]["list"][number];
 type NoteDetail = RouterOutputs["note"]["getById"];
 type KnowledgeBase = RouterOutputs["knowledgeBase"]["list"][number];
 type NoteType = NoteListItem["type"];
+type TagItem = RouterOutputs["tag"]["list"][number];
 
 const TYPE_STYLES: Record<NoteType, string> = {
   fleeting: "bg-surface-2 text-ink-muted border-line",
@@ -135,6 +136,8 @@ function Vault({ onLogout }: { onLogout: () => void }) {
   const [newKbName, setNewKbName] = useState("");
   const [creatingKb, setCreatingKb] = useState(false);
   const [notes, setNotes] = useState<NoteListItem[]>([]);
+  const [tags, setTags] = useState<TagItem[]>([]);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [selected, setSelected] = useState<NoteDetail | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [switcherOpen, setSwitcherOpen] = useState(false);
@@ -166,6 +169,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
     hasAutoOpenedRef.current = false;
     setSelected(null);
     setNotes([]);
+    setActiveTag(null);
     setKb(next);
   }
 
@@ -183,14 +187,33 @@ function Vault({ onLogout }: { onLogout: () => void }) {
     }
   }
 
-  async function refreshNotes(kbId: string) {
-    setNotes(await trpc.note.list.query({ kbId }));
+  async function refreshNotes(kbId: string, tag?: string | null) {
+    setNotes(await trpc.note.list.query({ kbId, tag: tag ?? undefined }));
+  }
+
+  async function refreshTags(kbId: string) {
+    setTags(await trpc.tag.list.query({ kbId }));
   }
 
   useEffect(() => {
-    if (kb) refreshNotes(kb.id);
+    if (kb) {
+      refreshNotes(kb.id, activeTag);
+      refreshTags(kb.id);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kb]);
+
+  // #hashtags are parsed from note content, so the tag list can change on
+  // every save — re-filtering here keeps the sidebar list honest without a
+  // full page reload.
+  useEffect(() => {
+    if (kb) refreshNotes(kb.id, activeTag);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTag]);
+
+  function toggleTag(name: string) {
+    setActiveTag((current) => (current === name ? null : name));
+  }
 
   // Reopen the most recently edited note on load — an empty screen on arrival
   // is the one thing every PKM app avoids.
@@ -225,7 +248,10 @@ function Vault({ onLogout }: { onLogout: () => void }) {
     setSaveStatus("saving");
     await trpc.note.update.mutate(payload);
     setSaveStatus("saved");
-    if (kb) refreshNotes(kb.id);
+    if (kb) {
+      refreshNotes(kb.id, activeTag);
+      refreshTags(kb.id);
+    }
   }
 
   function scheduleSave(next: PendingSave) {
@@ -351,9 +377,35 @@ function Vault({ onLogout }: { onLogout: () => void }) {
           + New note
         </button>
 
+        {tags.length > 0 && (
+          <div className="mt-4 flex flex-wrap gap-1">
+            {tags.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => toggleTag(t.name)}
+                className={`rounded-full border px-2 py-0.5 font-mono text-[10px] ${
+                  activeTag === t.name
+                    ? "border-accent-2 bg-accent-2-soft text-accent-2"
+                    : "border-line text-ink-muted hover:border-accent-2"
+                }`}
+              >
+                #{t.name} <span className="opacity-60">{t.noteCount}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="mt-5 flex-1 overflow-y-auto">
-          <div className="mb-2 font-mono text-[10px] tracking-wider text-ink-faint uppercase">
-            {notes.length} note{notes.length === 1 ? "" : "s"}
+          <div className="mb-2 flex items-center justify-between font-mono text-[10px] tracking-wider text-ink-faint uppercase">
+            <span>
+              {notes.length} note{notes.length === 1 ? "" : "s"}
+              {activeTag ? ` · #${activeTag}` : ""}
+            </span>
+            {activeTag && (
+              <button onClick={() => setActiveTag(null)} className="normal-case hover:text-ink-muted">
+                clear
+              </button>
+            )}
           </div>
           <ul className="flex flex-col gap-0.5">
             {notes.map((n) => (
@@ -389,6 +441,15 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                   <option value="structure">Structure</option>
                 </select>
                 <span className="font-mono text-xs text-ink-faint">{selected.zettelId}</span>
+                {selected.tagNames.map((name) => (
+                  <button
+                    key={name}
+                    onClick={() => toggleTag(name)}
+                    className="rounded-full border border-line px-2 py-0.5 font-mono text-[10px] text-ink-muted hover:border-accent-2 hover:text-accent-2"
+                  >
+                    #{name}
+                  </button>
+                ))}
                 <span className="ml-auto font-mono text-[10px] text-ink-faint">
                   {saveStatus === "saving" ? "Saving…" : "Saved"}
                 </span>
@@ -406,6 +467,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                 initialValue={selected.content}
                 onChange={updateContent}
                 onNavigateLink={navigateToTitle}
+                onTagClick={toggleTag}
               />
             </div>
           ) : (
@@ -438,7 +500,8 @@ function Vault({ onLogout }: { onLogout: () => void }) {
 
       {switcherOpen && (
         <QuickSwitcher
-          notes={notes}
+          recentNotes={notes}
+          onSearch={(query) => (kb ? trpc.note.search.query({ kbId: kb.id, query }) : Promise.resolve([]))}
           onSelect={(id) => {
             setSwitcherOpen(false);
             openNote(id);
