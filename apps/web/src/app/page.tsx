@@ -5,8 +5,8 @@ import type { AppRouter } from "@vaultvista/api";
 import { useEffect, useRef, useState } from "react";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
-import { clearAccessToken, getAccessToken, setAccessToken } from "../lib/session";
-import { trpc } from "../lib/trpc";
+import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../lib/session";
+import { FORCE_LOGOUT_EVENT, trpc } from "../lib/trpc";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type NoteListItem = RouterOutputs["note"]["list"][number];
@@ -25,16 +25,24 @@ export default function Home() {
   const [authed, setAuthed] = useState(false);
   useEffect(() => setAuthed(Boolean(getAccessToken())), []);
 
-  return authed ? (
-    <Vault
-      onLogout={() => {
-        clearAccessToken();
-        setAuthed(false);
-      }}
-    />
-  ) : (
-    <Auth onAuthed={() => setAuthed(true)} />
-  );
+  // Fired when a 401 survives a refresh attempt — no access or refresh token
+  // is going to work, so the only honest move is back to the login screen.
+  useEffect(() => {
+    function onForceLogout() {
+      setAuthed(false);
+    }
+    window.addEventListener(FORCE_LOGOUT_EVENT, onForceLogout);
+    return () => window.removeEventListener(FORCE_LOGOUT_EVENT, onForceLogout);
+  }, []);
+
+  function handleLogout() {
+    const refreshToken = getRefreshToken();
+    clearTokens();
+    setAuthed(false);
+    if (refreshToken) trpc.auth.logout.mutate({ refreshToken }).catch(() => {});
+  }
+
+  return authed ? <Vault onLogout={handleLogout} /> : <Auth onAuthed={() => setAuthed(true)} />;
 }
 
 function Auth({ onAuthed }: { onAuthed: () => void }) {
@@ -52,7 +60,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
         mode === "login"
           ? await trpc.auth.login.mutate({ email, password })
           : await trpc.auth.register.mutate({ email, password, displayName });
-      setAccessToken(result.accessToken);
+      setTokens(result.accessToken, result.refreshToken);
       onAuthed();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -122,6 +130,10 @@ interface PendingSave {
 
 function Vault({ onLogout }: { onLogout: () => void }) {
   const [kb, setKb] = useState<KnowledgeBase | null>(null);
+  const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
+  const [kbMenuOpen, setKbMenuOpen] = useState(false);
+  const [newKbName, setNewKbName] = useState("");
+  const [creatingKb, setCreatingKb] = useState(false);
   const [notes, setNotes] = useState<NoteListItem[]>([]);
   const [selected, setSelected] = useState<NoteDetail | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -130,10 +142,46 @@ function Vault({ onLogout }: { onLogout: () => void }) {
   const pendingRef = useRef<PendingSave | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAutoOpenedRef = useRef(false);
+  const kbMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    trpc.knowledgeBase.list.query().then((kbs) => setKb(kbs[0] ?? null));
+    trpc.knowledgeBase.list.query().then((list) => {
+      setKbs(list);
+      setKb(list[0] ?? null);
+    });
   }, []);
+
+  useEffect(() => {
+    if (!kbMenuOpen) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (kbMenuRef.current && !kbMenuRef.current.contains(e.target as Node)) setKbMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [kbMenuOpen]);
+
+  function switchKb(next: KnowledgeBase) {
+    setKbMenuOpen(false);
+    if (next.id === kb?.id) return;
+    hasAutoOpenedRef.current = false;
+    setSelected(null);
+    setNotes([]);
+    setKb(next);
+  }
+
+  async function createKbAndSwitch() {
+    const name = newKbName.trim();
+    if (!name) return;
+    setCreatingKb(true);
+    try {
+      const created = await trpc.knowledgeBase.create.mutate({ name });
+      setKbs(await trpc.knowledgeBase.list.query());
+      setNewKbName("");
+      switchKb(created);
+    } finally {
+      setCreatingKb(false);
+    }
+  }
 
   async function refreshNotes(kbId: string) {
     setNotes(await trpc.note.list.query({ kbId }));
@@ -241,13 +289,52 @@ function Vault({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="flex h-screen bg-bg">
       <aside className="flex w-64 flex-none flex-col border-r border-line bg-surface px-4 py-5">
-        <div className="mb-1 flex items-baseline justify-between">
-          <span className="rounded-md border border-line bg-surface px-2.5 py-1 font-mono text-xs text-ink-muted">
-            {kb?.name ?? "VaultVista"} ▾
-          </span>
-          <button onClick={onLogout} className="font-mono text-xs text-ink-faint underline underline-offset-2 hover:text-ink-muted">
-            Log out
-          </button>
+        <div ref={kbMenuRef} className="relative mb-1">
+          <div className="flex items-baseline justify-between">
+            <button
+              onClick={() => setKbMenuOpen((o) => !o)}
+              className="rounded-md border border-line bg-surface px-2.5 py-1 font-mono text-xs text-ink-muted hover:border-accent"
+            >
+              {kb?.name ?? "VaultVista"} ▾
+            </button>
+            <button onClick={onLogout} className="font-mono text-xs text-ink-faint underline underline-offset-2 hover:text-ink-muted">
+              Log out
+            </button>
+          </div>
+
+          {kbMenuOpen && (
+            <div className="absolute top-full left-0 z-10 mt-1 w-56 rounded-md border border-line bg-surface p-1 shadow-lg">
+              {kbs.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => switchKb(item)}
+                  className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
+                    item.id === kb?.id ? "bg-accent-soft text-accent-ink" : "text-ink hover:bg-surface-2"
+                  }`}
+                >
+                  {item.name}
+                </button>
+              ))}
+              <div className="mt-1 flex gap-1 border-t border-line-soft pt-1">
+                <input
+                  value={newKbName}
+                  onChange={(e) => setNewKbName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") createKbAndSwitch();
+                  }}
+                  placeholder="New vault name"
+                  className="min-w-0 flex-1 rounded border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-accent"
+                />
+                <button
+                  onClick={createKbAndSwitch}
+                  disabled={creatingKb || !newKbName.trim()}
+                  className="rounded bg-accent px-2 text-xs font-medium text-white disabled:opacity-50"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <button

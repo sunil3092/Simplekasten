@@ -1,7 +1,8 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import jwt from "jsonwebtoken";
 
 const ACCESS_TOKEN_TTL = "15m";
+export const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret-change-me";
 
 export function hashPassword(password: string): string {
@@ -33,4 +34,17 @@ export function verifyAccessToken(token: string): AccessTokenPayload | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Refresh tokens are opaque random values, not JWTs: only their SHA-256 hash
+ * is ever stored, so a database leak can't be replayed as a login, and a
+ * single row can be revoked (e.g. "log out this device") without a denylist.
+ */
+export function generateRefreshToken(): string {
+  return randomBytes(32).toString("hex");
+}
+
+export function hashRefreshToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }
