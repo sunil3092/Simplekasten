@@ -1,0 +1,20 @@
+/* Functional styling only for this scaffold — the real design system from
+   IMPLEMENTATION_PLAN.md §3 (sidebar / canvas / backlinks, command palette,
+   Krug-informed conventions) gets built out once the data layer is proven. */
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  color: #1e2a20;
+  background: #f6f7f2;
+}
+button {
+  cursor: pointer;
+  font: inherit;
+}
+input,
+textarea {
+  font: inherit;
+}

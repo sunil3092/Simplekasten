@@ -1,0 +1,16 @@
+{
+  "name": "vaultvista",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev:api": "pnpm --filter @vaultvista/api dev",
+    "dev:web": "pnpm --filter @vaultvista/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @vaultvista/db generate",
+    "db:migrate": "pnpm --filter @vaultvista/db migrate"
+  }
+}
