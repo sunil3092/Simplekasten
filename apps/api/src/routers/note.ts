@@ -125,6 +125,29 @@ export const noteRouter = router({
     return note;
   }),
 
+  // Nodes + edges for the graph view — every note in the vault, and every
+  // resolved link between two notes that both still exist. Unresolved links
+  // (pointing at a title with no note yet) have no targetNoteId and so have
+  // nothing to draw an edge to.
+  graph: protectedProcedure.input(z.object({ kbId: z.string() })).query(async ({ ctx, input }) => {
+    await assertOwnsKb(input.kbId, ctx.userId);
+    const [notes, links] = await Promise.all([
+      prisma.note.findMany({
+        where: { kbId: input.kbId, deletedAt: null },
+        select: { id: true, title: true, zettelId: true, type: true },
+      }),
+      prisma.link.findMany({
+        where: { sourceNote: { kbId: input.kbId, deletedAt: null }, resolved: true, targetNoteId: { not: null } },
+        select: { sourceNoteId: true, targetNoteId: true },
+      }),
+    ]);
+
+    return {
+      nodes: notes,
+      edges: links.map((link) => ({ source: link.sourceNoteId, target: link.targetNoteId! })),
+    };
+  }),
+
   delete: protectedProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
     const existing = await prisma.note.findFirst({
       where: { id: input.id, knowledgeBase: { ownerId: ctx.userId } },

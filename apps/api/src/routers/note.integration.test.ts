@@ -182,3 +182,34 @@ describe("note.search", () => {
     expect(results).toHaveLength(0);
   });
 });
+
+describe("note.graph", () => {
+  it("includes every note as a node, even ones with no links", async () => {
+    const { caller, kb } = await registerUser("graph-nodes");
+    await caller.note.create({ kbId: kb.id, title: "Lonely note", content: "no links here", type: "fleeting" });
+    const graph = await caller.note.graph({ kbId: kb.id });
+    expect(graph.nodes.map((n) => n.title)).toEqual(["Lonely note"]);
+    expect(graph.edges).toHaveLength(0);
+  });
+
+  it("adds an edge for a resolved link but not for an unresolved one", async () => {
+    const { caller, kb } = await registerUser("graph-edges");
+    const target = await caller.note.create({ kbId: kb.id, title: "Target", content: "", type: "fleeting" });
+    const source = await caller.note.create({
+      kbId: kb.id,
+      title: "Source",
+      content: "see [[Target]] and also [[Nonexistent]]",
+      type: "fleeting",
+    });
+
+    const graph = await caller.note.graph({ kbId: kb.id });
+    expect(graph.nodes).toHaveLength(2);
+    expect(graph.edges).toEqual([{ source: source.id, target: target.id }]);
+  });
+
+  it("rejects reading the graph of a vault the caller doesn't own", async () => {
+    const alice = await registerUser("graph-owns-a");
+    const bob = await registerUser("graph-owns-b");
+    await expect(bob.caller.note.graph({ kbId: alice.kb.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});

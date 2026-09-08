@@ -3,6 +3,7 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@vaultvista/api";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { GraphView } from "../components/GraphView";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../lib/session";
@@ -141,6 +142,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
   const [selected, setSelected] = useState<NoteDetail | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [graphData, setGraphData] = useState<RouterOutputs["note"]["graph"] | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const pendingRef = useRef<PendingSave | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -282,6 +284,11 @@ function Vault({ onLogout }: { onLogout: () => void }) {
     setSaveStatus("saved");
   }
 
+  async function openGraph() {
+    if (!kb) return;
+    setGraphData(await trpc.note.graph.query({ kbId: kb.id }));
+  }
+
   async function createNote(title = "Untitled") {
     if (!kb) return;
     await flushPending();
@@ -392,6 +399,12 @@ function Vault({ onLogout }: { onLogout: () => void }) {
         >
           Jump to…
           <span className="font-mono text-[10px]">⌘K</span>
+        </button>
+        <button
+          onClick={openGraph}
+          className="mt-2 rounded-md border border-line bg-surface px-3 py-1.5 text-left text-sm text-ink-faint hover:border-accent"
+        >
+          Graph view
         </button>
         <button
           onClick={() => createNote()}
@@ -535,6 +548,19 @@ function Vault({ onLogout }: { onLogout: () => void }) {
             createNote(title);
           }}
           onClose={() => setSwitcherOpen(false)}
+        />
+      )}
+
+      {graphData && (
+        <GraphView
+          nodes={graphData.nodes}
+          edges={graphData.edges}
+          activeNoteId={selected?.id}
+          onSelectNode={(id) => {
+            setGraphData(null);
+            openNote(id);
+          }}
+          onClose={() => setGraphData(null)}
         />
       )}
     </div>
