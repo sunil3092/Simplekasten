@@ -213,3 +213,47 @@ describe("note.graph", () => {
     await expect(bob.caller.note.graph({ kbId: alice.kb.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
+
+describe("note.getById contents (Maps of Content)", () => {
+  it("lists a resolved outbound link with the target's current title and zettelId", async () => {
+    const { caller, kb } = await registerUser("moc-resolved");
+    const target = await caller.note.create({ kbId: kb.id, title: "Atomicity", content: "", type: "permanent" });
+    const moc = await caller.note.create({
+      kbId: kb.id,
+      title: "Zettelkasten MoC",
+      content: "See [[Atomicity]].",
+      type: "structure",
+    });
+
+    const detail = await caller.note.getById({ id: moc.id });
+    expect(detail.contents).toEqual([{ noteId: target.id, title: "Atomicity", zettelId: target.zettelId, resolved: true }]);
+  });
+
+  it("lists an unresolved outbound link by its typed title, with no noteId", async () => {
+    const { caller, kb } = await registerUser("moc-unresolved");
+    const moc = await caller.note.create({
+      kbId: kb.id,
+      title: "Zettelkasten MoC",
+      content: "See [[Not Written Yet]].",
+      type: "structure",
+    });
+
+    const detail = await caller.note.getById({ id: moc.id });
+    expect(detail.contents).toEqual([{ noteId: null, title: "Not Written Yet", zettelId: null, resolved: false }]);
+  });
+
+  it("picks up the target's renamed title once resolved", async () => {
+    const { caller, kb } = await registerUser("moc-rename");
+    const target = await caller.note.create({ kbId: kb.id, title: "Old Name", content: "", type: "permanent" });
+    const moc = await caller.note.create({
+      kbId: kb.id,
+      title: "Zettelkasten MoC",
+      content: "See [[Old Name]].",
+      type: "structure",
+    });
+    await caller.note.update({ id: target.id, title: "New Name" });
+
+    const detail = await caller.note.getById({ id: moc.id });
+    expect(detail.contents[0]).toMatchObject({ title: "New Name", resolved: true });
+  });
+});

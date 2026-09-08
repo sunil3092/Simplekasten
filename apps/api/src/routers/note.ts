@@ -56,7 +56,9 @@ export const noteRouter = router({
       where: { id: input.id, deletedAt: null, knowledgeBase: { ownerId: ctx.userId } },
       include: {
         tags: { include: { tag: true } },
-        outboundLinks: true,
+        outboundLinks: {
+          include: { targetNote: { select: { id: true, title: true, zettelId: true } } },
+        },
         inboundLinks: {
           where: { resolved: true },
           include: { sourceNote: { select: { id: true, title: true, zettelId: true } } },
@@ -73,6 +75,17 @@ export const noteRouter = router({
         title: link.sourceNote!.title,
         zettelId: link.sourceNote!.zettelId,
         context: link.context,
+      })),
+      // A Map of Content's whole purpose is the curated list of notes it
+      // links to — surfaced as "contents" here so the UI can render it as a
+      // table of contents rather than making the reader open the editor to
+      // see what the note organizes. An unresolved link (no note yet) still
+      // appears, just without a noteId to navigate to.
+      contents: note.outboundLinks.map((link) => ({
+        noteId: link.targetNote?.id ?? null,
+        title: link.targetNote?.title ?? link.targetTitle,
+        zettelId: link.targetNote?.zettelId ?? null,
+        resolved: link.resolved,
       })),
     };
   }),

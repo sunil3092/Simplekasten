@@ -3,7 +3,7 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@vaultvista/api";
 import { slugify } from "@vaultvista/core";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { GraphView } from "../components/GraphView";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
@@ -144,6 +144,12 @@ function Vault({ onLogout }: { onLogout: () => void }) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [graphData, setGraphData] = useState<RouterOutputs["note"]["graph"] | null>(null);
+  // Structure notes are VaultVista's Maps of Content — a curated table of
+  // contents you link into rather than a folder you file things under.
+  // Surfacing them as a standing sidebar section is what makes folder-free
+  // navigation actually work: without this, an index note is no different
+  // from any other note once it scrolls out of the recent-notes list.
+  const mapsOfContent = useMemo(() => notes.filter((n) => n.type === "structure"), [notes]);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const pendingRef = useRef<PendingSave | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,7 +269,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
     const fresh = await trpc.note.getById.query({ id: payload.id });
     setSelected((current) =>
       current && current.id === payload.id
-        ? { ...current, backlinks: fresh.backlinks, tagNames: fresh.tagNames, outboundLinks: fresh.outboundLinks }
+        ? { ...current, backlinks: fresh.backlinks, tagNames: fresh.tagNames, contents: fresh.contents }
         : current,
     );
   }
@@ -443,6 +449,26 @@ function Vault({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
 
+        {mapsOfContent.length > 0 && (
+          <div className="mt-4">
+            <h3 className="mb-1.5 font-mono text-[10px] tracking-wider text-ink-faint uppercase">Maps of content</h3>
+            <ul className="flex flex-col gap-1">
+              {mapsOfContent.map((n) => (
+                <li key={n.id}>
+                  <button
+                    onClick={() => openNote(n.id)}
+                    className={`block w-full rounded-md border border-dashed px-2.5 py-1 text-left text-sm ${
+                      n.id === selected?.id ? "border-accent bg-accent-soft text-accent-ink" : "border-line text-ink-muted hover:border-accent"
+                    }`}
+                  >
+                    {n.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="mt-5 flex-1 overflow-y-auto">
           <div className="mb-2 flex items-center justify-between font-mono text-[10px] tracking-wider text-ink-faint uppercase">
             <span>
@@ -526,6 +552,31 @@ function Vault({ onLogout }: { onLogout: () => void }) {
 
         {selected && (
           <aside className="w-72 flex-none overflow-y-auto border-l border-line bg-surface px-5 py-6">
+            {selected.type === "structure" && (
+              <>
+                <h3 className="mb-3 font-mono text-xs tracking-wide text-ink-faint uppercase">
+                  Contents ({selected.contents.length})
+                </h3>
+                <ul className="mb-6 flex flex-col gap-2">
+                  {selected.contents.map((item, i) => (
+                    <li key={item.noteId ?? `${item.title}-${i}`}>
+                      <button
+                        onClick={() => navigateToTitle(item.title)}
+                        className={`block w-full rounded-md border px-3 py-2 text-left text-sm hover:border-accent ${
+                          item.resolved ? "border-line text-ink" : "border-dashed border-line text-ink-faint"
+                        }`}
+                      >
+                        {item.zettelId && <span className="mr-1 font-mono text-[10px] text-ink-faint">{item.zettelId}</span>}
+                        {item.title}
+                      </button>
+                    </li>
+                  ))}
+                  {selected.contents.length === 0 && (
+                    <li className="text-sm text-ink-faint">Link to notes with [[wiki-links]] to build the contents list.</li>
+                  )}
+                </ul>
+              </>
+            )}
             <h3 className="mb-3 font-mono text-xs tracking-wide text-ink-faint uppercase">
               Linked mentions ({selected.backlinks.length})
             </h3>
