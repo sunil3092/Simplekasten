@@ -39,29 +39,33 @@
 | Layer | Choice | Why |
 |---|---|---|
 | Language | TypeScript | One type system across client, server, and schema catches broken note/link references at compile time. |
-| Frontend | Next.js (React) + Tailwind CSS | SSR for fast note pages; file-based routing fits a notes-as-pages app; Tailwind keeps a dense card/graph UI consistent. |
+| Frontend | Next.js (React) + Tailwind CSS | SSR for fast note pages; file-based routing fits a notes-as-pages app; Tailwind keeps a dense card/graph UI consistent. Built with `output: 'standalone'`, no Vercel-only APIs, so it runs as a plain Node server anywhere. |
 | Editor | CodeMirror 6 | Built for structured-text editors — handles `[[link]]` autocomplete and large documents without jank. |
 | Graph view | react-force-graph (WebGL) | Canvas/WebGL rendering stays smooth with thousands of note-nodes where SVG force graphs choke. |
-| API layer | tRPC | End-to-end typed calls between editor and backend without hand-written REST contracts. |
+| API service | Standalone Express app hosting a tRPC router | Decouples the API from the web app's release cycle so desktop/mobile clients depend on a stable, independently deployable service; tRPC still gives end-to-end typed calls from every first-party TypeScript client. |
 | ORM | Prisma | Typed schema migrations for the Notes/Links/Tags relations; schema doubles as documentation. |
 | Database | PostgreSQL | Foreign keys enforce link integrity; native full-text search (`tsvector`) and `pgvector` cover MVP search and future AI embeddings in one store. |
-| Auth | Auth.js | Drop-in OAuth (Google/GitHub) plus email login without building session management from scratch. |
-| File storage | S3-compatible (Supabase Storage) | Attachments and clipped images live outside the database, referenced by URL. |
-| Hosting | Vercel + Neon/Supabase | Managed Postgres and zero-ops deploys let a small team ship weekly instead of running servers. |
-| Desktop shell (later) | Tauri | Wraps the same web app in a lightweight native shell for local-file, offline-first use once requested. |
+| Auth | Auth.js, JWT bearer tokens | Drop-in OAuth (Google/GitHub) plus email login; JWT (not cookie sessions) so Tauri and React Native clients authenticate the same way as the browser, storing the token in the OS keychain. |
+| File storage | S3-compatible (Supabase Storage / R2) | Attachments and clipped images live outside the database, referenced by URL; S3-compatible so the provider can be swapped freely. |
+| Hosting | Any Docker-capable host (Render, Fly.io, Railway, or a VPS) + Neon/Supabase Postgres | Both the web app and the API service ship as plain Docker images — no PaaS-specific APIs — so hosting is a config change, not a rewrite. |
+| Desktop | Tauri, wrapping the web frontend | Native shell, ~96% smaller and ~75% lower idle memory than Electron; matches the local-file, offline-first expectations of the Zettelkasten audience once built. |
+| Mobile (later) | React Native (Expo), separate app | True native UI (Tauri's mobile target is still a webview under the hood); shares a common TypeScript core package with web/desktop for API calls and business logic, but owns its own UI, including the editor via Expo DOM Components rather than a from-scratch native rewrite. |
 
 ## 4. High-Level Architecture
 
-The client never talks to the database directly. Every read/write to a note, link, or tag goes through a typed API layer, which is what keeps the note graph consistent as the vault grows.
+No client talks to the database directly. Web, and later desktop and mobile, all go through the same standalone Express + tRPC API service over HTTPS — that's what keeps the note graph consistent as the vault grows and lets every client authenticate and behave identically regardless of platform.
 
 ```
-Client (Next.js/React)  <-- calls / renders -->  API layer (tRPC + Prisma)  <-- writes / query results -->  PostgreSQL
-                                                        |
+Web (Next.js)  ---\
+Desktop (Tauri, wraps the web frontend)  ----> Express API (tRPC + Prisma)  <-- writes / query results -->  PostgreSQL
+Mobile (React Native, later)  -----------/            |
                                 +-----------------------+-----------------------+
                                 |              |                |               |
                              Auth.js    Object storage        Email        AI API (later)
-                          (OAuth/email)  (attachments)      (Resend)   (link suggestions, embeddings)
+                        (OAuth/JWT)   (S3-compatible)       (Resend)   (link suggestions, embeddings)
 ```
+
+Every client authenticates with a JWT bearer token (not a browser cookie), stored in the OS keychain on Tauri/React Native — the same mechanism the web app uses, so adding a client is a config change, not a backend rewrite. The API service and the web app deploy as separate Docker images, each independently on Render/Fly.io/Railway/a VPS, so releasing one never requires redeploying the other.
 
 **Third-party services:**
 - Auth provider (Google/GitHub via Auth.js)
