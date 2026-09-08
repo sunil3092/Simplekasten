@@ -491,6 +491,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                 onChange={updateContent}
                 onNavigateLink={navigateToTitle}
                 onTagClick={toggleTag}
+                noteTitles={notes.filter((n) => n.id !== selected.id).map((n) => n.title)}
               />
             </div>
           ) : (

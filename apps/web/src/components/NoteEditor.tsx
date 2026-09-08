@@ -1,5 +1,6 @@
 "use client";
 
+import { autocompletion, closeBrackets, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
 import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
@@ -61,6 +62,34 @@ function clickableSpans(pattern: RegExp, className: string, onActivate: (value: 
   );
 }
 
+/**
+ * Suggests existing note titles while typing a `[[wiki-link]]`. Reads titles
+ * from a ref (rather than closing over a fixed array) so the list stays
+ * current as notes are created without needing to recreate the editor.
+ */
+function wikiLinkCompletionSource(titlesRef: { current: string[] }) {
+  return (context: CompletionContext): CompletionResult | null => {
+    const match = context.matchBefore(/\[\[([^\]|]*)$/);
+    if (!match) return null;
+    const from = match.from + 2;
+    const query = match.text.slice(2).toLowerCase();
+    const options = titlesRef.current
+      .filter((title) => title.toLowerCase().includes(query))
+      .slice(0, 20)
+      .map((title) => ({
+        label: title,
+        type: "text",
+        apply(view: EditorView, _completion: unknown, applyFrom: number, applyTo: number) {
+          const hasClosing = view.state.doc.sliceString(applyTo, applyTo + 2) === "]]";
+          const insert = hasClosing ? title : `${title}]]`;
+          const cursor = applyFrom + insert.length + (hasClosing ? 2 : 0);
+          view.dispatch({ changes: { from: applyFrom, to: applyTo, insert }, selection: { anchor: cursor } });
+        },
+      }));
+    return { from, options };
+  };
+}
+
 const theme = EditorView.theme({
   "&": {
     fontSize: "15px",
@@ -79,6 +108,20 @@ const theme = EditorView.theme({
   ".cm-hashtag": {
     color: "var(--color-accent-2)",
   },
+  ".cm-tooltip.cm-tooltip-autocomplete": {
+    border: "1px solid var(--color-line)",
+    backgroundColor: "var(--color-surface)",
+    borderRadius: "6px",
+    overflow: "hidden",
+  },
+  ".cm-tooltip-autocomplete ul li": {
+    padding: "4px 10px",
+    color: "var(--color-ink)",
+  },
+  ".cm-tooltip-autocomplete ul li[aria-selected]": {
+    backgroundColor: "var(--color-accent-soft)",
+    color: "var(--color-accent-ink)",
+  },
 });
 
 interface NoteEditorProps {
@@ -86,6 +129,7 @@ interface NoteEditorProps {
   onChange: (content: string) => void;
   onNavigateLink: (title: string) => void;
   onTagClick: (tag: string) => void;
+  noteTitles: string[];
   autoFocus?: boolean;
 }
 
@@ -95,7 +139,7 @@ interface NoteEditorProps {
  * that — syncing `value` back in on every keystroke would fight the editor
  * for cursor position.
  */
-export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick, autoFocus }: NoteEditorProps) {
+export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick, noteTitles, autoFocus }: NoteEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -103,6 +147,8 @@ export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick,
   onNavigateRef.current = onNavigateLink;
   const onTagClickRef = useRef(onTagClick);
   onTagClickRef.current = onTagClick;
+  const noteTitlesRef = useRef(noteTitles);
+  noteTitlesRef.current = noteTitles;
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -114,6 +160,8 @@ export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick,
         minimalSetup,
         markdown(),
         EditorView.lineWrapping,
+        closeBrackets(),
+        autocompletion({ override: [wikiLinkCompletionSource(noteTitlesRef)] }),
         clickableSpans(WIKI_LINK_PATTERN, "cm-wikilink", (title) => onNavigateRef.current(title)),
         clickableSpans(HASHTAG_PATTERN, "cm-hashtag", (tag) => onTagClickRef.current(tag)),
         theme,

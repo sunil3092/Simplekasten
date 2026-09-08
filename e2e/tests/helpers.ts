@@ -31,7 +31,10 @@ export async function createNote(page: Page, title: string, content: string): Pr
   // which is still displayed until the new one finishes loading. The app
   // itself auto-focuses and selects the title the instant the new note
   // becomes current, so that focus is the reliable "it's ready" signal.
-  await expect(titleInput).toBeFocused();
+  // A generous timeout absorbs a cold Next.js dev-server compile of the
+  // editor bundle on the very first note created after a fresh server start
+  // (the default 5s expect timeout has been marginal for that one-time cost).
+  await expect(titleInput).toBeFocused({ timeout: 15000 });
   await titleInput.fill(title);
   const editor = page.locator(".cm-content");
   await editor.click();
