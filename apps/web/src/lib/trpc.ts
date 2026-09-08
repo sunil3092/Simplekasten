@@ -5,7 +5,7 @@ import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./sessi
 // Same client shape for every platform: web reads this from an env var baked
 // in at build time, Tauri and React Native will point it at the same deployed
 // API — none of them ever talk to a database directly.
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 /** Dispatched when a refresh attempt fails — nothing short of logging in again fixes that. */
 export const FORCE_LOGOUT_EVENT = "vaultvista:force-logout";
@@ -53,6 +53,25 @@ async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
   const headers = new Headers(init?.headers);
   headers.set("authorization", `Bearer ${newAccessToken}`);
   return fetch(input, { ...init, headers });
+}
+
+// The export endpoint streams a zip, which doesn't fit tRPC's JSON request/
+// response shape, so it's a plain authenticated fetch (still routed through
+// authFetch for the same transparent 401-refresh-and-retry as every tRPC call).
+export async function downloadVaultExport(kbId: string, filename: string): Promise<void> {
+  const token = getAccessToken();
+  const response = await authFetch(`${API_URL}/export/${kbId}`, {
+    headers: token ? { authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) throw new Error("Export failed");
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export const trpc = createTRPCClient<AppRouter>({

@@ -2,12 +2,13 @@
 
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@vaultvista/api";
+import { slugify } from "@vaultvista/core";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { GraphView } from "../components/GraphView";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../lib/session";
-import { FORCE_LOGOUT_EVENT, trpc } from "../lib/trpc";
+import { downloadVaultExport, FORCE_LOGOUT_EVENT, trpc } from "../lib/trpc";
 
 type RouterOutputs = inferRouterOutputs<AppRouter>;
 type NoteListItem = RouterOutputs["note"]["list"][number];
@@ -289,6 +290,11 @@ function Vault({ onLogout }: { onLogout: () => void }) {
     setGraphData(await trpc.note.graph.query({ kbId: kb.id }));
   }
 
+  async function exportVault() {
+    if (!kb) return;
+    await downloadVaultExport(kb.id, `${slugify(kb.name, "vault")}-export.zip`);
+  }
+
   async function createNote(title = "Untitled") {
     if (!kb) return;
     await flushPending();
@@ -389,6 +395,12 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                   +
                 </button>
               </div>
+              <button
+                onClick={exportVault}
+                className="mt-1 block w-full rounded px-2 py-1.5 text-left text-sm text-ink-muted hover:bg-surface-2"
+              >
+                Export vault…
+              </button>
             </div>
           )}
         </div>
