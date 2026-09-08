@@ -27,3 +27,23 @@
 body {
   @apply bg-bg text-ink font-body;
 }
+
+/* Both Obsidian and Logseq are commonly run dark — same tokens, dark values,
+   so every background and text utility repaints with zero markup changes. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #12160f;
+    --color-surface: #1b2117;
+    --color-surface-2: #20271b;
+    --color-ink: #e8eadc;
+    --color-ink-muted: #a7af98;
+    --color-ink-faint: #6e7763;
+    --color-line: #333b2a;
+    --color-line-soft: #262d1f;
+    --color-accent: #6fbf9e;
+    --color-accent-ink: #bfe9d7;
+    --color-accent-soft: #22332a;
+    --color-accent-2: #cb9c55;
+    --color-accent-2-soft: #332a18;
+  }
+}
