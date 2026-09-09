@@ -235,15 +235,26 @@ export default function NoteScreen() {
         style={[styles.titleInput, { color: colors.ink }]}
       />
 
-      <TextInput
-        value={content}
-        onChangeText={onContentChange}
-        placeholder="Start writing… use [[Note Title]] to link."
-        placeholderTextColor={colors.inkFaint}
-        multiline
-        textAlignVertical="top"
-        style={[styles.contentInput, { color: colors.ink }]}
-      />
+      <View style={styles.contentWrap}>
+        <TextInput
+          value={content}
+          onChangeText={onContentChange}
+          placeholder="Start writing… use [[Note Title]] to link."
+          placeholderTextColor={colors.inkFaint}
+          multiline
+          textAlignVertical="top"
+          style={[styles.contentInput, { color: colors.ink }]}
+        />
+        <Pressable
+          onPress={toggleDictation}
+          style={[
+            styles.micButton,
+            { borderColor: dictating ? colors.accent : colors.line, backgroundColor: dictating ? colors.accentSoft : colors.surface },
+          ]}
+        >
+          <Text style={{ fontSize: 14 }}>{dictating ? "⏹" : "🎤"}</Text>
+        </Pressable>
+      </View>
 
       <View style={styles.actionRow}>
         {Platform.OS !== "web" && (
@@ -259,12 +270,6 @@ export default function NoteScreen() {
           style={[styles.actionButton, { borderColor: recording ? colors.accent2 : colors.line, backgroundColor: recording ? colors.accent2Soft : "transparent" }]}
         >
           <Text style={{ color: recording ? colors.accent2 : colors.inkMuted, fontSize: 13 }}>{recording ? "⏹ Stop" : "🎙 Voice note"}</Text>
-        </Pressable>
-        <Pressable
-          onPress={toggleDictation}
-          style={[styles.actionButton, { borderColor: dictating ? colors.accent : colors.line, backgroundColor: dictating ? colors.accentSoft : "transparent" }]}
-        >
-          <Text style={{ color: dictating ? colors.accentInk : colors.inkMuted, fontSize: 13 }}>{dictating ? "⏹ Stop dictation" : "🎤 Dictate"}</Text>
         </Pressable>
       </View>
       {attachmentError && <Text style={{ color: "#c0392b", fontSize: 12, marginTop: 6 }}>{attachmentError}</Text>}
@@ -332,7 +337,19 @@ const styles = StyleSheet.create({
   typeRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", flexShrink: 1 },
   typePill: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3 },
   titleInput: { fontSize: 26, fontWeight: "700", marginBottom: 12, padding: 0 },
-  contentInput: { fontSize: 16, lineHeight: 24, minHeight: 200, padding: 0 },
+  contentWrap: { position: "relative" },
+  contentInput: { fontSize: 16, lineHeight: 24, minHeight: 200, padding: 0, paddingRight: 36 },
+  micButton: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 },
   actionButton: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
   photoRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 },
