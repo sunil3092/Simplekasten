@@ -1,7 +1,7 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@vaultvista/api";
-import { useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "@/lib/auth-context";
 import { getRefreshToken } from "@/lib/session";
@@ -39,14 +39,20 @@ export default function VaultScreen() {
     setTags(tagList);
   }, []);
 
-  useEffect(() => {
-    // This screen only ever mounts once authenticated (see index.tsx), but
-    // an in-flight load can still outlive a race with a force-logout — a
-    // swallowed error here is preferable to an unhandled rejection reaching
-    // the dev error overlay for something the user already navigated away from.
-    load(activeTag).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTag]);
+  // A plain effect only fires on mount/dep-change, not when navigating back
+  // here from a pushed note screen — the stack keeps this screen mounted the
+  // whole time, so a bare useEffect would leave a note you just created
+  // missing from the list until some other state change happened to
+  // refetch it. useFocusEffect re-runs every time this screen regains focus,
+  // covering that return-from-detail case as well as the initial mount.
+  useFocusEffect(
+    useCallback(() => {
+      // An in-flight load can still outlive a race with a force-logout — a
+      // swallowed error here is preferable to an unhandled rejection
+      // reaching the dev error overlay for something already navigated away from.
+      load(activeTag).catch(() => {});
+    }, [activeTag, load]),
+  );
 
   async function onRefresh() {
     setRefreshing(true);
