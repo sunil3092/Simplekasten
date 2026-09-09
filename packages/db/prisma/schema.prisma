@@ -2,7 +2,7 @@
 // Scoped to the Must-Have loop from IMPLEMENTATION_PLAN.md §2: accounts, knowledge
 // bases, notes, links, tags, and session refresh (needed the moment a 15-minute
 // access token can otherwise strand a user mid-session). Still deferred: OAuthAccount,
-// Subscription, KnowledgeBaseMember, NoteRevision, Attachment, ReviewQueue — none of
+// Subscription, KnowledgeBaseMember, NoteRevision, ReviewQueue — none of
 // them block getting notes + links + the desktop shell working end to end.
 
 generator client {
@@ -95,10 +95,35 @@ model Note {
   tags        NoteTag[]
   outboundLinks Link[] @relation("SourceNote")
   inboundLinks  Link[] @relation("TargetNote")
+  attachments   Attachment[]
 
   @@unique([kbId, zettelId])
   @@index([kbId])
   @@map("notes")
+}
+
+enum AttachmentKind {
+  photo
+  voice
+}
+
+// The file itself lives on local disk under apps/api's uploads directory
+// (see export.ts's sibling attachments.ts), not S3/R2 as the plan calls for
+// long-term — an MVP stand-in, same spirit as using Postgres tsvector instead
+// of a dedicated search service. Swapping in real object storage later only
+// touches attachments.ts; this row shape (id, mimeType, size) doesn't change.
+model Attachment {
+  id        String         @id @default(cuid())
+  noteId    String
+  note      Note           @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  kind      AttachmentKind
+  filename  String
+  mimeType  String
+  size      Int
+  createdAt DateTime       @default(now())
+
+  @@index([noteId])
+  @@map("attachments")
 }
 
 // A Link can exist before its target note does — writing [[Atomicity]] before that

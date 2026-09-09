@@ -63,6 +63,10 @@ export const noteRouter = router({
           where: { resolved: true },
           include: { sourceNote: { select: { id: true, title: true, zettelId: true } } },
         },
+        attachments: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, kind: true, mimeType: true, size: true, createdAt: true },
+        },
       },
     });
     if (!note) throw new TRPCError({ code: "NOT_FOUND" });

@@ -1,8 +1,14 @@
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@vaultvista/api";
+import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder } from "expo-audio";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { PhotoThumbnail } from "@/components/PhotoThumbnail";
+import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
+import { uploadAttachment } from "@/lib/attachments";
 import { trpc } from "@/lib/trpc";
 import { useThemeColors } from "@/theme";
 
@@ -27,7 +33,13 @@ export default function NoteScreen() {
   const [content, setContent] = useState("");
   const [type, setType] = useState<NoteType>("fleeting");
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [dictating, setDictating] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dictationBaseRef = useRef("");
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   useEffect(() => {
     trpc.note.getById.query({ id }).then((detail) => {
@@ -43,14 +55,38 @@ export default function NoteScreen() {
     navigation.setOptions({ title: title || "Untitled" });
   }, [navigation, title]);
 
+  // Live partial and final transcripts both arrive as "result" events;
+  // dictationBaseRef holds whatever was already in the content field so a
+  // second dictation pass appends rather than replacing it.
+  useSpeechRecognitionEvent("result", (event) => {
+    const transcript = event.results[0]?.transcript ?? "";
+    const base = dictationBaseRef.current;
+    const next = base ? `${base} ${transcript}` : transcript;
+    setContent(next);
+    scheduleSave({ title, content: next, type });
+  });
+  useSpeechRecognitionEvent("end", () => setDictating(false));
+  // The module can fail asynchronously after start() already returned
+  // successfully (e.g. no network reaching the recognition service, or no
+  // real microphone) — surfacing the reason here is what turns that into a
+  // legible state instead of the dictate button silently flipping back off.
+  useSpeechRecognitionEvent("error", (event) => {
+    setDictating(false);
+    setAttachmentError(`Speech recognition stopped: ${event.message || event.error}`);
+  });
+
+  async function refreshNote() {
+    const fresh = await trpc.note.getById.query({ id });
+    setNote(fresh);
+  }
+
   function scheduleSave(next: { title: string; content: string; type: NoteType }) {
     setStatus("idle");
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       setStatus("saving");
       await trpc.note.update.mutate({ id, ...next });
-      const fresh = await trpc.note.getById.query({ id });
-      setNote(fresh);
+      await refreshNote();
       setStatus("saved");
     }, 600);
   }
@@ -70,7 +106,101 @@ export default function NoteScreen() {
     scheduleSave({ title, content, type: value });
   }
 
+  async function pickAndUploadPhoto(source: "camera" | "library") {
+    setAttachmentError(null);
+    try {
+      const permission =
+        source === "camera"
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setAttachmentError("Permission was denied.");
+        return;
+      }
+
+      const result =
+        source === "camera"
+          ? await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.7 })
+          : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7 });
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      setUploadingPhoto(true);
+      await uploadAttachment(id, {
+        uri: asset.uri,
+        name: asset.fileName ?? `photo-${Date.now()}.jpg`,
+        mimeType: asset.mimeType ?? "image/jpeg",
+      });
+      await refreshNote();
+    } catch {
+      // The camera in particular has no meaningful implementation in a
+      // desktop browser — fail into an inline message rather than a crash.
+      setAttachmentError(source === "camera" ? "Camera isn't available here — try Photo library." : "Couldn't attach that photo.");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
+  async function removeAttachment(attachmentId: string) {
+    await trpc.attachment.delete.mutate({ id: attachmentId });
+    await refreshNote();
+  }
+
+  async function toggleRecording() {
+    setAttachmentError(null);
+    if (recording) {
+      await recorder.stop();
+      setRecording(false);
+      if (recorder.uri) {
+        try {
+          await uploadAttachment(id, { uri: recorder.uri, name: `voice-${Date.now()}.m4a`, mimeType: "audio/m4a" });
+          await refreshNote();
+        } catch {
+          setAttachmentError("Couldn't save that voice note.");
+        }
+      }
+      return;
+    }
+
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
+        setAttachmentError("Microphone permission was denied.");
+        return;
+      }
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecording(true);
+    } catch {
+      setAttachmentError("Couldn't start recording.");
+    }
+  }
+
+  async function toggleDictation() {
+    setAttachmentError(null);
+    if (dictating) {
+      ExpoSpeechRecognitionModule.stop();
+      return;
+    }
+    try {
+      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permission.granted) {
+        setAttachmentError("Speech recognition permission was denied.");
+        return;
+      }
+      dictationBaseRef.current = content;
+      setDictating(true);
+      ExpoSpeechRecognitionModule.start({ lang: "en-US", interimResults: true, continuous: true });
+    } catch {
+      setDictating(false);
+      setAttachmentError("Speech recognition isn't available here.");
+    }
+  }
+
   if (!note) return null;
+
+  const photos = note.attachments.filter((a) => a.kind === "photo");
+  const voiceNotes = note.attachments.filter((a) => a.kind === "voice");
 
   return (
     <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={styles.container}>
@@ -114,6 +244,45 @@ export default function NoteScreen() {
         textAlignVertical="top"
         style={[styles.contentInput, { color: colors.ink }]}
       />
+
+      <View style={styles.actionRow}>
+        {Platform.OS !== "web" && (
+          <Pressable onPress={() => pickAndUploadPhoto("camera")} disabled={uploadingPhoto} style={[styles.actionButton, { borderColor: colors.line }]}>
+            <Text style={{ color: colors.inkMuted, fontSize: 13 }}>📷 Camera</Text>
+          </Pressable>
+        )}
+        <Pressable onPress={() => pickAndUploadPhoto("library")} disabled={uploadingPhoto} style={[styles.actionButton, { borderColor: colors.line }]}>
+          <Text style={{ color: colors.inkMuted, fontSize: 13 }}>🖼 Photo</Text>
+        </Pressable>
+        <Pressable
+          onPress={toggleRecording}
+          style={[styles.actionButton, { borderColor: recording ? colors.accent2 : colors.line, backgroundColor: recording ? colors.accent2Soft : "transparent" }]}
+        >
+          <Text style={{ color: recording ? colors.accent2 : colors.inkMuted, fontSize: 13 }}>{recording ? "⏹ Stop" : "🎙 Voice note"}</Text>
+        </Pressable>
+        <Pressable
+          onPress={toggleDictation}
+          style={[styles.actionButton, { borderColor: dictating ? colors.accent : colors.line, backgroundColor: dictating ? colors.accentSoft : "transparent" }]}
+        >
+          <Text style={{ color: dictating ? colors.accentInk : colors.inkMuted, fontSize: 13 }}>{dictating ? "⏹ Stop dictation" : "🎤 Dictate"}</Text>
+        </Pressable>
+      </View>
+      {attachmentError && <Text style={{ color: "#c0392b", fontSize: 12, marginTop: 6 }}>{attachmentError}</Text>}
+
+      {photos.length > 0 && (
+        <View style={styles.photoRow}>
+          {photos.map((a) => (
+            <PhotoThumbnail key={a.id} id={a.id} onRemove={() => removeAttachment(a.id)} />
+          ))}
+        </View>
+      )}
+      {voiceNotes.length > 0 && (
+        <View style={styles.voiceList}>
+          {voiceNotes.map((a) => (
+            <VoiceNotePlayer key={a.id} id={a.id} onRemove={() => removeAttachment(a.id)} />
+          ))}
+        </View>
+      )}
 
       {note.tagNames.length > 0 && (
         <View style={styles.tagRow}>
@@ -164,6 +333,10 @@ const styles = StyleSheet.create({
   typePill: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3 },
   titleInput: { fontSize: 26, fontWeight: "700", marginBottom: 12, padding: 0 },
   contentInput: { fontSize: 16, lineHeight: 24, minHeight: 200, padding: 0 },
+  actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 },
+  actionButton: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
+  photoRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 },
+  voiceList: { gap: 8, marginTop: 14 },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 16 },
   tagChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   section: { marginTop: 24 },
