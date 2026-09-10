@@ -1,0 +1,49 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import "tailwindcss";
+
+/* Design tokens from IMPLEMENTATION_PLAN.md §3 — the same "library card
+   catalog" palette used across the planning artifacts, now applied to the
+   real app rather than a mockup. */
+@theme {
+  --color-bg: #e9ebe1;
+  --color-surface: #fbfbf6;
+  --color-surface-2: #f2f3eb;
+  --color-ink: #1e2a20;
+  --color-ink-muted: #57614f;
+  --color-ink-faint: #8b9481;
+  --color-line: #c8ccb8;
+  --color-line-soft: #dbdecb;
+  --color-accent: #2e6f5a;
+  --color-accent-ink: #1d4a3c;
+  --color-accent-soft: #dce8dd;
+  --color-accent-2: #93602a;
+  --color-accent-2-soft: #ede0cb;
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-body: "Newsreader", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+body {
+  @apply bg-bg text-ink font-body;
+}
+
+/* Both Obsidian and Logseq are commonly run dark — same tokens, dark values,
+   so every background and text utility repaints with zero markup changes. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #12160f;
+    --color-surface: #1b2117;
+    --color-surface-2: #20271b;
+    --color-ink: #e8eadc;
+    --color-ink-muted: #a7af98;
+    --color-ink-faint: #6e7763;
+    --color-line: #333b2a;
+    --color-line-soft: #262d1f;
+    --color-accent: #6fbf9e;
+    --color-accent-ink: #bfe9d7;
+    --color-accent-soft: #22332a;
+    --color-accent-2: #cb9c55;
+    --color-accent-2-soft: #332a18;
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "VaultVista",
+    "slug": "vaultvista",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "vaultvista",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/expo.icon",
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#fbfbf6",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "VaultVista needs access to your photos to attach one to a note.",
+          "cameraPermission": "VaultVista needs access to your camera to attach a photo to a note.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "VaultVista needs access to your microphone to record a voice note."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "VaultVista needs access to your microphone to dictate a note.",
+          "speechRecognitionPermission": "VaultVista needs speech recognition to turn what you say into note text."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

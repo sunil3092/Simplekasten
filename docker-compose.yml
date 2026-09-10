@@ -1,0 +1,14 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vaultvista
+      POSTGRES_PASSWORD: vaultvista
+      POSTGRES_DB: vaultvista
+    ports:
+      - "5432:5432"
+    volumes:
+      - vaultvista_pg:/var/lib/postgresql/data
+
+volumes:
+  vaultvista_pg:
