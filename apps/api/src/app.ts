@@ -1,8 +1,11 @@
+import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import cors from "cors";
 import express, { type Express, Response, NextFunction } from "express";
 import { registerAttachmentRoutes } from "./attachments";
+import { createContext } from "./context";
 import { registerExportRoute } from "./export";
 import { handleError } from "./errors";
+import { appRouter } from "./router";
 import authRoutes from "./routes/auth";
 import notesRoutes from "./routes/notes";
 import tagsRoutes from "./routes/tags";
@@ -15,7 +18,8 @@ export function createApp(): Express {
   const app = express();
 
   // Wide open for local dev across web/desktop/mobile clients; tighten to
-  // known origins (the deployed web app, tauri://localhost) before shipping.
+  // known origins (the deployed web app, the Electron file:// origin) before
+  // shipping.
   app.use(cors());
 
   // JSON body parser
@@ -34,6 +38,17 @@ export function createApp(): Express {
   // Keep existing routes for backward compatibility during migration
   registerExportRoute(app);
   registerAttachmentRoutes(app);
+
+  // The web app still speaks tRPC exclusively (see apps/web/src/lib/trpc.ts)
+  // — the REST routes above are additive, not yet a replacement — so this
+  // stays mounted until the frontend is migrated off it.
+  app.use(
+    "/trpc",
+    createExpressMiddleware({
+      router: appRouter,
+      createContext,
+    }),
+  );
 
   // Error handling middleware (must be last)
   app.use(

@@ -45,11 +45,11 @@
 | API service | Standalone Express app hosting a tRPC router | Decouples the API from the web app's release cycle so desktop/mobile clients depend on a stable, independently deployable service; tRPC still gives end-to-end typed calls from every first-party TypeScript client. |
 | ORM | Prisma | Typed schema migrations for the Notes/Links/Tags relations; schema doubles as documentation. |
 | Database | PostgreSQL | Foreign keys enforce link integrity; native full-text search (`tsvector`) and `pgvector` cover MVP search and future AI embeddings in one store. |
-| Auth | Auth.js, JWT bearer tokens | Drop-in OAuth (Google/GitHub) plus email login; JWT (not cookie sessions) so Tauri and React Native clients authenticate the same way as the browser, storing the token in the OS keychain. |
+| Auth | Auth.js, JWT bearer tokens | Drop-in OAuth (Google/GitHub) plus email login; JWT (not cookie sessions) so Electron and React Native clients authenticate the same way as the browser, storing the token in the OS keychain. |
 | File storage | S3-compatible (Supabase Storage / R2) | Attachments and clipped images live outside the database, referenced by URL; S3-compatible so the provider can be swapped freely. |
 | Hosting | Any Docker-capable host (Render, Fly.io, Railway, or a VPS) + Neon/Supabase Postgres | Both the web app and the API service ship as plain Docker images — no PaaS-specific APIs — so hosting is a config change, not a rewrite. |
-| Desktop | Tauri, wrapping the web frontend | Native shell, ~96% smaller and ~75% lower idle memory than Electron; matches the local-file, offline-first expectations of the Zettelkasten audience once built. |
-| Mobile (later) | React Native (Expo), separate app | True native UI (Tauri's mobile target is still a webview under the hood); shares a common TypeScript core package with web/desktop for API calls and business logic, but owns its own UI, including the editor via Expo DOM Components rather than a from-scratch native rewrite. |
+| Desktop | Electron, wrapping the web frontend | Same static Next.js export as web, loaded in a native window; pure JS/npm toolchain (no Rust) at the cost of a larger, heavier binary than a Rust-based shell would give. |
+| Mobile (later) | React Native (Expo), separate app | True native UI; shares a common TypeScript core package with web/desktop for API calls and business logic, but owns its own UI, including the editor via Expo DOM Components rather than a from-scratch native rewrite. |
 
 ## 4. High-Level Architecture
 
@@ -57,7 +57,7 @@ No client talks to the database directly. Web, and later desktop and mobile, all
 
 ```
 Web (Next.js)  ---\
-Desktop (Tauri, wraps the web frontend)  ----> Express API (tRPC + Prisma)  <-- writes / query results -->  PostgreSQL
+Desktop (Electron, wraps the web frontend)  ----> Express API (tRPC + Prisma)  <-- writes / query results -->  PostgreSQL
 Mobile (React Native, later)  -----------/            |
                                 +-----------------------+-----------------------+
                                 |              |                |               |
@@ -65,7 +65,7 @@ Mobile (React Native, later)  -----------/            |
                         (OAuth/JWT)   (S3-compatible)       (Resend)   (link suggestions, embeddings)
 ```
 
-Every client authenticates with a JWT bearer token (not a browser cookie), stored in the OS keychain on Tauri/React Native — the same mechanism the web app uses, so adding a client is a config change, not a backend rewrite. The API service and the web app deploy as separate Docker images, each independently on Render/Fly.io/Railway/a VPS, so releasing one never requires redeploying the other.
+Every client authenticates with a JWT bearer token (not a browser cookie), stored in the OS keychain on Electron/React Native — the same mechanism the web app uses, so adding a client is a config change, not a backend rewrite. The API service and the web app deploy as separate Docker images, each independently on Render/Fly.io/Railway/a VPS, so releasing one never requires redeploying the other.
 
 **Third-party services:**
 - Auth provider (Google/GitHub via Auth.js)
@@ -100,7 +100,7 @@ Every client authenticates with a JWT bearer token (not a browser cookie), store
 | 4 — Search & retrieval | Weeks 9–10 | Full-text search, filters, ⌘K quick-switcher | Medium | Medium |
 | 5 — Import / export | Week 11 | Markdown vault export, Obsidian-vault import | Medium | Medium — parsing edge cases |
 | 6 — Polish, onboarding & beta | Weeks 12–13 | Starter-vault templates, empty states, performance pass, closed beta | High | Medium |
-| 7 — AI linking, spaced review, offline (post-MVP) | Ongoing | Embedding-based link suggestions, resurfacing queue, Tauri desktop shell | Low–Medium | High |
+| 7 — AI linking, spaced review, offline (post-MVP) | Ongoing | Embedding-based link suggestions, resurfacing queue, Electron desktop shell | Low–Medium | High |
 
 Estimated MVP timeline: **10–13 weeks** for a team of one to three developers.
 
@@ -113,7 +113,7 @@ Estimated MVP timeline: **10–13 weeks** for a team of one to three developers.
 *Mitigation:* Store note content as `pgvector` embeddings from day one so a "related notes" and orphan-detection job can run even before the AI-suggestion feature ships; flag orphans in a weekly digest.
 
 **3. Local-first expectations vs. a web-first MVP.** The Zettelkasten audience (ex-Obsidian, ex-Logseq users) strongly expects local markdown files and offline access, which a hosted web app can't promise on day one.
-*Mitigation:* Treat raw markdown as the canonical stored format (never a proprietary block format) so a future Tauri desktop mode or file-sync layer needs no data migration; ship one-click full-vault export from week one.
+*Mitigation:* Treat raw markdown as the canonical stored format (never a proprietary block format) so a future Electron desktop mode or file-sync layer needs no data migration; ship one-click full-vault export from week one.
 
 ---
 

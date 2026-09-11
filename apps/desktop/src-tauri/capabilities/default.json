@@ -1,7 +1,0 @@
-{
-  "$schema": "https://schema.tauri.app/config/2",
-  "identifier": "default",
-  "description": "Capabilities for the main window. Kept to Tauri's core defaults — this build has no filesystem or shell access yet because every data operation goes over the network to the Express API, not the local disk.",
-  "windows": ["main"],
-  "permissions": ["core:default"]
-}

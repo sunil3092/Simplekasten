@@ -15,12 +15,12 @@ simplekasten/
 │   └── worker/    Background jobs (BullMQ) — digests, embeddings, review scheduling
 ├── packages/
 │   ├── core/      Zod schemas, tRPC router types, auth/token logic — shared by
-│   │              web today, and by Tauri + React Native once they exist
+│   │              web today, and by Electron + React Native once they exist
 │   ├── db/        Prisma schema, migrations, generated client
 │   └── ui/        Shared React components consumed by apps/web
 ```
 
-**Request flow:** Web / Desktop (Tauri) / Mobile (React Native, later) → HTTPS + JWT → Express API (tRPC + Prisma + JWT auth) → PostgreSQL. The API also enqueues background work onto Redis, processed by a separate Worker process (digests, embeddings, spaced-review scheduling), and calls out to Auth.js, object storage, email, and — later — an AI API. Each of `apps/web` and `apps/api` ships as its own Docker image, deployable independently to Render/Fly.io/Railway/a VPS.
+**Request flow:** Web / Desktop (Electron) / Mobile (React Native, later) → HTTPS + JWT → Express API (tRPC + Prisma + JWT auth) → PostgreSQL. The API also enqueues background work onto Redis, processed by a separate Worker process (digests, embeddings, spaced-review scheduling), and calls out to Auth.js, object storage, email, and — later — an AI API. Each of `apps/web` and `apps/api` ships as its own Docker image, deployable independently to Render/Fly.io/Railway/a VPS.
 
 **Creating a note — the actual call path:**
 1. Client calls `trpc.note.create.mutate({ kbId, title, content })`
@@ -30,7 +30,7 @@ simplekasten/
 5. Prisma writes the `Note` row; a link parser scans the content for `[[wiki-links]]` and upserts resolved/unresolved `Link` rows
 6. The typed `Note` object returns to the client; React Query (which tRPC sits on) updates the UI optimistically
 
-**Multi-client auth:** Login issues a short-lived JWT access token plus a longer-lived refresh token. The web app stores the refresh token in an httpOnly cookie; Tauri and React Native store it in the OS keychain. A `RefreshToken` row per device means Settings can list "MacBook — Tauri," "iPhone — RN app," and let a user revoke one without logging out everywhere.
+**Multi-client auth:** Login issues a short-lived JWT access token plus a longer-lived refresh token. The web app stores the refresh token in an httpOnly cookie; Electron and React Native store it in the OS keychain. A `RefreshToken` row per device means Settings can list "MacBook — Electron," "iPhone — RN app," and let a user revoke one without logging out everywhere.
 
 ## 2. Schema per Feature
 

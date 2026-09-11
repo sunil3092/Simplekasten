@@ -1,4 +1,4 @@
-# Simplekasten Desktop (Tauri)
+# Simplekasten Desktop (Electron)
 
 Wraps the exact same static export of `apps/web` in a native shell — see
 `IMPLEMENTATION_PLAN.md` §1 for why the frontend has no server-only Next.js
@@ -6,30 +6,25 @@ features, which is what makes this possible without a second UI.
 
 ## First-time setup
 
-1. Generate real app icons (a 1024×1024 PNG is enough — Tauri derives every size):
-   ```
-   pnpm --filter @simplekasten/desktop tauri icon path/to/logo.png
-   ```
-   `tauri.conf.json` already points at the paths this command writes to.
-2. Copy `apps/api/.env.example` to `.env` and point `NEXT_PUBLIC_API_URL`
-   (in `apps/web/.env`) at a running API instance.
+Copy `apps/api/.env.example` to `.env` and point `NEXT_PUBLIC_API_URL`
+(in `apps/web/.env`) at a running API instance.
 
 ## Run
 
 ```
-pnpm --filter @simplekasten/desktop dev
+npm run dev -w @simplekasten/desktop
 ```
 
-This starts the Next.js dev server (`beforeDevCommand` in `tauri.conf.json`)
-and opens it in a native window. Requires a display — this won't render
-anything over a headless remote session; `cargo check` in `src-tauri/` is
-the way to verify the Rust side compiles without a GUI.
+This starts the Next.js dev server on `localhost:3000` and opens it in a
+native Electron window once the dev server is ready. Requires a display —
+this won't render anything over a headless remote session.
 
 ## Build
 
 ```
-pnpm --filter @simplekasten/desktop build
+npm run build -w @simplekasten/desktop
 ```
 
-Produces a platform-native installer (dmg/msi/AppImage/deb depending on the
-host OS) in `src-tauri/target/release/bundle/`.
+Builds the static Next.js export, copies it into `renderer/`, and runs
+electron-builder to produce a platform-native installer (dmg/nsis/AppImage
+depending on the host OS) in `release/`.

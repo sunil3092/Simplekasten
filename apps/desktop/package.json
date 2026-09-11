@@ -2,14 +2,41 @@
   "name": "@simplekasten/desktop",
   "version": "0.1.0",
   "private": true,
+  "main": "main.js",
   "scripts": {
-    "dev": "tauri dev",
-    "build": "tauri build"
+    "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:electron\"",
+    "dev:web": "npm run dev -w @simplekasten/web",
+    "dev:electron": "wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
+    "build:web": "npm run build -w @simplekasten/web",
+    "copy:web": "node scripts/copy-web.js",
+    "build": "npm run build:web && npm run copy:web && electron-builder"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.1.1"
+    "@simplekasten/local-engine": "*"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.1.0"
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
+    "tsx": "^4.19.2",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.simplekasten.app",
+    "productName": "Simplekasten",
+    "files": ["main.js", "preload.js", "renderer/**/*"],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "icon": "icons/icon.icns"
+    },
+    "win": {
+      "icon": "icons/icon.ico"
+    },
+    "linux": {
+      "icon": "icons/icon.png"
+    }
   }
 }
