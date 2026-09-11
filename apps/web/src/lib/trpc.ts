@@ -1,10 +1,11 @@
 import { createTRPCClient, httpBatchLink, httpLink, TRPCClientError } from "@trpc/client";
 import type { AppRouter } from "@simplekasten/api";
+import { isLocalMode, localDownloadVaultExport, localTrpc } from "./localVaultClient";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./session";
 
 // Same client shape for every platform: web reads this from an env var baked
-// in at build time, Tauri and React Native will point it at the same deployed
-// API — none of them ever talk to a database directly.
+// in at build time, Electron and React Native will point it at the same
+// deployed API — none of them ever talk to a database directly.
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 /** Dispatched when a refresh attempt fails — nothing short of logging in again fixes that. */
@@ -58,7 +59,7 @@ async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<
 // The export endpoint streams a zip, which doesn't fit tRPC's JSON request/
 // response shape, so it's a plain authenticated fetch (still routed through
 // authFetch for the same transparent 401-refresh-and-retry as every tRPC call).
-export async function downloadVaultExport(kbId: string, filename: string): Promise<void> {
+async function remoteDownloadVaultExport(kbId: string, filename: string): Promise<void> {
   const token = getAccessToken();
   const response = await authFetch(`${API_URL}/export/${kbId}`, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
@@ -74,7 +75,11 @@ export async function downloadVaultExport(kbId: string, filename: string): Promi
   URL.revokeObjectURL(url);
 }
 
-export const trpc = createTRPCClient<AppRouter>({
+export const downloadVaultExport: (kbId: string, filename: string) => Promise<void> = isLocalMode()
+  ? localDownloadVaultExport
+  : remoteDownloadVaultExport;
+
+const remoteTrpc = createTRPCClient<AppRouter>({
   links: [
     httpBatchLink({
       url: `${API_URL}/trpc`,
@@ -86,5 +91,11 @@ export const trpc = createTRPCClient<AppRouter>({
     }),
   ],
 });
+
+// Running inside the Electron desktop shell (window.simplekasten present, see
+// apps/desktop/preload.js) swaps every call in this module for a local
+// filesystem operation instead of a network request — no API, no login. See
+// apps/web/src/lib/localVaultClient.ts.
+export const trpc: typeof remoteTrpc = isLocalMode() ? localTrpc : remoteTrpc;
 
 export { TRPCClientError };

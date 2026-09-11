@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { GraphView } from "../components/GraphView";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
+import { isLocalMode } from "../lib/localVaultClient";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../lib/session";
 import { downloadVaultExport, FORCE_LOGOUT_EVENT, trpc } from "../lib/trpc";
 
@@ -25,11 +26,28 @@ const TYPE_STYLES: Record<NoteType, string> = {
 };
 
 export default function Home() {
+  // Both the static-export prerender and the client's first hydration pass
+  // must render the same thing (false/false here) — window.simplekasten
+  // only exists once the page has actually loaded in Electron, so checking
+  // it can't happen in a useState initializer or in the render body itself
+  // without the client's first paint disagreeing with the prerendered HTML
+  // (a hydration mismatch). Detecting it only inside an effect, and letting
+  // that trigger a normal post-hydration re-render, is what avoids that.
+  const [localMode, setLocalMode] = useState(false);
   const [authed, setAuthed] = useState(false);
-  useEffect(() => setAuthed(Boolean(getAccessToken())), []);
+
+  useEffect(() => {
+    if (isLocalMode()) {
+      setLocalMode(true);
+      setAuthed(true);
+    } else {
+      setAuthed(Boolean(getAccessToken()));
+    }
+  }, []);
 
   // Fired when a 401 survives a refresh attempt — no access or refresh token
   // is going to work, so the only honest move is back to the login screen.
+  // Never fires in local mode (no network calls to 401 in the first place).
   useEffect(() => {
     function onForceLogout() {
       setAuthed(false);
@@ -45,6 +63,7 @@ export default function Home() {
     if (refreshToken) trpc.auth.logout.mutate({ refreshToken }).catch(() => {});
   }
 
+  if (localMode) return <Vault onLogout={handleLogout} />;
   return authed ? <Vault onLogout={handleLogout} /> : <Auth onAuthed={() => setAuthed(true)} />;
 }
 

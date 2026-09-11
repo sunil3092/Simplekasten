@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const noteTypeSchema = z.enum(["fleeting", "literature", "permanent", "structure"]);
+export type NoteType = z.infer<typeof noteTypeSchema>;
 
 export const createNoteInput = z.object({
   kbId: z.string().min(1),
