@@ -1,5 +1,5 @@
 {
-  "name": "@vaultvista/core",
+  "name": "@simplekasten/core",
   "version": "0.1.0",
   "private": true,
   "main": "src/index.ts",

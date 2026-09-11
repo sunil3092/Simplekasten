@@ -1,5 +1,5 @@
-import { extractHashtags, extractWikiLinkTitles } from "@vaultvista/core";
-import { prisma } from "@vaultvista/db";
+import { extractHashtags, extractWikiLinkTitles } from "@simplekasten/core";
+import { prisma } from "@simplekasten/db";
 
 /** Next zettel ID for a new top-level note in this knowledge base — "1", "2", ... */
 export async function nextZettelId(kbId: string): Promise<string> {

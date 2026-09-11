@@ -1,5 +1,5 @@
 {
-  "name": "@vaultvista/e2e",
+  "name": "@simplekasten/e2e",
   "version": "0.1.0",
   "private": true,
   "scripts": {

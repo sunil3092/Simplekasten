@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import fs from "node:fs";
-import { prisma } from "@vaultvista/db";
+import { prisma } from "@simplekasten/db";
 import { attachmentFilePath } from "../attachments";
 import { authMiddleware, asyncHandler, AuthRequest } from "../middleware";
 import { Errors } from "../errors";

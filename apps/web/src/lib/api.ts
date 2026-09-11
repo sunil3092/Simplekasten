@@ -9,7 +9,7 @@ export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 /** Dispatched when a refresh attempt fails — nothing short of logging in again fixes that. */
-export const FORCE_LOGOUT_EVENT = "vaultvista:force-logout";
+export const FORCE_LOGOUT_EVENT = "simplekasten:force-logout";
 
 let refreshPromise: Promise<string | null> | null = null;
 

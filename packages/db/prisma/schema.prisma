@@ -1,4 +1,4 @@
-// VaultVista — MVP schema.
+// Simplekasten — MVP schema.
 // Scoped to the Must-Have loop from IMPLEMENTATION_PLAN.md §2: accounts, knowledge
 // bases, notes, links, tags, and session refresh (needed the moment a 15-minute
 // access token can otherwise strand a user mid-session). Still deferred: OAuthAccount,

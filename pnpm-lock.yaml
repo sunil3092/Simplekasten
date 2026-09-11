@@ -10,15 +10,15 @@ importers:
 
   apps/api:
     dependencies:
+      '@simplekasten/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@simplekasten/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@trpc/server':
         specifier: ^11.0.0
         version: 11.18.0(typescript@5.9.3)
-      '@vaultvista/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@vaultvista/db':
-        specifier: workspace:*
-        version: link:../../packages/db
       archiver:
         specifier: ^7.0.1
         version: 7.0.1
@@ -90,12 +90,12 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@simplekasten/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@trpc/client':
         specifier: ^11.0.0
         version: 11.18.0(@trpc/server@11.18.0(typescript@6.0.3))(typescript@6.0.3)
-      '@vaultvista/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       expo:
         specifier: ~57.0.21
         version: 57.0.21(@babel/core@7.29.7)(@expo/dom-webview@57.0.1)(@expo/metro-runtime@57.0.15)(expo-router@57.0.20)(react-dom@19.2.3(react@19.2.3))(react-native-web@0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native-worklets@0.12.2(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(typescript@6.0.3)
@@ -148,15 +148,15 @@ importers:
         specifier: ~0.21.0
         version: 0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
     devDependencies:
+      '@simplekasten/api':
+        specifier: workspace:*
+        version: link:../api
       '@trpc/server':
         specifier: ^11.0.0
         version: 11.18.0(typescript@6.0.3)
       '@types/react':
         specifier: ~19.2.2
         version: 19.2.18
-      '@vaultvista/api':
-        specifier: workspace:*
-        version: link:../api
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -175,12 +175,12 @@ importers:
       '@codemirror/view':
         specifier: ^6.34.1
         version: 6.43.11
+      '@simplekasten/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@trpc/client':
         specifier: ^11.0.0
         version: 11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3)
-      '@vaultvista/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       codemirror:
         specifier: ^6.0.1
         version: 6.0.2
@@ -197,6 +197,9 @@ importers:
         specifier: ^1.29.1
         version: 1.29.1(react@18.3.1)
     devDependencies:
+      '@simplekasten/api':
+        specifier: workspace:*
+        version: link:../api
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.3
@@ -221,9 +224,6 @@ importers:
       '@types/react-dom':
         specifier: ^18.3.1
         version: 18.3.7(@types/react@18.3.31)
-      '@vaultvista/api':
-        specifier: workspace:*
-        version: link:../api
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1

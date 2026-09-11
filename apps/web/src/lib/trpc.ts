@@ -1,5 +1,5 @@
 import { createTRPCClient, httpBatchLink, httpLink, TRPCClientError } from "@trpc/client";
-import type { AppRouter } from "@vaultvista/api";
+import type { AppRouter } from "@simplekasten/api";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./session";
 
 // Same client shape for every platform: web reads this from an env var baked
@@ -8,7 +8,7 @@ import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./sessi
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
 /** Dispatched when a refresh attempt fails — nothing short of logging in again fixes that. */
-export const FORCE_LOGOUT_EVENT = "vaultvista:force-logout";
+export const FORCE_LOGOUT_EVENT = "simplekasten:force-logout";
 
 // A plain client with no retry wrapper, used only for the refresh call itself
 // — routing it through the main client would recurse into this same logic.

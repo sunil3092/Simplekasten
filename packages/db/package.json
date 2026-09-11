@@ -1,5 +1,5 @@
 {
-  "name": "@vaultvista/db",
+  "name": "@simplekasten/db",
   "version": "0.1.0",
   "private": true,
   "main": "src/index.ts",

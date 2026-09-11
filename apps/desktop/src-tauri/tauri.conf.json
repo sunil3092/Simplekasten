@@ -1,11 +1,11 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "VaultVista",
+  "productName": "Simplekasten",
   "version": "0.1.0",
-  "identifier": "com.vaultvista.app",
+  "identifier": "com.simplekasten.app",
   "build": {
-    "beforeDevCommand": "pnpm --filter @vaultvista/web dev",
-    "beforeBuildCommand": "pnpm --filter @vaultvista/web build",
+    "beforeDevCommand": "pnpm --filter @simplekasten/web dev",
+    "beforeBuildCommand": "pnpm --filter @simplekasten/web build",
     "devUrl": "http://localhost:3000",
     "frontendDist": "../../web/out"
   },
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "VaultVista",
+        "title": "Simplekasten",
         "width": 1200,
         "height": 800,
         "minWidth": 860,

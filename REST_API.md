@@ -1,13 +1,13 @@
-# VaultVista REST API Documentation
+# Simplekasten REST API Documentation
 
 ## Overview
 
-VaultVista has migrated from tRPC to a standard REST API. This document explains the API structure, endpoints, and authentication.
+Simplekasten has migrated from tRPC to a standard REST API. This document explains the API structure, endpoints, and authentication.
 
 **Base URL:**
 
 - Local: `http://localhost:4000`
-- Production: `https://api.vaultvista.com`
+- Production: `https://api.simplekasten.com`
 
 ## Authentication
 
@@ -582,7 +582,7 @@ The full OpenAPI 3.0 specification is available at `apps/api/src/openapi.ts`.
 To view the interactive Swagger UI (when deployed with Swagger UI):
 
 - Local: `http://localhost:4000/docs`
-- Production: `https://api.vaultvista.com/docs`
+- Production: `https://api.simplekasten.com/docs`
 
 ---
 

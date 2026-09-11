@@ -1,6 +1,6 @@
-# VaultVista — Implementation Plan
+# Simplekasten — Implementation Plan
 
-Architecture, per-feature schema, and UI/layout principles for building VaultVista. Companion to `DEVELOPMENT_PLAN.md`.
+Architecture, per-feature schema, and UI/layout principles for building Simplekasten. Companion to `DEVELOPMENT_PLAN.md`.
 
 ## 1. Application Architecture
 
@@ -8,7 +8,7 @@ One Express service is the only thing that touches Postgres. Every client — we
 
 **Monorepo layout:**
 ```
-vaultvista/
+simplekasten/
 ├── apps/
 │   ├── web/       Next.js, output: 'standalone' — the browser client
 │   ├── api/       Express + tRPC — the one backend every client calls
@@ -66,7 +66,7 @@ Steve Krug's *Don't Make Me Think* boils down to one test: a user should never h
 
 **Principles applied, not just quoted:**
 
-| Krug principle | What it means | Applied to VaultVista |
+| Krug principle | What it means | Applied to Simplekasten |
 |---|---|---|
 | Don't make me think | A control's purpose should be obvious at a glance | Note-type badges use plain words — Fleeting / Literature / Permanent — never an unlabeled icon; "+ New note" always sits in the same spot and says exactly that |
 | We scan, we don't read | Users hunt for the next click, not the full sentence | Search results and backlinks lead with a bolded title and highlighted match; the editor body stays plain text with no competing chrome |
@@ -79,7 +79,7 @@ Steve Krug's *Don't Make Me Think* boils down to one test: a user should never h
 
 **Checked against market standard:**
 
-| UI element | In VaultVista | Where users already know it from |
+| UI element | In Simplekasten | Where users already know it from |
 |---|---|---|
 | Persistent left sidebar + vault switcher | ✓ | Notion, Obsidian, Logseq |
 | ⌘K command palette / quick switcher | ✓ | Notion, Obsidian, Roam, Linear |

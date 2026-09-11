@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { prisma } from "@vaultvista/db";
+import { prisma } from "@simplekasten/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { attachmentFilePath } from "../attachments";

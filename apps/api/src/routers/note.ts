@@ -1,5 +1,5 @@
-import { createNoteInput, updateNoteInput } from "@vaultvista/core";
-import { Prisma, prisma } from "@vaultvista/db";
+import { createNoteInput, updateNoteInput } from "@simplekasten/core";
+import { Prisma, prisma } from "@simplekasten/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { nextZettelId, resolveIncomingLinks, syncOutboundLinks, syncTags } from "../links";

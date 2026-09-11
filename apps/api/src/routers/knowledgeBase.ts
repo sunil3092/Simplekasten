@@ -1,5 +1,5 @@
-import { createKnowledgeBaseInput, slugify } from "@vaultvista/core";
-import { prisma } from "@vaultvista/db";
+import { createKnowledgeBaseInput, slugify } from "@simplekasten/core";
+import { prisma } from "@simplekasten/db";
 import { protectedProcedure, router } from "../trpc";
 
 export const knowledgeBaseRouter = router({

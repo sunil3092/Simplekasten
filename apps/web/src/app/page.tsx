@@ -1,8 +1,8 @@
 "use client";
 
 import type { inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "@vaultvista/api";
-import { slugify } from "@vaultvista/core";
+import type { AppRouter } from "@simplekasten/api";
+import { slugify } from "@simplekasten/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { GraphView } from "../components/GraphView";
 import { NoteEditor } from "../components/NoteEditor";
@@ -73,7 +73,7 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
   return (
     <main className="flex min-h-screen items-center justify-center px-6">
       <div className="w-full max-w-sm rounded-lg border border-line bg-surface p-8 shadow-sm">
-        <h1 className="font-display text-2xl font-semibold text-ink">VaultVista</h1>
+        <h1 className="font-display text-2xl font-semibold text-ink">Simplekasten</h1>
         <p className="mt-1 mb-6 text-sm text-ink-muted italic">A slip-box for ideas that link back.</p>
 
         <form onSubmit={submit} className="flex flex-col gap-3">
@@ -144,7 +144,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [graphData, setGraphData] = useState<RouterOutputs["note"]["graph"] | null>(null);
-  // Structure notes are VaultVista's Maps of Content — a curated table of
+  // Structure notes are Simplekasten's Maps of Content — a curated table of
   // contents you link into rather than a folder you file things under.
   // Surfacing them as a standing sidebar section is what makes folder-free
   // navigation actually work: without this, an index note is no different
@@ -363,7 +363,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
               onClick={() => setKbMenuOpen((o) => !o)}
               className="rounded-md border border-line bg-surface px-2.5 py-1 font-mono text-xs text-ink-muted hover:border-accent"
             >
-              {kb?.name ?? "VaultVista"} ▾
+              {kb?.name ?? "Simplekasten"} ▾
             </button>
             <button onClick={onLogout} className="font-mono text-xs text-ink-faint underline underline-offset-2 hover:text-ink-muted">
               Log out

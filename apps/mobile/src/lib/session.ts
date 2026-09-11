@@ -30,8 +30,8 @@ async function deleteItem(key: string): Promise<void> {
   await SecureStore.deleteItemAsync(key);
 }
 
-const ACCESS_TOKEN_KEY = "vaultvista_access_token";
-const REFRESH_TOKEN_KEY = "vaultvista_refresh_token";
+const ACCESS_TOKEN_KEY = "simplekasten_access_token";
+const REFRESH_TOKEN_KEY = "simplekasten_refresh_token";
 
 export function getAccessToken(): Promise<string | null> {
   return getItem(ACCESS_TOKEN_KEY);

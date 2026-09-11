@@ -1,5 +1,5 @@
 import type { inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "@vaultvista/api";
+import type { AppRouter } from "@simplekasten/api";
 import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder } from "expo-audio";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";

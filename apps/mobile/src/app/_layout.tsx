@@ -39,7 +39,7 @@ function RootLayoutNav() {
     >
       <Stack.Screen name="login" options={{ title: "Log in", headerShown: false }} />
       <Stack.Screen name="register" options={{ title: "Create account", headerShown: false }} />
-      <Stack.Screen name="vault/index" options={{ title: "VaultVista" }} />
+      <Stack.Screen name="vault/index" options={{ title: "Simplekasten" }} />
       <Stack.Screen name="vault/[id]" options={{ title: "" }} />
     </Stack>
   );

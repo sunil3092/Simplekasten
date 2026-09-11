@@ -30,7 +30,7 @@ export default function LoginScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
-      <Text style={[styles.title, { color: colors.ink }]}>VaultVista</Text>
+      <Text style={[styles.title, { color: colors.ink }]}>Simplekasten</Text>
       <Text style={[styles.subtitle, { color: colors.inkMuted }]}>A slip-box for ideas that link back.</Text>
 
       <TextInput

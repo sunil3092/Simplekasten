@@ -1,8 +1,8 @@
 // Browser localStorage for the web build; Tauri/React Native swap this module
 // for OS keychain storage (see IMPLEMENTATION_PLAN.md §1 "Multi-client auth")
 // without anything above this file needing to change.
-const ACCESS_TOKEN_KEY = "vaultvista_access_token";
-const REFRESH_TOKEN_KEY = "vaultvista_refresh_token";
+const ACCESS_TOKEN_KEY = "simplekasten_access_token";
+const REFRESH_TOKEN_KEY = "simplekasten_refresh_token";
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;

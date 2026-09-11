@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { prisma } from "@vaultvista/db";
+import { prisma } from "@simplekasten/db";
 import type { Express } from "express";
 import multer from "multer";
 import { verifyAccessToken } from "./auth";

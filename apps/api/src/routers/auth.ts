@@ -1,5 +1,5 @@
-import { loginInput } from "@vaultvista/core";
-import { prisma } from "@vaultvista/db";
+import { loginInput } from "@simplekasten/core";
+import { prisma } from "@simplekasten/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {

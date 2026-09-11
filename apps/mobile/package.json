@@ -1,5 +1,5 @@
 {
-  "name": "@vaultvista/mobile",
+  "name": "@simplekasten/mobile",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "private": true,
@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@trpc/client": "^11.0.0",
-    "@vaultvista/core": "workspace:*",
+    "@simplekasten/core": "workspace:*",
     "expo": "~57.0.21",
     "expo-audio": "~57.0.4",
     "expo-constants": "~57.0.17",
@@ -34,7 +34,7 @@
   "devDependencies": {
     "@trpc/server": "^11.0.0",
     "@types/react": "~19.2.2",
-    "@vaultvista/api": "workspace:*",
+    "@simplekasten/api": "workspace:*",
     "typescript": "~6.0.3"
   }
 }

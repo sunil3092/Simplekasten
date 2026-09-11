@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "@vaultvista/db";
-import { loginInput } from "@vaultvista/core";
+import { prisma } from "@simplekasten/db";
+import { loginInput } from "@simplekasten/core";
 import {
   REFRESH_TOKEN_TTL_MS,
   generateRefreshToken,

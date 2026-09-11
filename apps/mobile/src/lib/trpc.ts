@@ -1,5 +1,5 @@
 import { createTRPCClient, httpBatchLink, httpLink, TRPCClientError } from "@trpc/client";
-import type { AppRouter } from "@vaultvista/api";
+import type { AppRouter } from "@simplekasten/api";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "./session";
 
 // Same API, same client shape as apps/web (see that file's comment) — only

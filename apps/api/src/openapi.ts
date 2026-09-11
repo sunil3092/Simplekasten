@@ -1,18 +1,18 @@
 /**
- * VaultVista REST API - OpenAPI 3.0.0 Specification
+ * Simplekasten REST API - OpenAPI 3.0.0 Specification
  *
- * This file documents the REST API for VaultVista.
+ * This file documents the REST API for Simplekasten.
  * Generate an OpenAPI spec using: npm run generate:openapi
  */
 
 export const openApiSpec = {
   openapi: "3.0.0",
   info: {
-    title: "VaultVista API",
+    title: "Simplekasten API",
     description: "A Zettelkasten-based memory management app API",
     version: "1.0.0",
     contact: {
-      name: "VaultVista",
+      name: "Simplekasten",
     },
   },
   servers: [
@@ -21,7 +21,7 @@ export const openApiSpec = {
       description: "Local development",
     },
     {
-      url: "https://api.vaultvista.com",
+      url: "https://api.simplekasten.com",
       description: "Production",
     },
   ],

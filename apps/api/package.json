@@ -1,5 +1,5 @@
 {
-  "name": "@vaultvista/api",
+  "name": "@simplekasten/api",
   "version": "0.1.0",
   "private": true,
   "main": "src/index.ts",
@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@trpc/server": "^11.0.0",
-    "@vaultvista/core": "workspace:*",
-    "@vaultvista/db": "workspace:*",
+    "@simplekasten/core": "workspace:*",
+    "@simplekasten/db": "workspace:*",
     "archiver": "^7.0.1",
     "cors": "^2.8.5",
     "express": "^4.21.1",

@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "VaultVista",
-    "slug": "vaultvista",
+    "name": "Simplekasten",
+    "slug": "simplekasten",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "vaultvista",
+    "scheme": "simplekasten",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
@@ -36,22 +36,22 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "VaultVista needs access to your photos to attach one to a note.",
-          "cameraPermission": "VaultVista needs access to your camera to attach a photo to a note.",
+          "photosPermission": "Simplekasten needs access to your photos to attach one to a note.",
+          "cameraPermission": "Simplekasten needs access to your camera to attach a photo to a note.",
           "microphonePermission": false
         }
       ],
       [
         "expo-audio",
         {
-          "microphonePermission": "VaultVista needs access to your microphone to record a voice note."
+          "microphonePermission": "Simplekasten needs access to your microphone to record a voice note."
         }
       ],
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "VaultVista needs access to your microphone to dictate a note.",
-          "speechRecognitionPermission": "VaultVista needs speech recognition to turn what you say into note text."
+          "microphonePermission": "Simplekasten needs access to your microphone to dictate a note.",
+          "speechRecognitionPermission": "Simplekasten needs speech recognition to turn what you say into note text."
         }
       ]
     ],

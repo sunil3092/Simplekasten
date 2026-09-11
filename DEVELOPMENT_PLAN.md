@@ -1,9 +1,9 @@
-# VaultVista — Zettelkasten Memory Management App
+# Simplekasten — Zettelkasten Memory Management App
 ### Development Plan
 
 ## 1. Project Overview & Goals
 
-**Elevator pitch:** VaultVista is a Zettelkasten-based memory management app that turns scattered notes into a living network of atomic, permanently linked ideas. It combines the discipline of Niklas Luhmann's slip-box — atomic notes, permanent IDs, deliberate links — with modern search and retrieval, so your notes become a network you can think with, not an archive you write into and never revisit.
+**Elevator pitch:** Simplekasten is a Zettelkasten-based memory management app that turns scattered notes into a living network of atomic, permanently linked ideas. It combines the discipline of Niklas Luhmann's slip-box — atomic notes, permanent IDs, deliberate links — with modern search and retrieval, so your notes become a network you can think with, not an archive you write into and never revisit.
 
 **Core problem:** Most note apps optimize for *capture*, not *retrieval*. Notes pile up in folders, get tagged once, and are never seen again. The real value of note-taking — the connections between ideas — is left implicit, so insights get written down once and forgotten. People lose knowledge not because they failed to record it, but because they never encounter it again at the moment it matters.
 

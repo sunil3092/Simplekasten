@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 const API_PORT = 4100;
 const WEB_PORT = 3100;
-const DATABASE_URL = "postgresql://vaultvista:vaultvista@localhost:5432/vaultvista_e2e";
+const DATABASE_URL = "postgresql://simplekasten:simplekasten@localhost:5432/simplekasten_e2e";
 
 export default defineConfig({
   testDir: "./tests",

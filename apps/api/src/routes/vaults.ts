@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { prisma } from "@vaultvista/db";
-import { createKnowledgeBaseInput, slugify } from "@vaultvista/core";
+import { prisma } from "@simplekasten/db";
+import { createKnowledgeBaseInput, slugify } from "@simplekasten/core";
 import { authMiddleware, asyncHandler, AuthRequest } from "../middleware";
 
 const router: Router = Router();

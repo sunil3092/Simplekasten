@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
-import { Prisma, prisma } from "@vaultvista/db";
-import { createNoteInput, updateNoteInput } from "@vaultvista/core";
+import { Prisma, prisma } from "@simplekasten/db";
+import { createNoteInput, updateNoteInput } from "@simplekasten/core";
 import {
   nextZettelId,
   resolveIncomingLinks,

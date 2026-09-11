@@ -1,4 +1,4 @@
-import { prisma } from "@vaultvista/db";
+import { prisma } from "@simplekasten/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";

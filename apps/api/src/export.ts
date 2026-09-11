@@ -1,5 +1,5 @@
-import { slugify } from "@vaultvista/core";
-import { prisma } from "@vaultvista/db";
+import { slugify } from "@simplekasten/core";
+import { prisma } from "@simplekasten/db";
 import archiver from "archiver";
 import type { Express } from "express";
 import { verifyAccessToken } from "./auth";

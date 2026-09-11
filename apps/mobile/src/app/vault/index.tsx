@@ -1,5 +1,5 @@
 import type { inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "@vaultvista/api";
+import type { AppRouter } from "@simplekasten/api";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
@@ -80,7 +80,7 @@ export default function VaultScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
       <View style={styles.headerRow}>
-        <Text style={[styles.vaultName, { color: colors.inkMuted }]}>{kb?.name ?? "VaultVista"}</Text>
+        <Text style={[styles.vaultName, { color: colors.inkMuted }]}>{kb?.name ?? "Simplekasten"}</Text>
         <Pressable onPress={onLogout}>
           <Text style={[styles.logout, { color: colors.inkFaint }]}>Log out</Text>
         </Pressable>

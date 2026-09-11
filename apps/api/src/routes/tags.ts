@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { prisma } from "@vaultvista/db";
+import { prisma } from "@simplekasten/db";
 import { authMiddleware, asyncHandler, AuthRequest } from "../middleware";
 import { Errors } from "../errors";
 
