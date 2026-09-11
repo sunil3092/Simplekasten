@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@trpc/server": "^11.0.0",
-    "@simplekasten/core": "workspace:*",
-    "@simplekasten/db": "workspace:*",
+    "@simplekasten/core": "*",
+    "@simplekasten/db": "*",
     "archiver": "^7.0.1",
     "cors": "^2.8.5",
     "express": "^4.21.1",

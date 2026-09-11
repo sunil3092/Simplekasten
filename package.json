@@ -1,19 +1,24 @@
 {
   "name": "simplekasten",
   "private": true,
-  "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "e2e"
+  ],
   "scripts": {
-    "dev:api": "pnpm --filter @simplekasten/api dev",
-    "dev:web": "pnpm --filter @simplekasten/web dev",
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
-    "test:integration": "pnpm --filter @simplekasten/api test:integration",
-    "test:e2e": "pnpm --filter @simplekasten/e2e test",
-    "db:generate": "pnpm --filter @simplekasten/db generate",
-    "db:migrate": "pnpm --filter @simplekasten/db migrate"
+    "dev:api": "npm run dev -w @simplekasten/api",
+    "dev:web": "npm run dev -w @simplekasten/web",
+    "dev:desktop": "npm run dev -w @simplekasten/desktop",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:integration": "npm run test:integration -w @simplekasten/api",
+    "test:e2e": "npm run test -w @simplekasten/e2e",
+    "db:generate": "npm run generate -w @simplekasten/db",
+    "db:migrate": "npm run migrate -w @simplekasten/db"
   }
 }
