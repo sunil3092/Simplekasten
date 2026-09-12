@@ -3,31 +3,31 @@ import { useColorScheme } from "react-native";
 // Mirrors apps/web/src/app/globals.css's palette so the native app reads as
 // the same product, not a reskin.
 export const lightColors = {
-  surface: "#fbfbf6",
-  surface2: "#f2f3eb",
-  ink: "#1e2a20",
-  inkMuted: "#57614f",
-  inkFaint: "#8b9481",
-  line: "#c8ccb8",
-  accent: "#2e6f5a",
-  accentInk: "#1d4a3c",
-  accentSoft: "#dce8dd",
-  accent2: "#93602a",
-  accent2Soft: "#ede0cb",
+  surface: "#ffffff",
+  surface2: "#f1f5f9",
+  ink: "#0f172a",
+  inkMuted: "#475569",
+  inkFaint: "#94a3b8",
+  line: "#e2e8f0",
+  accent: "#059669",
+  accentInk: "#065f46",
+  accentSoft: "#ecfdf5",
+  accent2: "#b45309",
+  accent2Soft: "#fffbeb",
 };
 
 export const darkColors = {
-  surface: "#1b2117",
-  surface2: "#20271b",
-  ink: "#e8eadc",
-  inkMuted: "#a7af98",
-  inkFaint: "#6e7763",
-  line: "#333b2a",
-  accent: "#6fbf9e",
-  accentInk: "#bfe9d7",
-  accentSoft: "#22332a",
-  accent2: "#cb9c55",
-  accent2Soft: "#332a18",
+  surface: "#111827",
+  surface2: "#1e293b",
+  ink: "#f1f5f9",
+  inkMuted: "#94a3b8",
+  inkFaint: "#64748b",
+  line: "#2b3646",
+  accent: "#34d399",
+  accentInk: "#a7f3d0",
+  accentSoft: "#0f2b22",
+  accent2: "#fbbf24",
+  accent2Soft: "#3a2c0d",
 };
 
 export type ThemeColors = typeof lightColors;

@@ -1,49 +1,96 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
 
-/* Design tokens from IMPLEMENTATION_PLAN.md §3 — the same "library card
-   catalog" palette used across the planning artifacts, now applied to the
-   real app rather than a mockup. */
+/* Modern, professional design tokens: neutral slate surfaces, a single
+   emerald accent, Inter for all UI/body text, JetBrains Mono reserved for
+   metadata (zettel IDs, shortcuts, tags) so it reads as data rather than
+   prose. Same token names as before, so every existing bg-, text- and
+   border- utility across the app repaints with zero markup changes. */
 @theme {
-  --color-bg: #e9ebe1;
-  --color-surface: #fbfbf6;
-  --color-surface-2: #f2f3eb;
-  --color-ink: #1e2a20;
-  --color-ink-muted: #57614f;
-  --color-ink-faint: #8b9481;
-  --color-line: #c8ccb8;
-  --color-line-soft: #dbdecb;
-  --color-accent: #2e6f5a;
-  --color-accent-ink: #1d4a3c;
-  --color-accent-soft: #dce8dd;
-  --color-accent-2: #93602a;
-  --color-accent-2-soft: #ede0cb;
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f5f9;
+  --color-ink: #0f172a;
+  --color-ink-muted: #475569;
+  --color-ink-faint: #94a3b8;
+  --color-line: #e2e8f0;
+  --color-line-soft: #edf1f5;
+  --color-accent: #059669;
+  --color-accent-ink: #065f46;
+  --color-accent-soft: #ecfdf5;
+  --color-accent-2: #b45309;
+  --color-accent-2-soft: #fffbeb;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
 
-  --font-display: "Fraunces", ui-serif, Georgia, serif;
-  --font-body: "Newsreader", ui-serif, Georgia, serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 body {
-  @apply bg-bg text-ink font-body;
+  @apply bg-bg text-ink font-body antialiased;
 }
 
-/* Both Obsidian and Logseq are commonly run dark — same tokens, dark values,
-   so every background and text utility repaints with zero markup changes. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #12160f;
-    --color-surface: #1b2117;
-    --color-surface-2: #20271b;
-    --color-ink: #e8eadc;
-    --color-ink-muted: #a7af98;
-    --color-ink-faint: #6e7763;
-    --color-line: #333b2a;
-    --color-line-soft: #262d1f;
-    --color-accent: #6fbf9e;
-    --color-accent-ink: #bfe9d7;
-    --color-accent-soft: #22332a;
-    --color-accent-2: #cb9c55;
-    --color-accent-2-soft: #332a18;
+    --color-bg: #0b1120;
+    --color-surface: #111827;
+    --color-surface-2: #1e293b;
+    --color-ink: #f1f5f9;
+    --color-ink-muted: #94a3b8;
+    --color-ink-faint: #64748b;
+    --color-line: #2b3646;
+    --color-line-soft: #1c2534;
+    --color-accent: #34d399;
+    --color-accent-ink: #a7f3d0;
+    --color-accent-soft: #0f2b22;
+    --color-accent-2: #fbbf24;
+    --color-accent-2-soft: #3a2c0d;
+    --color-danger: #f87171;
+    --color-danger-soft: #3a1414;
   }
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-line);
+  border-radius: 999px;
+}
+
+@keyframes fade-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+.animate-fade-scale-in {
+  animation: fade-scale-in 0.12s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-fade-in {
+  animation: fade-in 0.15s ease-out;
 }
