@@ -451,7 +451,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                   disabled={creatingKb || !newKbName.trim()}
                   className="flex-none rounded-md bg-accent px-2 text-xs font-medium text-white transition-colors hover:bg-accent-ink disabled:opacity-50"
                 >
-                  <PlusIcon />
+                  +
                 </button>
               </div>
               <button

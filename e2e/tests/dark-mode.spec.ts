@@ -10,6 +10,6 @@ test("the vault repaints with the dark palette under prefers-color-scheme: dark"
   const darkBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
   expect(darkBg).not.toBe(lightBg);
-  // --color-bg dark value is #12160f == rgb(18, 22, 15).
-  expect(darkBg).toBe("rgb(18, 22, 15)");
+  // --color-bg dark value is #0b1120 == rgb(11, 17, 32).
+  expect(darkBg).toBe("rgb(11, 17, 32)");
 });
