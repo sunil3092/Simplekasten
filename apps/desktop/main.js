@@ -11,7 +11,7 @@ const { createNodeFsAdapter } = require("@simplekasten/local-engine/adapters/nod
 
 const START_URL =
   process.env.ELECTRON_START_URL ||
-  `file://${path.join(__dirname, "renderer", "index.html")}`;
+  `file://${path.join(__dirname, "out", "index.html")}`;
 
 const SETTINGS_PATH = path.join(app.getPath("userData"), "settings.json");
 
