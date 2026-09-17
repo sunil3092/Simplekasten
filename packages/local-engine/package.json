@@ -6,7 +6,8 @@
   "types": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./adapters/node": "./src/adapters/node.ts"
+    "./adapters/node": "./src/adapters/node.ts",
+    "./adapters/expo": "./src/adapters/expo.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -18,7 +19,14 @@
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
+    "expo-file-system": "^57.0.7",
     "typescript": "^5.6.3",
     "vitest": "^2.1.4"
+  },
+  "peerDependencies": {
+    "expo-file-system": "*"
+  },
+  "peerDependenciesMeta": {
+    "expo-file-system": { "optional": true }
   }
 }

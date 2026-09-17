@@ -11,11 +11,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@trpc/client": "^11.0.0",
     "@simplekasten/core": "*",
+    "@trpc/client": "^11.0.0",
     "expo": "~57.0.21",
     "expo-audio": "~57.0.4",
     "expo-constants": "~57.0.17",
+    "expo-file-system": "^57.0.7",
     "expo-image-picker": "~57.0.16",
     "expo-linking": "~57.0.9",
     "expo-router": "~57.0.20",
@@ -32,9 +33,9 @@
     "react-native-web": "~0.21.0"
   },
   "devDependencies": {
+    "@simplekasten/api": "*",
     "@trpc/server": "^11.0.0",
     "@types/react": "~19.2.2",
-    "@simplekasten/api": "*",
     "typescript": "~6.0.3"
   }
 }
