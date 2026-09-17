@@ -1,7 +1,7 @@
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { attachmentFileUrl, authHeaders } from "@/lib/attachments";
+import { vault } from "@/lib/vault";
 import { useThemeColors } from "@/theme";
 
 interface VoiceNotePlayerProps {
@@ -11,13 +11,13 @@ interface VoiceNotePlayerProps {
 
 export function VoiceNotePlayer({ id, onRemove }: VoiceNotePlayerProps) {
   const colors = useThemeColors();
-  const [headers, setHeaders] = useState<Record<string, string> | null>(null);
+  const [uri, setUri] = useState<string | null>(null);
 
   useEffect(() => {
-    authHeaders().then(setHeaders);
-  }, []);
+    vault.getAttachmentFilePath(id).then(setUri);
+  }, [id]);
 
-  const player = useAudioPlayer(headers ? { uri: attachmentFileUrl(id), headers } : null);
+  const player = useAudioPlayer(uri);
   const status = useAudioPlayerStatus(player);
 
   return (

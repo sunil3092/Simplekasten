@@ -5,7 +5,7 @@ const { files, dirs } = vi.hoisted(() => ({
   dirs: new Set<string>(),
 }));
 
-vi.mock("expo-file-system", () => ({
+vi.mock("expo-file-system/legacy", () => ({
   getInfoAsync: vi.fn(async (uri: string) => {
     if (files.has(uri)) return { exists: true, isDirectory: false, uri };
     if (dirs.has(uri)) return { exists: true, isDirectory: true, uri };

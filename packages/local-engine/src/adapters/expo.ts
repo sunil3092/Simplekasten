@@ -1,4 +1,8 @@
-import * as FileSystem from "expo-file-system";
+// expo-file-system's default "." export (SDK 54+) only re-exports the new
+// Paths/File/Directory API plus deprecated stubs of the old async functions
+// that throw at runtime — the real implementations, documentDirectory
+// included, now live under the /legacy subpath.
+import * as FileSystem from "expo-file-system/legacy";
 import type { FileSystemAdapter } from "../types";
 
 /**
