@@ -26,6 +26,7 @@ export interface VaultNote {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  attachmentIds: string[];
 }
 
 export interface NoteListItem {

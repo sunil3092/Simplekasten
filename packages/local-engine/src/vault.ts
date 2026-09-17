@@ -156,6 +156,7 @@ export async function createNote(fs: FileSystemAdapter, input: CreateNoteInput):
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    attachmentIds: [],
   };
 
   await fs.ensureDir(NOTES_DIR);
