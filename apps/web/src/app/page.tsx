@@ -5,9 +5,26 @@ import type { AppRouter } from "@simplekasten/api";
 import { slugify } from "@simplekasten/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { GraphView } from "../components/GraphView";
+import {
+  AlertCircleIcon,
+  ChevronDownIcon,
+  DownloadIcon,
+  FileTextIcon,
+  HashIcon,
+  LayersIcon,
+  LinkIcon,
+  LockIcon,
+  LogOutIcon,
+  MailIcon,
+  NetworkIcon,
+  PlusIcon,
+  SearchIcon,
+  UserIcon,
+} from "../components/icons";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
 import { isLocalMode } from "../lib/localVaultClient";
+import { Button, Chip, Kbd, SaveStatusIndicator } from "../components/ui";
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../lib/session";
 import { downloadVaultExport, FORCE_LOGOUT_EVENT, trpc } from "../lib/trpc";
 
@@ -20,8 +37,8 @@ type TagItem = RouterOutputs["tag"]["list"][number];
 
 const TYPE_STYLES: Record<NoteType, string> = {
   fleeting: "bg-surface-2 text-ink-muted border-line",
-  literature: "bg-accent-2-soft text-accent-2 border-accent-2",
-  permanent: "bg-accent-soft text-accent-ink border-accent",
+  literature: "bg-accent-2-soft text-accent-2 border-accent-2/40",
+  permanent: "bg-accent-soft text-accent-ink border-accent/40",
   structure: "bg-surface-2 text-ink-muted border-line border-dashed",
 };
 
@@ -73,10 +90,12 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSubmitting(true);
     try {
       const result =
         mode === "login"
@@ -86,57 +105,85 @@ function Auth({ onAuthed }: { onAuthed: () => void }) {
       onAuthed();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
-      <div className="w-full max-w-sm rounded-lg border border-line bg-surface p-8 shadow-sm">
-        <h1 className="font-display text-2xl font-semibold text-ink">Simplekasten</h1>
-        <p className="mt-1 mb-6 text-sm text-ink-muted italic">A slip-box for ideas that link back.</p>
+    <main className="flex min-h-screen items-center justify-center bg-bg px-6">
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-accent font-display text-lg font-bold text-white shadow-sm">
+            S
+          </div>
+          <h1 className="font-display text-2xl font-bold text-ink">Simplekasten</h1>
+          <p className="mt-1 text-sm text-ink-muted">A slip-box for ideas that link back.</p>
+        </div>
 
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          {mode === "register" && (
-            <input
-              className="rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
-              placeholder="Display name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              required
-            />
-          )}
-          <input
-            className="rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-          <input
-            className="rounded-md border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            minLength={8}
-            required
-          />
-          {error && <p className="text-sm text-red-700">{error}</p>}
+        <div className="rounded-2xl border border-line bg-surface p-7 shadow-sm">
+          <form onSubmit={submit} className="flex flex-col gap-3.5">
+            {mode === "register" && (
+              <div className="relative">
+                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-faint">
+                  <UserIcon />
+                </span>
+                <input
+                  className="w-full rounded-lg border border-line bg-surface py-2 pr-3 pl-9 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/50"
+                  placeholder="Display name"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+            <div className="relative">
+              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-faint">
+                <MailIcon />
+              </span>
+              <input
+                className="w-full rounded-lg border border-line bg-surface py-2 pr-3 pl-9 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/50"
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="relative">
+              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-faint">
+                <LockIcon />
+              </span>
+              <input
+                className="w-full rounded-lg border border-line bg-surface py-2 pr-3 pl-9 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/50"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={8}
+                required
+              />
+            </div>
+            {error && (
+              <p className="flex items-start gap-1.5 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
+                <span className="mt-0.5 flex-none">
+                  <AlertCircleIcon />
+                </span>
+                {error}
+              </p>
+            )}
+            <Button type="submit" variant="primary" disabled={submitting} className="mt-1 w-full">
+              {submitting ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
+            </Button>
+          </form>
+
           <button
-            type="submit"
-            className="rounded-md bg-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-ink"
+            onClick={() => setMode(mode === "login" ? "register" : "login")}
+            className="mt-5 w-full text-center text-sm text-accent-ink transition-colors hover:text-accent"
           >
-            {mode === "login" ? "Log in" : "Create account"}
+            {mode === "login" ? "Need an account? Register" : "Already have an account? Log in"}
           </button>
-        </form>
-
-        <button
-          onClick={() => setMode(mode === "login" ? "register" : "login")}
-          className="mt-4 text-sm text-accent-ink underline underline-offset-2"
-        >
-          {mode === "login" ? "Need an account? Register" : "Already have an account? Log in"}
-        </button>
+        </div>
       </div>
     </main>
   );
@@ -375,34 +422,40 @@ function Vault({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className="flex h-screen bg-bg">
-      <aside className="flex w-64 flex-none flex-col border-r border-line bg-surface px-4 py-5">
-        <div ref={kbMenuRef} className="relative mb-1">
-          <div className="flex items-baseline justify-between">
+      <aside className="flex w-64 flex-none flex-col border-r border-line bg-surface px-3.5 py-4">
+        <div ref={kbMenuRef} className="relative mb-3">
+          <div className="flex items-center justify-between gap-2">
             <button
               onClick={() => setKbMenuOpen((o) => !o)}
-              className="rounded-md border border-line bg-surface px-2.5 py-1 font-mono text-xs text-ink-muted hover:border-accent"
+              className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm font-semibold text-ink transition-colors hover:bg-surface-2"
             >
-              {kb?.name ?? "Simplekasten"} ▾
+              <span className="truncate">{kb?.name ?? "Simplekasten"}</span>
+              <ChevronDownIcon className="flex-none text-ink-faint" />
             </button>
-            <button onClick={onLogout} className="font-mono text-xs text-ink-faint underline underline-offset-2 hover:text-ink-muted">
+            <button
+              onClick={onLogout}
+              className="flex flex-none items-center gap-1 rounded-lg px-2 py-1 text-xs text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
+            >
+              <LogOutIcon />
               Log out
             </button>
           </div>
 
           {kbMenuOpen && (
-            <div className="absolute top-full left-0 z-10 mt-1 w-56 rounded-md border border-line bg-surface p-1 shadow-lg">
+            <div className="animate-fade-scale-in absolute top-full left-0 z-10 mt-1.5 w-60 rounded-xl border border-line bg-surface p-1.5 shadow-lg">
               {kbs.map((item) => (
                 <button
                   key={item.id}
                   onClick={() => switchKb(item)}
-                  className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
+                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
                     item.id === kb?.id ? "bg-accent-soft text-accent-ink" : "text-ink hover:bg-surface-2"
                   }`}
                 >
-                  {item.name}
+                  <span className="truncate">{item.name}</span>
+                  {item.id === kb?.id && <span className="h-1.5 w-1.5 flex-none rounded-full bg-accent" />}
                 </button>
               ))}
-              <div className="mt-1 flex gap-1 border-t border-line-soft pt-1">
+              <div className="mt-1.5 flex gap-1 border-t border-line-soft pt-1.5">
                 <input
                   value={newKbName}
                   onChange={(e) => setNewKbName(e.target.value)}
@@ -410,74 +463,77 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                     if (e.key === "Enter") createKbAndSwitch();
                   }}
                   placeholder="New vault name"
-                  className="min-w-0 flex-1 rounded border border-line bg-transparent px-2 py-1 text-xs outline-none focus:border-accent"
+                  className="min-w-0 flex-1 rounded-md border border-line bg-transparent px-2 py-1 text-xs text-ink outline-none focus:border-accent"
                 />
                 <button
                   onClick={createKbAndSwitch}
                   disabled={creatingKb || !newKbName.trim()}
-                  className="rounded bg-accent px-2 text-xs font-medium text-white disabled:opacity-50"
+                  className="flex-none rounded-md bg-accent px-2 text-xs font-medium text-white transition-colors hover:bg-accent-ink disabled:opacity-50"
                 >
                   +
                 </button>
               </div>
               <button
                 onClick={exportVault}
-                className="mt-1 block w-full rounded px-2 py-1.5 text-left text-sm text-ink-muted hover:bg-surface-2"
+                className="mt-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-ink-muted transition-colors hover:bg-surface-2"
               >
+                <DownloadIcon />
                 Export vault…
               </button>
             </div>
           )}
         </div>
 
-        <button
-          onClick={() => setSwitcherOpen(true)}
-          className="mt-4 flex items-center justify-between rounded-md border border-line bg-surface px-3 py-1.5 text-sm text-ink-faint hover:border-accent"
-        >
-          Jump to…
-          <span className="font-mono text-[10px]">⌘K</span>
-        </button>
-        <button
-          onClick={openGraph}
-          className="mt-2 rounded-md border border-line bg-surface px-3 py-1.5 text-left text-sm text-ink-faint hover:border-accent"
-        >
-          Graph view
-        </button>
-        <button
-          onClick={() => createNote()}
-          className="mt-2 rounded-md border border-accent px-3 py-1.5 text-left text-sm font-medium text-accent-ink hover:bg-accent-soft"
-        >
-          + New note
-        </button>
+        <div className="flex flex-col gap-1">
+          <button
+            onClick={() => setSwitcherOpen(true)}
+            className="flex items-center justify-between rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
+          >
+            <span className="flex items-center gap-2">
+              <SearchIcon />
+              Jump to…
+            </span>
+            <Kbd>⌘K</Kbd>
+          </button>
+          <button
+            onClick={openGraph}
+            className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-left text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
+          >
+            <NetworkIcon />
+            Graph view
+          </button>
+          <button
+            onClick={() => createNote()}
+            className="flex items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-left text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-ink"
+          >
+            <PlusIcon />
+            <span>+ New note</span>
+          </button>
+        </div>
 
         {tags.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-1">
+          <div className="mt-4 flex flex-wrap gap-1.5">
             {tags.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => toggleTag(t.name)}
-                className={`rounded-full border px-2 py-0.5 font-mono text-[10px] ${
-                  activeTag === t.name
-                    ? "border-accent-2 bg-accent-2-soft text-accent-2"
-                    : "border-line text-ink-muted hover:border-accent-2"
-                }`}
-              >
+              <Chip key={t.id} active={activeTag === t.name} onClick={() => toggleTag(t.name)}>
                 #{t.name} <span className="opacity-60">{t.noteCount}</span>
-              </button>
+              </Chip>
             ))}
           </div>
         )}
 
         {mapsOfContent.length > 0 && (
           <div className="mt-4">
-            <h3 className="mb-1.5 font-mono text-[10px] tracking-wider text-ink-faint uppercase">Maps of content</h3>
+            <h3 className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] font-medium tracking-wider text-ink-faint uppercase">
+              <LayersIcon />
+              Maps of content
+            </h3>
             <ul className="flex flex-col gap-1">
               {mapsOfContent.map((n) => (
                 <li key={n.id}>
                   <button
                     onClick={() => openNote(n.id)}
-                    className={`block w-full rounded-md border border-dashed px-2.5 py-1 text-left text-sm ${
-                      n.id === selected?.id ? "border-accent bg-accent-soft text-accent-ink" : "border-line text-ink-muted hover:border-accent"
+                    className={`block w-full rounded-lg border border-dashed px-2.5 py-1.5 text-left text-sm transition-colors ${
+                      n.id === selected?.id ? "border-accent bg-accent-soft text-accent-ink" : "border-line text-ink-muted hover:border-accent/50"
                     }`}
                   >
                     {n.title}
@@ -488,14 +544,14 @@ function Vault({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
 
-        <div className="mt-5 flex-1 overflow-y-auto">
-          <div className="mb-2 flex items-center justify-between font-mono text-[10px] tracking-wider text-ink-faint uppercase">
+        <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
+          <div className="mb-1.5 flex items-center justify-between px-2 font-mono text-[10px] font-medium tracking-wider text-ink-faint uppercase">
             <span>
               {notes.length} note{notes.length === 1 ? "" : "s"}
               {activeTag ? ` · #${activeTag}` : ""}
             </span>
             {activeTag && (
-              <button onClick={() => setActiveTag(null)} className="normal-case hover:text-ink-muted">
+              <button onClick={() => setActiveTag(null)} className="normal-case transition-colors hover:text-ink-muted">
                 clear
               </button>
             )}
@@ -505,8 +561,10 @@ function Vault({ onLogout }: { onLogout: () => void }) {
               <li key={n.id}>
                 <button
                   onClick={() => openNote(n.id)}
-                  className={`flex w-full items-baseline gap-2 rounded-md px-2 py-1.5 text-left text-sm transition ${
-                    selected?.id === n.id ? "bg-accent-soft text-accent-ink" : "text-ink hover:bg-surface-2"
+                  className={`flex w-full items-baseline gap-2 rounded-lg border-l-2 px-2.5 py-1.5 text-left text-sm transition-colors duration-150 ${
+                    selected?.id === n.id
+                      ? "border-accent bg-accent-soft text-accent-ink"
+                      : "border-transparent text-ink hover:bg-surface-2"
                   }`}
                 >
                   <span className="font-mono text-[11px] text-ink-faint">{n.zettelId}</span>
@@ -521,30 +579,36 @@ function Vault({ onLogout }: { onLogout: () => void }) {
       <main className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto px-10 py-8">
           {selected ? (
-            <div className="max-w-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <select
-                  value={selected.type}
-                  onChange={(e) => updateType(e.target.value as NoteType)}
-                  className={`rounded border px-2 py-0.5 font-mono text-[10px] tracking-wide uppercase ${TYPE_STYLES[selected.type]}`}
-                >
-                  <option value="fleeting">Fleeting</option>
-                  <option value="literature">Literature</option>
-                  <option value="permanent">Permanent</option>
-                  <option value="structure">Structure</option>
-                </select>
-                <span className="font-mono text-xs text-ink-faint">{selected.zettelId}</span>
-                {selected.tagNames.map((name) => (
-                  <button
-                    key={name}
-                    onClick={() => toggleTag(name)}
-                    className="rounded-full border border-line px-2 py-0.5 font-mono text-[10px] text-ink-muted hover:border-accent-2 hover:text-accent-2"
+            <div className="mx-auto max-w-2xl">
+              <div className="mb-5 flex items-center gap-3">
+                <div className="relative">
+                  <select
+                    value={selected.type}
+                    onChange={(e) => updateType(e.target.value as NoteType)}
+                    className={`appearance-none rounded-md border py-1 pr-6 pl-2.5 font-mono text-[10px] font-medium tracking-wide uppercase transition-colors focus:outline-none ${TYPE_STYLES[selected.type]}`}
                   >
-                    #{name}
-                  </button>
-                ))}
-                <span className="ml-auto font-mono text-[10px] text-ink-faint">
-                  {saveStatus === "saving" ? "Saving…" : "Saved"}
+                    <option value="fleeting">Fleeting</option>
+                    <option value="literature">Literature</option>
+                    <option value="permanent">Permanent</option>
+                    <option value="structure">Structure</option>
+                  </select>
+                  <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 opacity-60" />
+                </div>
+                <span className="font-mono text-xs text-ink-faint">{selected.zettelId}</span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {selected.tagNames.map((name) => (
+                    <button
+                      key={name}
+                      onClick={() => toggleTag(name)}
+                      className="inline-flex items-center gap-0.5 rounded-full border border-line px-2 py-0.5 font-mono text-[10px] text-ink-muted transition-colors hover:border-accent-2 hover:text-accent-2"
+                    >
+                      <HashIcon />
+                      {name}
+                    </button>
+                  ))}
+                </div>
+                <span className="ml-auto">
+                  <SaveStatusIndicator status={saveStatus} />
                 </span>
               </div>
 
@@ -552,7 +616,8 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                 ref={titleInputRef}
                 value={selected.title}
                 onChange={(e) => updateTitle(e.target.value)}
-                className="mb-4 w-full border-none bg-transparent font-display text-3xl font-semibold text-ink outline-none"
+                className="font-display mb-5 w-full border-none bg-transparent text-3xl font-bold tracking-tight text-ink outline-none placeholder:text-ink-faint"
+                placeholder="Untitled"
               />
 
               <NoteEditor
@@ -573,7 +638,8 @@ function Vault({ onLogout }: { onLogout: () => void }) {
           <aside className="w-72 flex-none overflow-y-auto border-l border-line bg-surface px-5 py-6">
             {selected.type === "structure" && (
               <>
-                <h3 className="mb-3 font-mono text-xs tracking-wide text-ink-faint uppercase">
+                <h3 className="mb-3 flex items-center gap-1.5 font-mono text-xs font-medium tracking-wide text-ink-faint uppercase">
+                  <LayersIcon />
                   Contents ({selected.contents.length})
                 </h3>
                 <ul className="mb-6 flex flex-col gap-2">
@@ -581,12 +647,12 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                     <li key={item.noteId ?? `${item.title}-${i}`}>
                       <button
                         onClick={() => navigateToTitle(item.title)}
-                        className={`block w-full rounded-md border px-3 py-2 text-left text-sm hover:border-accent ${
+                        className={`flex w-full items-center gap-1.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:border-accent/60 hover:shadow-sm ${
                           item.resolved ? "border-line text-ink" : "border-dashed border-line text-ink-faint"
                         }`}
                       >
-                        {item.zettelId && <span className="mr-1 font-mono text-[10px] text-ink-faint">{item.zettelId}</span>}
-                        {item.title}
+                        {item.zettelId && <span className="font-mono text-[10px] text-ink-faint">{item.zettelId}</span>}
+                        <span className="truncate">{item.title}</span>
                       </button>
                     </li>
                   ))}
@@ -596,7 +662,8 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                 </ul>
               </>
             )}
-            <h3 className="mb-3 font-mono text-xs tracking-wide text-ink-faint uppercase">
+            <h3 className="mb-3 flex items-center gap-1.5 font-mono text-xs font-medium tracking-wide text-ink-faint uppercase">
+              <LinkIcon />
               Linked mentions ({selected.backlinks.length})
             </h3>
             <ul className="flex flex-col gap-2">
@@ -604,14 +671,18 @@ function Vault({ onLogout }: { onLogout: () => void }) {
                 <li key={b.noteId}>
                   <button
                     onClick={() => openNote(b.noteId)}
-                    className="block w-full rounded-md border border-line bg-surface px-3 py-2 text-left text-sm text-ink hover:border-accent"
+                    className="flex w-full items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-left text-sm text-ink transition-colors hover:border-accent/60 hover:shadow-sm"
                   >
-                    <span className="mr-1 font-mono text-[10px] text-ink-faint">{b.zettelId}</span>
-                    {b.title}
+                    <span className="font-mono text-[10px] text-ink-faint">{b.zettelId}</span>
+                    <span className="truncate">{b.title}</span>
                   </button>
                 </li>
               ))}
-              {selected.backlinks.length === 0 && <li className="text-sm text-ink-faint">Nothing links here yet.</li>}
+              {selected.backlinks.length === 0 && (
+                <li className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-sm text-ink-faint">
+                  Nothing links here yet.
+                </li>
+              )}
             </ul>
           </aside>
         )}
@@ -652,10 +723,14 @@ function Vault({ onLogout }: { onLogout: () => void }) {
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex h-full flex-col items-center justify-center text-center">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-2 text-ink-faint">
+        <FileTextIcon width={26} height={26} />
+      </div>
       <p className="mb-4 text-sm text-ink-muted">Your vault is empty — create the first note to get started.</p>
-      <button onClick={onCreate} className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-ink">
-        + New note
-      </button>
+      <Button variant="primary" onClick={onCreate}>
+        <PlusIcon />
+        <span>+ New note</span>
+      </Button>
     </div>
   );
 }
