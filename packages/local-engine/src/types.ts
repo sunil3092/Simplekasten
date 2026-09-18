@@ -14,6 +14,10 @@ export interface FileSystemAdapter {
   deleteFile(path: string): Promise<void>;
   exists(path: string): Promise<boolean>;
   ensureDir(path: string): Promise<void>;
+  /** Copies a file from an arbitrary source path/URI to `destPath` (vault-relative), creating parent directories as needed. */
+  copyFile(sourcePath: string, destPath: string): Promise<void>;
+  /** Resolves a vault-relative path to an absolute path/URI a UI layer can use directly (e.g. an <img src> or audio player). */
+  resolvePath(path: string): string;
 }
 
 /** A note as stored on disk: YAML frontmatter + raw markdown body. */
@@ -26,6 +30,16 @@ export interface VaultNote {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  attachmentIds: string[];
+}
+
+export interface Attachment {
+  id: string;
+  noteId: string;
+  kind: "photo" | "voice";
+  filename: string;
+  mimeType: string;
+  createdAt: string;
 }
 
 export interface NoteListItem {
@@ -58,6 +72,7 @@ export interface NoteDetail {
   createdAt: string;
   updatedAt: string;
   tagNames: string[];
+  attachments: Attachment[];
   backlinks: BacklinkItem[];
   contents: ContentsItem[];
 }

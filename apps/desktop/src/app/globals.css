@@ -1,5 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
 @import "tailwindcss";
+
+/* Inter and JetBrains Mono are self-hosted — see public/fonts/fonts.css,
+   linked from layout.tsx. No network fetch at launch. */
 
 /* Modern, professional design tokens: neutral slate surfaces, a single
    emerald accent, Inter for all UI/body text, JetBrains Mono reserved for

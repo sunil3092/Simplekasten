@@ -1,10 +1,10 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 // Exposes the local vault engine to the renderer as `window.simplekasten`.
-// The renderer (apps/web's UI) never touches `fs` directly — every call
-// round-trips through the main process via ipcRenderer.invoke, keeping
-// contextIsolation intact. See apps/web/src/lib/localVaultClient.ts for the
-// trpc-shaped wrapper the UI actually calls.
+// The renderer never touches `fs` directly — every call round-trips through
+// the main process via ipcRenderer.invoke, keeping contextIsolation intact.
+// See apps/desktop/src/lib/vaultClient.ts for the wrapper the UI actually
+// calls.
 contextBridge.exposeInMainWorld("simplekasten", {
   vault: {
     listNotes: (tag) => ipcRenderer.invoke("vault:listNotes", tag),

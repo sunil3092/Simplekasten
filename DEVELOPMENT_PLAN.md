@@ -48,10 +48,12 @@
 | Auth | Auth.js, JWT bearer tokens | Drop-in OAuth (Google/GitHub) plus email login; JWT (not cookie sessions) so Electron and React Native clients authenticate the same way as the browser, storing the token in the OS keychain. |
 | File storage | S3-compatible (Supabase Storage / R2) | Attachments and clipped images live outside the database, referenced by URL; S3-compatible so the provider can be swapped freely. |
 | Hosting | Any Docker-capable host (Render, Fly.io, Railway, or a VPS) + Neon/Supabase Postgres | Both the web app and the API service ship as plain Docker images — no PaaS-specific APIs — so hosting is a config change, not a rewrite. |
-| Desktop | Electron, wrapping the web frontend | Same static Next.js export as web, loaded in a native window; pure JS/npm toolchain (no Rust) at the cost of a larger, heavier binary than a Rust-based shell would give. |
+| Desktop | Electron, wrapping its own Next.js renderer | `apps/desktop` owns its UI directly (a static Next.js export loaded in a native window) and talks to the local vault over IPC — no `apps/web` dependency. Pure JS/npm toolchain (no Rust) at the cost of a larger, heavier binary than a Rust-based shell would give. |
 | Mobile (later) | React Native (Expo), separate app | True native UI; shares a common TypeScript core package with web/desktop for API calls and business logic, but owns its own UI, including the editor via Expo DOM Components rather than a from-scratch native rewrite. |
 
 ## 4. High-Level Architecture
+
+> **This shipped differently.** The plan below (every client talking to one central API + Postgres) was the original design. What's actually built: `apps/web` was removed entirely, and both **Desktop (Electron) and Mobile (Expo) are fully local** — no accounts, no HTTPS calls, no JWT. Each talks directly to `packages/local-engine`, which reads and writes the vault as markdown files with YAML frontmatter on disk (via a filesystem adapter per platform). `apps/api` (Express + tRPC) and `packages/db` (Prisma/Postgres) are still in the repo but **dormant** — no client calls them today; they remain as the reserved future home of an opt-in cross-device sync feature. See `docs/superpowers/specs/2026-09-17-shared-vault-library-design.md` for that design. The rest of this section is kept for historical context.
 
 No client talks to the database directly. Web, and later desktop and mobile, all go through the same standalone Express + tRPC API service over HTTPS — that's what keeps the note graph consistent as the vault grows and lets every client authenticate and behave identically regardless of platform.
 

@@ -4,28 +4,50 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:web\" \"npm:dev:electron\"",
-    "dev:web": "npm run dev -w @simplekasten/web",
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "next dev",
     "dev:electron": "wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
-    "build:web": "npm run build -w @simplekasten/web",
-    "copy:web": "node scripts/copy-web.js",
-    "build": "npm run build:web && npm run copy:web && electron-builder"
+    "build:renderer": "next build",
+    "build": "npm run build:renderer && electron-builder",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
-    "@simplekasten/local-engine": "*"
+    "@codemirror/autocomplete": "^6.18.4",
+    "@codemirror/lang-markdown": "^6.3.0",
+    "@codemirror/state": "^6.4.1",
+    "@codemirror/view": "^6.34.1",
+    "@simplekasten/local-engine": "*",
+    "codemirror": "^6.0.1",
+    "next": "^15.0.3",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-force-graph-2d": "^1.29.1",
+    "tsx": "^4.19.2"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^22.9.0",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.2",
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
-    "electron": "^33.2.1",
+    "electron": "33.4.11",
     "electron-builder": "^25.1.8",
-    "tsx": "^4.19.2",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4",
     "wait-on": "^8.0.1"
   },
   "build": {
     "appId": "com.simplekasten.app",
     "productName": "Simplekasten",
-    "files": ["main.js", "preload.js", "renderer/**/*"],
+    "files": ["main.js", "preload.js", "out/**/*"],
     "directories": {
       "output": "release"
     },

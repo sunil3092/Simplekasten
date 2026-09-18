@@ -1,6 +1,7 @@
 import { extractHashtags, extractWikiLinkTitles } from "@simplekasten/core";
 import { parseNoteFile, serializeNoteFile } from "./note-file";
 import type {
+  Attachment,
   CreateNoteInput,
   FileSystemAdapter,
   GraphData,
@@ -124,6 +125,7 @@ export async function getNoteById(fs: FileSystemAdapter, id: string): Promise<No
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     tagNames,
+    attachments: await listAttachments(fs, id),
     backlinks: links
       .filter((l) => l.targetNoteId === id && l.resolved)
       .map((l) => {
@@ -156,6 +158,7 @@ export async function createNote(fs: FileSystemAdapter, input: CreateNoteInput):
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    attachmentIds: [],
   };
 
   await fs.ensureDir(NOTES_DIR);
@@ -255,4 +258,132 @@ export async function searchNotes(fs: FileSystemAdapter, query: string): Promise
     })
     .slice(0, 20)
     .map((s) => s.item);
+}
+
+const ATTACHMENTS_DIR = "attachments";
+const MANIFEST_PATH = `${ATTACHMENTS_DIR}/manifest.json`;
+
+function kindForMimeType(mimeType: string): "photo" | "voice" | null {
+  if (mimeType.startsWith("image/")) return "photo";
+  if (mimeType.startsWith("audio/")) return "voice";
+  return null;
+}
+
+function attachmentFilename(attachment: Pick<Attachment, "id" | "filename">): string {
+  return `${attachment.id}-${attachment.filename}`;
+}
+
+/**
+ * The stored `Attachment.filename` is both the display name and part of the
+ * on-disk path, so sanitizing once here — at the point the attachment record
+ * is built — keeps the two from ever diverging. A `/` or `..` in a
+ * picker-supplied filename would otherwise escape `attachments/`.
+ */
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[^\w.-]/g, "_");
+}
+
+async function loadManifest(fs: FileSystemAdapter): Promise<Record<string, Attachment>> {
+  if (!(await fs.exists(MANIFEST_PATH))) return {};
+  const raw = await fs.readFile(MANIFEST_PATH);
+  try {
+    return JSON.parse(raw) as Record<string, Attachment>;
+  } catch (err) {
+    throw new Error(
+      `Attachment manifest at "${MANIFEST_PATH}" is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+}
+
+async function saveManifest(fs: FileSystemAdapter, manifest: Record<string, Attachment>): Promise<void> {
+  await fs.ensureDir(ATTACHMENTS_DIR);
+  await fs.writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
+}
+
+export interface CreateAttachmentInput {
+  noteId: string;
+  sourcePath: string;
+  filename: string;
+  mimeType: string;
+}
+
+export async function createAttachment(fs: FileSystemAdapter, input: CreateAttachmentInput): Promise<Attachment> {
+  const kind = kindForMimeType(input.mimeType);
+  if (!kind) {
+    throw new Error(`Unsupported attachment mime type "${input.mimeType}" — only image/* and audio/* are supported`);
+  }
+
+  const notes = await loadAllNotes(fs);
+  const note = notes.find((n) => n.id === input.noteId && !n.deletedAt);
+  if (!note) throw new Error(`Note "${input.noteId}" not found`);
+
+  const attachment: Attachment = {
+    id: generateId(),
+    noteId: input.noteId,
+    kind,
+    filename: sanitizeFilename(input.filename),
+    mimeType: input.mimeType,
+    createdAt: new Date().toISOString(),
+  };
+
+  await fs.ensureDir(ATTACHMENTS_DIR);
+  await fs.copyFile(input.sourcePath, `${ATTACHMENTS_DIR}/${attachmentFilename(attachment)}`);
+
+  const manifest = await loadManifest(fs);
+  manifest[attachment.id] = attachment;
+  await saveManifest(fs, manifest);
+
+  // Re-read rather than reusing the `note` captured above: copying a
+  // multi-megabyte photo or voice file is slow enough that an autosave can
+  // land in between, and writing back the stale object would discard it.
+  const fresh = (await loadAllNotes(fs)).find((n) => n.id === input.noteId);
+  if (fresh) {
+    await fs.writeFile(
+      noteFilePath(fresh.id),
+      serializeNoteFile({
+        ...fresh,
+        attachmentIds: [...fresh.attachmentIds, attachment.id],
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+  }
+
+  return attachment;
+}
+
+export async function listAttachments(fs: FileSystemAdapter, noteId: string): Promise<Attachment[]> {
+  const manifest = await loadManifest(fs);
+  return Object.values(manifest)
+    .filter((a) => a.noteId === noteId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function deleteAttachment(fs: FileSystemAdapter, id: string): Promise<void> {
+  const manifest = await loadManifest(fs);
+  const attachment = manifest[id];
+  if (!attachment) throw new Error(`Attachment "${id}" not found`);
+
+  delete manifest[id];
+  await saveManifest(fs, manifest);
+  await fs.deleteFile(`${ATTACHMENTS_DIR}/${attachmentFilename(attachment)}`);
+
+  const notes = await loadAllNotes(fs);
+  const note = notes.find((n) => n.id === attachment.noteId);
+  if (note) {
+    await fs.writeFile(
+      noteFilePath(note.id),
+      serializeNoteFile({
+        ...note,
+        attachmentIds: note.attachmentIds.filter((attachmentId) => attachmentId !== id),
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+  }
+}
+
+export async function getAttachmentFilePath(fs: FileSystemAdapter, id: string): Promise<string> {
+  const manifest = await loadManifest(fs);
+  const attachment = manifest[id];
+  if (!attachment) throw new Error(`Attachment "${id}" not found`);
+  return fs.resolvePath(`${ATTACHMENTS_DIR}/${attachmentFilename(attachment)}`);
 }

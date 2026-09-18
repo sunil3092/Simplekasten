@@ -1,19 +1,15 @@
-import type { inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "@simplekasten/api";
 import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder } from "expo-audio";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
+import type { NoteType } from "@simplekasten/core";
+import type { NoteDetail } from "@simplekasten/local-engine";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { PhotoThumbnail } from "@/components/PhotoThumbnail";
 import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
-import { uploadAttachment } from "@/lib/attachments";
-import { trpc } from "@/lib/trpc";
+import { vault } from "@/lib/vault";
 import { useThemeColors } from "@/theme";
-
-type NoteDetail = inferRouterOutputs<AppRouter>["note"]["getById"];
-type NoteType = NoteDetail["type"];
 
 const TYPES: { value: NoteType; label: string }[] = [
   { value: "fleeting", label: "Fleeting" },
@@ -42,7 +38,10 @@ export default function NoteScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   useEffect(() => {
-    trpc.note.getById.query({ id }).then((detail) => {
+    // A deep link to a deleted note resolves to null — leave `note` null so
+    // the screen renders its empty state instead of crashing.
+    vault.getNoteById(id).then((detail) => {
+      if (!detail) return;
       setNote(detail);
       setTitle(detail.title);
       setContent(detail.content);
@@ -76,8 +75,8 @@ export default function NoteScreen() {
   });
 
   async function refreshNote() {
-    const fresh = await trpc.note.getById.query({ id });
-    setNote(fresh);
+    const fresh = await vault.getNoteById(id);
+    if (fresh) setNote(fresh);
   }
 
   function scheduleSave(next: { title: string; content: string; type: NoteType }) {
@@ -85,7 +84,7 @@ export default function NoteScreen() {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       setStatus("saving");
-      await trpc.note.update.mutate({ id, ...next });
+      await vault.updateNote({ id, ...next });
       await refreshNote();
       setStatus("saved");
     }, 600);
@@ -126,9 +125,10 @@ export default function NoteScreen() {
 
       const asset = result.assets[0];
       setUploadingPhoto(true);
-      await uploadAttachment(id, {
-        uri: asset.uri,
-        name: asset.fileName ?? `photo-${Date.now()}.jpg`,
+      await vault.createAttachment({
+        noteId: id,
+        sourcePath: asset.uri,
+        filename: asset.fileName ?? `photo-${Date.now()}.jpg`,
         mimeType: asset.mimeType ?? "image/jpeg",
       });
       await refreshNote();
@@ -142,7 +142,7 @@ export default function NoteScreen() {
   }
 
   async function removeAttachment(attachmentId: string) {
-    await trpc.attachment.delete.mutate({ id: attachmentId });
+    await vault.deleteAttachment(attachmentId);
     await refreshNote();
   }
 
@@ -153,7 +153,7 @@ export default function NoteScreen() {
       setRecording(false);
       if (recorder.uri) {
         try {
-          await uploadAttachment(id, { uri: recorder.uri, name: `voice-${Date.now()}.m4a`, mimeType: "audio/m4a" });
+          await vault.createAttachment({ noteId: id, sourcePath: recorder.uri, filename: `voice-${Date.now()}.m4a`, mimeType: "audio/m4a" });
           await refreshNote();
         } catch {
           setAttachmentError("Couldn't save that voice note.");

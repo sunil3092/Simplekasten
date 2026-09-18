@@ -1,39 +1,56 @@
 "use client";
 
-import type { inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "@simplekasten/api";
-import { slugify } from "@simplekasten/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { GraphView } from "../components/GraphView";
 import {
-  AlertCircleIcon,
   ChevronDownIcon,
   DownloadIcon,
   FileTextIcon,
   HashIcon,
   LayersIcon,
   LinkIcon,
-  LockIcon,
-  LogOutIcon,
-  MailIcon,
   NetworkIcon,
   PlusIcon,
   SearchIcon,
-  UserIcon,
 } from "../components/icons";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
-import { isLocalMode } from "../lib/localVaultClient";
 import { Button, Chip, Kbd, SaveStatusIndicator } from "../components/ui";
-import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../lib/session";
-import { downloadVaultExport, FORCE_LOGOUT_EVENT, trpc } from "../lib/trpc";
+import { showVaultLocation, vaultClient } from "../lib/vaultClient";
 
-type RouterOutputs = inferRouterOutputs<AppRouter>;
-type NoteListItem = RouterOutputs["note"]["list"][number];
-type NoteDetail = RouterOutputs["note"]["getById"];
-type KnowledgeBase = RouterOutputs["knowledgeBase"]["list"][number];
-type NoteType = NoteListItem["type"];
-type TagItem = RouterOutputs["tag"]["list"][number];
+type NoteType = "fleeting" | "literature" | "permanent" | "structure";
+interface NoteListItem {
+  id: string;
+  zettelId: string;
+  title: string;
+  type: NoteType;
+  updatedAt: string;
+}
+interface NoteDetail {
+  id: string;
+  zettelId: string;
+  title: string;
+  content: string;
+  type: NoteType;
+  tagNames: string[];
+  backlinks: { noteId: string; title: string; zettelId: string }[];
+  contents: { noteId: string | null; title: string; zettelId: string | null; resolved: boolean }[];
+}
+interface TagItem {
+  id: string;
+  name: string;
+  noteCount: number;
+}
+interface GraphData {
+  nodes: { id: string; title: string; zettelId: string; type: NoteType }[];
+  edges: { source: string; target: string }[];
+}
+interface SearchResultItem {
+  id: string;
+  title: string;
+  zettelId: string;
+  snippet: string;
+}
 
 const TYPE_STYLES: Record<NoteType, string> = {
   fleeting: "bg-surface-2 text-ink-muted border-line",
@@ -43,150 +60,7 @@ const TYPE_STYLES: Record<NoteType, string> = {
 };
 
 export default function Home() {
-  // Both the static-export prerender and the client's first hydration pass
-  // must render the same thing (false/false here) — window.simplekasten
-  // only exists once the page has actually loaded in Electron, so checking
-  // it can't happen in a useState initializer or in the render body itself
-  // without the client's first paint disagreeing with the prerendered HTML
-  // (a hydration mismatch). Detecting it only inside an effect, and letting
-  // that trigger a normal post-hydration re-render, is what avoids that.
-  const [localMode, setLocalMode] = useState(false);
-  const [authed, setAuthed] = useState(false);
-
-  useEffect(() => {
-    if (isLocalMode()) {
-      setLocalMode(true);
-      setAuthed(true);
-    } else {
-      setAuthed(Boolean(getAccessToken()));
-    }
-  }, []);
-
-  // Fired when a 401 survives a refresh attempt — no access or refresh token
-  // is going to work, so the only honest move is back to the login screen.
-  // Never fires in local mode (no network calls to 401 in the first place).
-  useEffect(() => {
-    function onForceLogout() {
-      setAuthed(false);
-    }
-    window.addEventListener(FORCE_LOGOUT_EVENT, onForceLogout);
-    return () => window.removeEventListener(FORCE_LOGOUT_EVENT, onForceLogout);
-  }, []);
-
-  function handleLogout() {
-    const refreshToken = getRefreshToken();
-    clearTokens();
-    setAuthed(false);
-    if (refreshToken) trpc.auth.logout.mutate({ refreshToken }).catch(() => {});
-  }
-
-  if (localMode) return <Vault onLogout={handleLogout} />;
-  return authed ? <Vault onLogout={handleLogout} /> : <Auth onAuthed={() => setAuthed(true)} />;
-}
-
-function Auth({ onAuthed }: { onAuthed: () => void }) {
-  const [mode, setMode] = useState<"login" | "register">("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSubmitting(true);
-    try {
-      const result =
-        mode === "login"
-          ? await trpc.auth.login.mutate({ email, password })
-          : await trpc.auth.register.mutate({ email, password, displayName });
-      setTokens(result.accessToken, result.refreshToken);
-      onAuthed();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <main className="flex min-h-screen items-center justify-center bg-bg px-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-accent font-display text-lg font-bold text-white shadow-sm">
-            S
-          </div>
-          <h1 className="font-display text-2xl font-bold text-ink">Simplekasten</h1>
-          <p className="mt-1 text-sm text-ink-muted">A slip-box for ideas that link back.</p>
-        </div>
-
-        <div className="rounded-2xl border border-line bg-surface p-7 shadow-sm">
-          <form onSubmit={submit} className="flex flex-col gap-3.5">
-            {mode === "register" && (
-              <div className="relative">
-                <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-faint">
-                  <UserIcon />
-                </span>
-                <input
-                  className="w-full rounded-lg border border-line bg-surface py-2 pr-3 pl-9 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/50"
-                  placeholder="Display name"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  required
-                />
-              </div>
-            )}
-            <div className="relative">
-              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-faint">
-                <MailIcon />
-              </span>
-              <input
-                className="w-full rounded-lg border border-line bg-surface py-2 pr-3 pl-9 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/50"
-                type="email"
-                placeholder="Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-            <div className="relative">
-              <span className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-ink-faint">
-                <LockIcon />
-              </span>
-              <input
-                className="w-full rounded-lg border border-line bg-surface py-2 pr-3 pl-9 text-sm text-ink outline-none transition-colors placeholder:text-ink-faint focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/50"
-                type="password"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={8}
-                required
-              />
-            </div>
-            {error && (
-              <p className="flex items-start gap-1.5 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
-                <span className="mt-0.5 flex-none">
-                  <AlertCircleIcon />
-                </span>
-                {error}
-              </p>
-            )}
-            <Button type="submit" variant="primary" disabled={submitting} className="mt-1 w-full">
-              {submitting ? "Please wait…" : mode === "login" ? "Log in" : "Create account"}
-            </Button>
-          </form>
-
-          <button
-            onClick={() => setMode(mode === "login" ? "register" : "login")}
-            className="mt-5 w-full text-center text-sm text-accent-ink transition-colors hover:text-accent"
-          >
-            {mode === "login" ? "Need an account? Register" : "Already have an account? Log in"}
-          </button>
-        </div>
-      </div>
-    </main>
-  );
+  return <Vault />;
 }
 
 type SaveStatus = "idle" | "saving" | "saved";
@@ -197,19 +71,15 @@ interface PendingSave {
   type: NoteType;
 }
 
-function Vault({ onLogout }: { onLogout: () => void }) {
-  const [kb, setKb] = useState<KnowledgeBase | null>(null);
-  const [kbs, setKbs] = useState<KnowledgeBase[]>([]);
-  const [kbMenuOpen, setKbMenuOpen] = useState(false);
-  const [newKbName, setNewKbName] = useState("");
-  const [creatingKb, setCreatingKb] = useState(false);
+function Vault() {
+  const [vaultPath, setVaultPath] = useState<string>("");
   const [notes, setNotes] = useState<NoteListItem[]>([]);
   const [tags, setTags] = useState<TagItem[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [selected, setSelected] = useState<NoteDetail | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [switcherOpen, setSwitcherOpen] = useState(false);
-  const [graphData, setGraphData] = useState<RouterOutputs["note"]["graph"] | null>(null);
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
   // Structure notes are Simplekasten's Maps of Content — a curated table of
   // contents you link into rather than a folder you file things under.
   // Surfacing them as a standing sidebar section is what makes folder-free
@@ -221,69 +91,47 @@ function Vault({ onLogout }: { onLogout: () => void }) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasAutoOpenedRef = useRef(false);
   const justCreatedIdRef = useRef<string | null>(null);
-  const kbMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    trpc.knowledgeBase.list.query().then((list) => {
-      setKbs(list);
-      setKb(list[0] ?? null);
-    });
+    vaultClient.getVaultPath().then(setVaultPath);
   }, []);
 
-  useEffect(() => {
-    if (!kbMenuOpen) return;
-    function onDocMouseDown(e: MouseEvent) {
-      if (kbMenuRef.current && !kbMenuRef.current.contains(e.target as Node)) setKbMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onDocMouseDown);
-    return () => document.removeEventListener("mousedown", onDocMouseDown);
-  }, [kbMenuOpen]);
-
-  function switchKb(next: KnowledgeBase) {
-    setKbMenuOpen(false);
-    if (next.id === kb?.id) return;
-    hasAutoOpenedRef.current = false;
+  async function chooseFolder() {
+    const path = await vaultClient.chooseVaultFolder();
+    setVaultPath(path);
     setSelected(null);
-    setNotes([]);
+    // A tag filter from the old vault would filter the new one by a tag that
+    // likely doesn't exist there — an empty list with no obvious cause. Clear
+    // it, and let the new vault's first note auto-open again.
     setActiveTag(null);
-    setKb(next);
+    hasAutoOpenedRef.current = false;
+    // Still needed explicitly: if activeTag was already null, the [activeTag]
+    // effect won't re-fire.
+    refreshNotes();
+    refreshTags();
   }
 
-  async function createKbAndSwitch() {
-    const name = newKbName.trim();
-    if (!name) return;
-    setCreatingKb(true);
-    try {
-      const created = await trpc.knowledgeBase.create.mutate({ name });
-      setKbs(await trpc.knowledgeBase.list.query());
-      setNewKbName("");
-      switchKb(created);
-    } finally {
-      setCreatingKb(false);
-    }
+  const vaultName = vaultPath.split(/[\\/]/).filter(Boolean).pop() ?? "Simplekasten";
+
+  async function refreshNotes(tag?: string | null) {
+    setNotes((await vaultClient.listNotes(tag ?? undefined)) as NoteListItem[]);
   }
 
-  async function refreshNotes(kbId: string, tag?: string | null) {
-    setNotes(await trpc.note.list.query({ kbId, tag: tag ?? undefined }));
-  }
-
-  async function refreshTags(kbId: string) {
-    setTags(await trpc.tag.list.query({ kbId }));
+  async function refreshTags() {
+    setTags((await vaultClient.listTags()) as TagItem[]);
   }
 
   useEffect(() => {
-    if (kb) {
-      refreshNotes(kb.id, activeTag);
-      refreshTags(kb.id);
-    }
+    refreshNotes(activeTag);
+    refreshTags();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kb]);
+  }, []);
 
   // #hashtags are parsed from note content, so the tag list can change on
   // every save — re-filtering here keeps the sidebar list honest without a
   // full page reload.
   useEffect(() => {
-    if (kb) refreshNotes(kb.id, activeTag);
+    refreshNotes(activeTag);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTag]);
 
@@ -322,17 +170,15 @@ function Vault({ onLogout }: { onLogout: () => void }) {
 
   async function save(payload: PendingSave) {
     setSaveStatus("saving");
-    await trpc.note.update.mutate(payload);
+    await vaultClient.updateNote(payload);
     setSaveStatus("saved");
-    if (kb) {
-      refreshNotes(kb.id, activeTag);
-      refreshTags(kb.id);
-    }
+    refreshNotes(activeTag);
+    refreshTags();
     // Saving can change this note's own resolved backlinks (a title edit can
     // resolve a link another note was waiting on) or its tags (a content
     // edit can add/remove #hashtags) — refresh just those derived fields so
     // the open panels don't go stale until the user navigates away and back.
-    const fresh = await trpc.note.getById.query({ id: payload.id });
+    const fresh = (await vaultClient.getNoteById(payload.id)) as NoteDetail;
     setSelected((current) =>
       current && current.id === payload.id
         ? { ...current, backlinks: fresh.backlinks, tagNames: fresh.tagNames, contents: fresh.contents }
@@ -353,27 +199,25 @@ function Vault({ onLogout }: { onLogout: () => void }) {
 
   async function openNote(id: string) {
     await flushPending();
-    setSelected(await trpc.note.getById.query({ id }));
+    setSelected((await vaultClient.getNoteById(id)) as NoteDetail);
     setSaveStatus("saved");
   }
 
   async function openGraph() {
-    if (!kb) return;
-    setGraphData(await trpc.note.graph.query({ kbId: kb.id }));
+    setGraphData((await vaultClient.getGraph()) as GraphData);
   }
 
-  async function exportVault() {
-    if (!kb) return;
-    await downloadVaultExport(kb.id, `${slugify(kb.name, "vault")}-export.zip`);
+  async function showVault() {
+    await showVaultLocation();
   }
 
   async function createNote(title = "Untitled") {
-    if (!kb) return;
     await flushPending();
-    const note = await trpc.note.create.mutate({ kbId: kb.id, title, content: "", type: "fleeting" });
-    await refreshNotes(kb.id);
+    // createNote returns a VaultNote, not a NoteDetail — only .id is used here.
+    const note = (await vaultClient.createNote({ title, content: "", type: "fleeting" })) as { id: string };
+    await refreshNotes();
     justCreatedIdRef.current = note.id;
-    setSelected(await trpc.note.getById.query({ id: note.id }));
+    setSelected((await vaultClient.getNoteById(note.id)) as NoteDetail);
     setSaveStatus("saved");
   }
 
@@ -423,65 +267,23 @@ function Vault({ onLogout }: { onLogout: () => void }) {
   return (
     <div className="flex h-screen bg-bg">
       <aside className="flex w-64 flex-none flex-col border-r border-line bg-surface px-3.5 py-4">
-        <div ref={kbMenuRef} className="relative mb-3">
-          <div className="flex items-center justify-between gap-2">
+        <div className="mb-3">
+          <div className="truncate px-2 py-1.5 text-sm font-semibold text-ink">{vaultName}</div>
+          <div className="mt-1 flex flex-col gap-1">
             <button
-              onClick={() => setKbMenuOpen((o) => !o)}
-              className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-sm font-semibold text-ink transition-colors hover:bg-surface-2"
+              onClick={chooseFolder}
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
             >
-              <span className="truncate">{kb?.name ?? "Simplekasten"}</span>
-              <ChevronDownIcon className="flex-none text-ink-faint" />
+              Choose vault folder…
             </button>
             <button
-              onClick={onLogout}
-              className="flex flex-none items-center gap-1 rounded-lg px-2 py-1 text-xs text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
+              onClick={showVault}
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
             >
-              <LogOutIcon />
-              Log out
+              <DownloadIcon />
+              Show vault location
             </button>
           </div>
-
-          {kbMenuOpen && (
-            <div className="animate-fade-scale-in absolute top-full left-0 z-10 mt-1.5 w-60 rounded-xl border border-line bg-surface p-1.5 shadow-lg">
-              {kbs.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => switchKb(item)}
-                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
-                    item.id === kb?.id ? "bg-accent-soft text-accent-ink" : "text-ink hover:bg-surface-2"
-                  }`}
-                >
-                  <span className="truncate">{item.name}</span>
-                  {item.id === kb?.id && <span className="h-1.5 w-1.5 flex-none rounded-full bg-accent" />}
-                </button>
-              ))}
-              <div className="mt-1.5 flex gap-1 border-t border-line-soft pt-1.5">
-                <input
-                  value={newKbName}
-                  onChange={(e) => setNewKbName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") createKbAndSwitch();
-                  }}
-                  placeholder="New vault name"
-                  className="min-w-0 flex-1 rounded-md border border-line bg-transparent px-2 py-1 text-xs text-ink outline-none focus:border-accent"
-                />
-                <button
-                  onClick={createKbAndSwitch}
-                  disabled={creatingKb || !newKbName.trim()}
-                  className="flex-none rounded-md bg-accent px-2 text-xs font-medium text-white transition-colors hover:bg-accent-ink disabled:opacity-50"
-                >
-                  +
-                </button>
-              </div>
-              <button
-                onClick={exportVault}
-                className="mt-1 flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-ink-muted transition-colors hover:bg-surface-2"
-              >
-                <DownloadIcon />
-                Export vault…
-              </button>
-            </div>
-          )}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -691,7 +493,7 @@ function Vault({ onLogout }: { onLogout: () => void }) {
       {switcherOpen && (
         <QuickSwitcher
           recentNotes={notes}
-          onSearch={(query) => (kb ? trpc.note.search.query({ kbId: kb.id, query }) : Promise.resolve([]))}
+          onSearch={(query) => vaultClient.search(query) as Promise<SearchResultItem[]>}
           onSelect={(id) => {
             setSwitcherOpen(false);
             openNote(id);

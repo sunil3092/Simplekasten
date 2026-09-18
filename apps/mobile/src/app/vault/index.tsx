@@ -1,23 +1,13 @@
-import type { inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "@simplekasten/api";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
-import { useAuth } from "@/lib/auth-context";
-import { getRefreshToken } from "@/lib/session";
-import { trpc } from "@/lib/trpc";
+import type { NoteListItem, TagItem } from "@simplekasten/local-engine";
+import { vault } from "@/lib/vault";
 import { useThemeColors } from "@/theme";
-
-type RouterOutputs = inferRouterOutputs<AppRouter>;
-type KnowledgeBase = RouterOutputs["knowledgeBase"]["list"][number];
-type NoteListItem = RouterOutputs["note"]["list"][number];
-type TagItem = RouterOutputs["tag"]["list"][number];
 
 export default function VaultScreen() {
   const colors = useThemeColors();
   const router = useRouter();
-  const { logout } = useAuth();
-  const [kb, setKb] = useState<KnowledgeBase | null>(null);
   const [notes, setNotes] = useState<NoteListItem[]>([]);
   const [tags, setTags] = useState<TagItem[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
@@ -25,16 +15,7 @@ export default function VaultScreen() {
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async (tag?: string | null) => {
-    // v1 scope: the mobile app works in the account's default vault only —
-    // no vault-switching UI yet, matching this build's documented scoping.
-    const kbs = await trpc.knowledgeBase.list.query();
-    const current = kbs[0] ?? null;
-    setKb(current);
-    if (!current) return;
-    const [noteList, tagList] = await Promise.all([
-      trpc.note.list.query({ kbId: current.id, tag: tag ?? undefined }),
-      trpc.tag.list.query({ kbId: current.id }),
-    ]);
+    const [noteList, tagList] = await Promise.all([vault.listNotes(tag ?? undefined), vault.listTags()]);
     setNotes(noteList);
     setTags(tagList);
   }, []);
@@ -47,9 +28,6 @@ export default function VaultScreen() {
   // covering that return-from-detail case as well as the initial mount.
   useFocusEffect(
     useCallback(() => {
-      // An in-flight load can still outlive a race with a force-logout — a
-      // swallowed error here is preferable to an unhandled rejection
-      // reaching the dev error overlay for something already navigated away from.
       load(activeTag).catch(() => {});
     }, [activeTag, load]),
   );
@@ -61,31 +39,18 @@ export default function VaultScreen() {
   }
 
   async function createNote() {
-    if (!kb || creating) return;
+    if (creating) return;
     setCreating(true);
     try {
-      const note = await trpc.note.create.mutate({ kbId: kb.id, title: "Untitled", content: "", type: "fleeting" });
+      const note = await vault.createNote({ title: "Untitled", content: "", type: "fleeting" });
       router.push(`/vault/${note.id}`);
     } finally {
       setCreating(false);
     }
   }
 
-  async function onLogout() {
-    const refreshToken = await getRefreshToken();
-    if (refreshToken) trpc.auth.logout.mutate({ refreshToken }).catch(() => {});
-    await logout();
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
-      <View style={styles.headerRow}>
-        <Text style={[styles.vaultName, { color: colors.inkMuted }]}>{kb?.name ?? "Simplekasten"}</Text>
-        <Pressable onPress={onLogout}>
-          <Text style={[styles.logout, { color: colors.inkFaint }]}>Log out</Text>
-        </Pressable>
-      </View>
-
       <Pressable
         onPress={createNote}
         disabled={creating}
@@ -141,9 +106,6 @@ export default function VaultScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-  vaultName: { fontSize: 13, fontFamily: "monospace" },
-  logout: { fontSize: 13, textDecorationLine: "underline" },
   newNoteButton: { borderWidth: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center", marginBottom: 12 },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
   tagChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },

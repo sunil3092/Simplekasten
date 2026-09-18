@@ -32,5 +32,13 @@ export function createMemoryFs(): FileSystemAdapter {
     async ensureDir() {
       // No directory entries in this in-memory model — writes just work.
     },
+    async copyFile(source: string, dest: string) {
+      const contents = files.get(source);
+      if (contents === undefined) throw new Error(`ENOENT: ${source}`);
+      files.set(dest, contents);
+    },
+    resolvePath(path: string) {
+      return path;
+    },
   };
 }

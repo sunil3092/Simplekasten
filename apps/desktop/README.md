@@ -1,13 +1,9 @@
 # Simplekasten Desktop (Electron)
 
-Wraps the exact same static export of `apps/web` in a native shell — see
-`IMPLEMENTATION_PLAN.md` §1 for why the frontend has no server-only Next.js
-features, which is what makes this possible without a second UI.
-
-## First-time setup
-
-Copy `apps/api/.env.example` to `.env` and point `NEXT_PUBLIC_API_URL`
-(in `apps/web/.env`) at a running API instance.
+Fully local, offline note-taking app — no login, no API. The renderer (this
+app's own Next.js UI, under `src/`) talks only to the Electron main process
+over IPC (see `preload.js` / `main.js`), which reads and writes the vault as
+plain markdown files on disk via `@simplekasten/local-engine`.
 
 ## Run
 
@@ -25,6 +21,6 @@ this won't render anything over a headless remote session.
 npm run build -w @simplekasten/desktop
 ```
 
-Builds the static Next.js export, copies it into `renderer/`, and runs
-electron-builder to produce a platform-native installer (dmg/nsis/AppImage
-depending on the host OS) in `release/`.
+Builds the static Next.js export into `out/` and runs electron-builder to
+produce a platform-native installer (dmg/nsis/AppImage depending on the host
+OS) in `release/`.

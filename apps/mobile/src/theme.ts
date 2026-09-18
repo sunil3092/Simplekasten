@@ -1,6 +1,6 @@
 import { useColorScheme } from "react-native";
 
-// Mirrors apps/web/src/app/globals.css's palette so the native app reads as
+// Mirrors apps/desktop/src/app/globals.css's palette so the native app reads as
 // the same product, not a reskin.
 export const lightColors = {
   surface: "#ffffff",

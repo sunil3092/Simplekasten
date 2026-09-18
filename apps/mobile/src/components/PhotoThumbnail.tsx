@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { attachmentFileUrl, authHeaders } from "@/lib/attachments";
+import { vault } from "@/lib/vault";
 import { useThemeColors } from "@/theme";
 
 interface PhotoThumbnailProps {
@@ -8,28 +8,22 @@ interface PhotoThumbnailProps {
   onRemove: () => void;
 }
 
-// react-native-web's Image renders a plain <img>, which can't send custom
-// headers — and expo-image-picker's private files need the same Bearer auth
-// as everything else. Fetching the bytes once and handing the Image a local
-// blob: URI works identically on native and web, sidestepping that gap.
 export function PhotoThumbnail({ id, onRemove }: PhotoThumbnailProps) {
   const colors = useThemeColors();
   const [uri, setUri] = useState<string | null>(null);
 
   useEffect(() => {
-    let objectUrl: string | null = null;
     let cancelled = false;
-    (async () => {
-      const headers = await authHeaders();
-      const res = await fetch(attachmentFileUrl(id), { headers });
-      const blob = await res.blob();
-      if (cancelled) return;
-      objectUrl = URL.createObjectURL(blob);
-      setUri(objectUrl);
-    })();
+    // Rejects on a stale attachment id (manifest entry gone) — the loading
+    // placeholder stays, which is the right fallback for a missing file.
+    vault.getAttachmentFilePath(id).then(
+      (path) => {
+        if (!cancelled) setUri(path);
+      },
+      (err) => console.warn(`Couldn't resolve attachment ${id}:`, err),
+    );
     return () => {
       cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [id]);
 

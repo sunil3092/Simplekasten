@@ -19,45 +19,39 @@ Simplekasten is a **Zettelkasten**-based memory management app. It takes Niklas 
 
 ```mermaid
 graph LR
-    Web["🌐 apps/web<br/>Next.js"]
     Desktop["🖥️ apps/desktop<br/>Electron"]
     Mobile["📱 apps/mobile<br/>Expo"]
-    API["🚀 apps/api<br/>Express + tRPC"]
-    DB[("🐘 PostgreSQL")]
     Local[("💾 Local vault<br/>packages/local-engine")]
+    API["🚀 apps/api<br/>Express + tRPC<br/>(dormant)"]
+    DB[("🐘 PostgreSQL<br/>(dormant)")]
 
-    Web --> API
-    Mobile --> API
-    Desktop --> API
-    Desktop -. "offline mode, no login" .-> Local
-    API --> DB
+    Desktop --> Local
+    Mobile --> Local
+    API -.-> DB
 
     Core["📦 packages/core<br/>shared types & logic"]
-    Core -.-> Web
-    Core -.-> API
-    Core -.-> Mobile
     Core -.-> Desktop
+    Core -.-> Mobile
+    Core -.-> API
 ```
 
-Every client talks to one standalone API service — that's what keeps the note graph consistent as your vault grows. 🖥️ Desktop is special: it can also run **fully offline with no login**, powered by its own local-first vault engine. 🎉
+Desktop and Mobile are both **fully local**: no account, no network calls, no server. Each reads and writes the vault as plain markdown files with YAML frontmatter directly on disk, via the shared `packages/local-engine`. 🎉 `apps/api` (Express + tRPC) and `packages/db` (Prisma/PostgreSQL) remain in the repo but are currently **dormant** — no client uses them — kept as the future home of an opt-in cross-device sync feature.
 
 ## 🗂️ Project layout
 
 This is an **npm workspaces monorepo**:
 
-- `apps/web` — 🌐 Next.js frontend
-- `apps/api` — 🚀 Express + tRPC API service (Prisma/PostgreSQL)
-- `apps/desktop` — 🖥️ Electron shell wrapping the web app, with an offline-first local vault engine
-- `apps/mobile` — 📱 React Native (Expo) app
+- `apps/api` — 🚀 Express + tRPC API service (Prisma/PostgreSQL) — dormant, not called by any client today
+- `apps/desktop` — 🖥️ Electron app, fully local — reads/writes the vault as markdown files via `packages/local-engine`, no login
+- `apps/mobile` — 📱 React Native (Expo) app, fully local — same `packages/local-engine`, via an Expo file-system adapter, no login
 - `packages/core` — 📦 shared types, schemas, and note/link logic used across apps
-- `packages/db` — 🐘 Prisma schema and database client
-- `packages/local-engine` — 💾 local-first vault engine that lets the desktop app work fully offline
-- `e2e` — 🧪 end-to-end tests
+- `packages/db` — 🐘 Prisma schema and database client — dormant, only used by the dormant `apps/api`
+- `packages/local-engine` — 💾 local-first vault engine powering both the desktop and mobile apps
 
 ## ⚙️ Requirements
 
 - 🟢 Node.js >= 22
-- 🐳 Docker (for a local PostgreSQL instance), or an existing PostgreSQL database
+- 🐳 Docker (optional — only needed if you're working on the dormant `apps/api` service; not required to run desktop or mobile)
 
 ## 🚀 Setup
 
@@ -65,7 +59,9 @@ This is an **npm workspaces monorepo**:
 npm install
 ```
 
-Spin up the database:
+That's it for desktop and mobile — both work fully offline out of the box.
+
+If you're working on the dormant `apps/api` service, spin up its database too:
 
 ```bash
 docker compose up -d
@@ -74,29 +70,22 @@ npm run db:generate
 npm run db:migrate
 ```
 
-Point the web app at the API:
-
-```bash
-cp apps/web/.env.example apps/web/.env
-```
-
 ## 💻 Development
 
 ```mermaid
 flowchart LR
-    A["npm run dev:api 🚀"] --> D[("localhost:4000")]
-    B["npm run dev:web 🌐"] --> E[("localhost:3000")]
-    C["npm run dev:desktop 🖥️"] --> E
-    C -.->|"offline mode 💾"| F(("local vault<br/>no login needed"))
+    C["npm run dev:desktop 🖥️"] --> F(("local vault 💾<br/>markdown on disk, no login"))
+    G["npm run dev:mobile 📱"] --> F
+    A["npm run dev:api 🚀<br/>(dormant, unused)"] --> D[("localhost:4000")]
 ```
 
 ```bash
-npm run dev:api       # 🚀 API on http://localhost:4000
-npm run dev:web       # 🌐 Web app on http://localhost:3000
-npm run dev:desktop   # 🖥️ Electron shell (wraps the web dev server)
+npm run dev:desktop   # 🖥️ Electron app — fully local, no login, no network
+npm run dev:mobile    # 📱 Expo app — fully local, no login, no network
+npm run dev:api       # 🚀 dormant API service (no client calls it today)
 ```
 
-💾 The desktop app can also run fully offline with no login, backed by its local vault engine — see [apps/desktop/README.md](./apps/desktop/README.md).
+💾 The desktop app is fully local, backed by its local vault engine — see [apps/desktop/README.md](./apps/desktop/README.md).
 
 📱 For mobile, see [apps/mobile/README.md](./apps/mobile/README.md).
 
@@ -106,7 +95,6 @@ npm run dev:desktop   # 🖥️ Electron shell (wraps the web dev server)
 npm run typecheck           # 🔎 types
 npm run test                 # 🧪 unit tests
 npm run test:integration     # 🔗 API integration tests
-npm run test:e2e             # 🎭 end-to-end tests
 ```
 
 ## 📦 Build
