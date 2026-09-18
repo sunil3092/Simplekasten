@@ -14,9 +14,14 @@ export function PhotoThumbnail({ id, onRemove }: PhotoThumbnailProps) {
 
   useEffect(() => {
     let cancelled = false;
-    vault.getAttachmentFilePath(id).then((path) => {
-      if (!cancelled) setUri(path);
-    });
+    // Rejects on a stale attachment id (manifest entry gone) — the loading
+    // placeholder stays, which is the right fallback for a missing file.
+    vault.getAttachmentFilePath(id).then(
+      (path) => {
+        if (!cancelled) setUri(path);
+      },
+      (err) => console.warn(`Couldn't resolve attachment ${id}:`, err),
+    );
     return () => {
       cancelled = true;
     };

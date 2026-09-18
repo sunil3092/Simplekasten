@@ -5,6 +5,10 @@ const nextConfig = {
   // Actions, API routes) are used anywhere in this app — every screen talks
   // to the Electron main process over IPC instead (see ../lib/vaultClient.ts).
   output: "export",
+  // The packaged app loads out/index.html over file://, where a leading-slash
+  // "/_next/..." resolves against the filesystem root and yields a blank
+  // window. Relative asset paths are what make the export loadable off disk.
+  assetPrefix: "./",
   images: { unoptimized: true },
 };
 

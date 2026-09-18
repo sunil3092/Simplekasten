@@ -48,7 +48,7 @@
 | Auth | Auth.js, JWT bearer tokens | Drop-in OAuth (Google/GitHub) plus email login; JWT (not cookie sessions) so Electron and React Native clients authenticate the same way as the browser, storing the token in the OS keychain. |
 | File storage | S3-compatible (Supabase Storage / R2) | Attachments and clipped images live outside the database, referenced by URL; S3-compatible so the provider can be swapped freely. |
 | Hosting | Any Docker-capable host (Render, Fly.io, Railway, or a VPS) + Neon/Supabase Postgres | Both the web app and the API service ship as plain Docker images — no PaaS-specific APIs — so hosting is a config change, not a rewrite. |
-| Desktop | Electron, wrapping the web frontend | Same static Next.js export as web, loaded in a native window; pure JS/npm toolchain (no Rust) at the cost of a larger, heavier binary than a Rust-based shell would give. |
+| Desktop | Electron, wrapping its own Next.js renderer | `apps/desktop` owns its UI directly (a static Next.js export loaded in a native window) and talks to the local vault over IPC — no `apps/web` dependency. Pure JS/npm toolchain (no Rust) at the cost of a larger, heavier binary than a Rust-based shell would give. |
 | Mobile (later) | React Native (Expo), separate app | True native UI; shares a common TypeScript core package with web/desktop for API calls and business logic, but owns its own UI, including the editor via Expo DOM Components rather than a from-scratch native rewrite. |
 
 ## 4. High-Level Architecture

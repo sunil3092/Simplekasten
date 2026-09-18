@@ -1,0 +1,24 @@
+/* Self-hosted fonts, so the app really does make zero network calls (the
+   Google Fonts @import this replaced contradicted that claim in both READMEs).
+   These are the Google Fonts latin-subset variable files.
+
+   Why a plain stylesheet in public/ rather than @font-face in globals.css:
+   next.config.js sets assetPrefix "./" so the packaged app can load out/
+   over file://, and that prefix mangles bundler-rewritten url() paths inside
+   the emitted CSS chunk. This file is copied verbatim, so its url()s stay
+   relative to itself and resolve under both `next dev` and file://. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("./inter-latin-var.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("./jetbrains-mono-latin-var.woff2") format("woff2");
+}

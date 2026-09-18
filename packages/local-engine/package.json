@@ -24,7 +24,7 @@
     "vitest": "^2.1.4"
   },
   "peerDependencies": {
-    "expo-file-system": "*"
+    "expo-file-system": ">=54"
   },
   "peerDependenciesMeta": {
     "expo-file-system": { "optional": true }

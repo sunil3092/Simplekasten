@@ -47,7 +47,6 @@ This is an **npm workspaces monorepo**:
 - `packages/core` — 📦 shared types, schemas, and note/link logic used across apps
 - `packages/db` — 🐘 Prisma schema and database client — dormant, only used by the dormant `apps/api`
 - `packages/local-engine` — 💾 local-first vault engine powering both the desktop and mobile apps
-- `e2e` — 🧪 end-to-end tests
 
 ## ⚙️ Requirements
 
@@ -76,12 +75,13 @@ npm run db:migrate
 ```mermaid
 flowchart LR
     C["npm run dev:desktop 🖥️"] --> F(("local vault 💾<br/>markdown on disk, no login"))
-    G["cd apps/mobile && npx expo start 📱"] --> F
+    G["npm run dev:mobile 📱"] --> F
     A["npm run dev:api 🚀<br/>(dormant, unused)"] --> D[("localhost:4000")]
 ```
 
 ```bash
 npm run dev:desktop   # 🖥️ Electron app — fully local, no login, no network
+npm run dev:mobile    # 📱 Expo app — fully local, no login, no network
 npm run dev:api       # 🚀 dormant API service (no client calls it today)
 ```
 
@@ -95,7 +95,6 @@ npm run dev:api       # 🚀 dormant API service (no client calls it today)
 npm run typecheck           # 🔎 types
 npm run test                 # 🧪 unit tests
 npm run test:integration     # 🔗 API integration tests
-npm run test:e2e             # 🎭 end-to-end tests
 ```
 
 ## 📦 Build

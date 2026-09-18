@@ -14,7 +14,11 @@ export function VoiceNotePlayer({ id, onRemove }: VoiceNotePlayerProps) {
   const [uri, setUri] = useState<string | null>(null);
 
   useEffect(() => {
-    vault.getAttachmentFilePath(id).then(setUri);
+    // Rejects on a stale attachment id (manifest entry gone) — `uri` stays
+    // null, which leaves the play button disabled rather than crashing.
+    vault
+      .getAttachmentFilePath(id)
+      .then(setUri, (err) => console.warn(`Couldn't resolve attachment ${id}:`, err));
   }, [id]);
 
   const player = useAudioPlayer(uri);

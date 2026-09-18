@@ -100,7 +100,14 @@ function Vault() {
     const path = await vaultClient.chooseVaultFolder();
     setVaultPath(path);
     setSelected(null);
-    refreshNotes(activeTag);
+    // A tag filter from the old vault would filter the new one by a tag that
+    // likely doesn't exist there — an empty list with no obvious cause. Clear
+    // it, and let the new vault's first note auto-open again.
+    setActiveTag(null);
+    hasAutoOpenedRef.current = false;
+    // Still needed explicitly: if activeTag was already null, the [activeTag]
+    // effect won't re-fire.
+    refreshNotes();
     refreshTags();
   }
 
@@ -206,7 +213,8 @@ function Vault() {
 
   async function createNote(title = "Untitled") {
     await flushPending();
-    const note = (await vaultClient.createNote({ title, content: "", type: "fleeting" })) as NoteDetail;
+    // createNote returns a VaultNote, not a NoteDetail — only .id is used here.
+    const note = (await vaultClient.createNote({ title, content: "", type: "fleeting" })) as { id: string };
     await refreshNotes();
     justCreatedIdRef.current = note.id;
     setSelected((await vaultClient.getNoteById(note.id)) as NoteDetail);

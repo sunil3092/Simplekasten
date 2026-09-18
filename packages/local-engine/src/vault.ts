@@ -273,10 +273,26 @@ function attachmentFilename(attachment: Pick<Attachment, "id" | "filename">): st
   return `${attachment.id}-${attachment.filename}`;
 }
 
+/**
+ * The stored `Attachment.filename` is both the display name and part of the
+ * on-disk path, so sanitizing once here — at the point the attachment record
+ * is built — keeps the two from ever diverging. A `/` or `..` in a
+ * picker-supplied filename would otherwise escape `attachments/`.
+ */
+function sanitizeFilename(filename: string): string {
+  return filename.replace(/[^\w.-]/g, "_");
+}
+
 async function loadManifest(fs: FileSystemAdapter): Promise<Record<string, Attachment>> {
   if (!(await fs.exists(MANIFEST_PATH))) return {};
   const raw = await fs.readFile(MANIFEST_PATH);
-  return JSON.parse(raw) as Record<string, Attachment>;
+  try {
+    return JSON.parse(raw) as Record<string, Attachment>;
+  } catch (err) {
+    throw new Error(
+      `Attachment manifest at "${MANIFEST_PATH}" is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
 }
 
 async function saveManifest(fs: FileSystemAdapter, manifest: Record<string, Attachment>): Promise<void> {
@@ -305,7 +321,7 @@ export async function createAttachment(fs: FileSystemAdapter, input: CreateAttac
     id: generateId(),
     noteId: input.noteId,
     kind,
-    filename: input.filename,
+    filename: sanitizeFilename(input.filename),
     mimeType: input.mimeType,
     createdAt: new Date().toISOString(),
   };
@@ -317,14 +333,20 @@ export async function createAttachment(fs: FileSystemAdapter, input: CreateAttac
   manifest[attachment.id] = attachment;
   await saveManifest(fs, manifest);
 
-  await fs.writeFile(
-    noteFilePath(note.id),
-    serializeNoteFile({
-      ...note,
-      attachmentIds: [...note.attachmentIds, attachment.id],
-      updatedAt: new Date().toISOString(),
-    }),
-  );
+  // Re-read rather than reusing the `note` captured above: copying a
+  // multi-megabyte photo or voice file is slow enough that an autosave can
+  // land in between, and writing back the stale object would discard it.
+  const fresh = (await loadAllNotes(fs)).find((n) => n.id === input.noteId);
+  if (fresh) {
+    await fs.writeFile(
+      noteFilePath(fresh.id),
+      serializeNoteFile({
+        ...fresh,
+        attachmentIds: [...fresh.attachmentIds, attachment.id],
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+  }
 
   return attachment;
 }

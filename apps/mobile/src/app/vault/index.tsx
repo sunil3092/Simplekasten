@@ -1,11 +1,9 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import type { NoteListItem, TagItem } from "@simplekasten/local-engine";
 import { vault } from "@/lib/vault";
 import { useThemeColors } from "@/theme";
-
-interface NoteListItem { id: string; zettelId: string; title: string; type: "fleeting" | "literature" | "permanent" | "structure"; updatedAt: string }
-interface TagItem { id: string; name: string; noteCount: number }
 
 export default function VaultScreen() {
   const colors = useThemeColors();
@@ -17,10 +15,7 @@ export default function VaultScreen() {
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async (tag?: string | null) => {
-    const [noteList, tagList] = await Promise.all([
-      vault.listNotes(tag ?? undefined) as Promise<NoteListItem[]>,
-      vault.listTags() as Promise<TagItem[]>,
-    ]);
+    const [noteList, tagList] = await Promise.all([vault.listNotes(tag ?? undefined), vault.listTags()]);
     setNotes(noteList);
     setTags(tagList);
   }, []);
@@ -47,7 +42,7 @@ export default function VaultScreen() {
     if (creating) return;
     setCreating(true);
     try {
-      const note = (await vault.createNote({ title: "Untitled", content: "", type: "fleeting" })) as { id: string };
+      const note = await vault.createNote({ title: "Untitled", content: "", type: "fleeting" });
       router.push(`/vault/${note.id}`);
     } finally {
       setCreating(false);

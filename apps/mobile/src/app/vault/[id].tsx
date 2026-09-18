@@ -2,21 +2,14 @@ import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder } 
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
+import type { NoteType } from "@simplekasten/core";
+import type { NoteDetail } from "@simplekasten/local-engine";
 import { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { PhotoThumbnail } from "@/components/PhotoThumbnail";
 import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { vault } from "@/lib/vault";
 import { useThemeColors } from "@/theme";
-
-type NoteType = "fleeting" | "literature" | "permanent" | "structure";
-interface Attachment { id: string; kind: "photo" | "voice" }
-interface NoteDetail {
-  id: string; zettelId: string; title: string; content: string; type: NoteType;
-  tagNames: string[]; attachments: Attachment[];
-  backlinks: { noteId: string; title: string }[];
-  contents: { noteId: string | null; title: string; resolved: boolean }[];
-}
 
 const TYPES: { value: NoteType; label: string }[] = [
   { value: "fleeting", label: "Fleeting" },
@@ -45,7 +38,10 @@ export default function NoteScreen() {
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   useEffect(() => {
-    (vault.getNoteById(id) as Promise<NoteDetail>).then((detail) => {
+    // A deep link to a deleted note resolves to null — leave `note` null so
+    // the screen renders its empty state instead of crashing.
+    vault.getNoteById(id).then((detail) => {
+      if (!detail) return;
       setNote(detail);
       setTitle(detail.title);
       setContent(detail.content);
@@ -79,8 +75,8 @@ export default function NoteScreen() {
   });
 
   async function refreshNote() {
-    const fresh = await (vault.getNoteById(id) as Promise<NoteDetail>);
-    setNote(fresh);
+    const fresh = await vault.getNoteById(id);
+    if (fresh) setNote(fresh);
   }
 
   function scheduleSave(next: { title: string; content: string; type: NoteType }) {
