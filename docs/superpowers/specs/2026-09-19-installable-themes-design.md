@@ -50,8 +50,9 @@ Pure TypeScript, depends only on `zod`.
 
 Cream background, hot-pink / teal / yellow accents, near-black 3px borders,
 square corners, hard (blur-free) 4px offset shadow, `rounded-bold` display font.
-Dark variant: deep navy background, same saturated accents, light ink, light
-shadow colour kept visible against the dark background.
+Dark variant: deep navy background, same saturated accents, cream ink and
+borders. The shadow colour is a single hot pink (`#ff3ea5`) chosen to stay
+visible on both the cream and navy backgrounds, since `shape` is not mode-specific.
 
 ## App settings
 
@@ -64,8 +65,10 @@ invalid theme id at startup falls back to `default` and surfaces a notice.
 
 - `applyTheme(resolved)` writes CSS variables on `<html>`: existing `--color-*`
   plus new `--radius`, `--border-w`, `--shadow-x`, `--shadow-y`, `--shadow-color`,
-  and font stacks `--font-display/body/mono`. The current `prefers-color-scheme`
-  block in `globals.css` is replaced by the resolved mode, so the mode selector works.
+  and font stacks `--font-display/body/mono`. The `prefers-color-scheme`
+  block in `globals.css` stays as a pre-hydration fallback (avoids a light flash for
+  dark-mode users); inline variables from the resolved theme override it once the app
+  mounts, so the mode selector works.
 - Hard-coded `rounded-*`, `shadow-*` and border-width classes in components move to
   the new variables (Tailwind arbitrary values, e.g. `rounded-(--radius)`), so shape
   changes actually render.
