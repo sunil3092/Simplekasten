@@ -4,10 +4,10 @@ import archiver from "archiver";
 import type { Express } from "express";
 import { verifyAccessToken } from "./auth";
 
-// A plain REST route rather than a tRPC procedure: tRPC's HTTP adapter is
-// built around JSON request/response bodies, not streaming a binary zip, so
-// this reimplements just enough of the tRPC auth context (Bearer token in
-// the Authorization header) to authorize the request the same way.
+// A standalone route rather than one of routes/*.ts's JSON handlers: this
+// streams a binary zip, not a JSON body, so it reimplements just enough of
+// routes/*.ts's authMiddleware (Bearer token in the Authorization header)
+// to authorize the request the same way.
 export function registerExportRoute(app: Express): void {
   app.get("/export/:kbId", async (req, res) => {
     const authHeader = req.headers.authorization;

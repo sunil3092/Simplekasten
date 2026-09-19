@@ -1,11 +1,8 @@
-import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import cors from "cors";
 import express, { type Express, Response, NextFunction } from "express";
 import { registerAttachmentRoutes } from "./attachments";
-import { createContext } from "./context";
 import { registerExportRoute } from "./export";
 import { handleError } from "./errors";
-import { appRouter } from "./router";
 import authRoutes from "./routes/auth";
 import notesRoutes from "./routes/notes";
 import tagsRoutes from "./routes/tags";
@@ -35,20 +32,10 @@ export function createApp(): Express {
   app.use("/api/vaults", vaultsRoutes);
   app.use("/api/attachments", attachmentsRoutes);
 
-  // Keep existing routes for backward compatibility during migration
+  // Binary transfers (multipart upload, zip streaming) don't fit the REST
+  // routes' JSON shape, so these stay as their own plain Express routes.
   registerExportRoute(app);
   registerAttachmentRoutes(app);
-
-  // The web app still speaks tRPC exclusively (see apps/web/src/lib/trpc.ts)
-  // — the REST routes above are additive, not yet a replacement — so this
-  // stays mounted until the frontend is migrated off it.
-  app.use(
-    "/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    }),
-  );
 
   // Error handling middleware (must be last)
   app.use(

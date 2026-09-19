@@ -22,7 +22,7 @@ graph LR
     Desktop["🖥️ apps/desktop<br/>Electron"]
     Mobile["📱 apps/mobile<br/>Expo"]
     Local[("💾 Local vault<br/>packages/local-engine")]
-    API["🚀 apps/api<br/>Express + tRPC<br/>(dormant)"]
+    API["🚀 apps/api<br/>Express + REST<br/>(dormant)"]
     DB[("🐘 PostgreSQL<br/>(dormant)")]
 
     Desktop --> Local
@@ -35,13 +35,13 @@ graph LR
     Core -.-> API
 ```
 
-Desktop and Mobile are both **fully local**: no account, no network calls, no server. Each reads and writes the vault as plain markdown files with YAML frontmatter directly on disk, via the shared `packages/local-engine`. 🎉 `apps/api` (Express + tRPC) and `packages/db` (Prisma/PostgreSQL) remain in the repo but are currently **dormant** — no client uses them — kept as the future home of an opt-in cross-device sync feature.
+Desktop and Mobile are both **fully local**: no account, no network calls, no server. Each reads and writes the vault as plain markdown files with YAML frontmatter directly on disk, via the shared `packages/local-engine`. 🎉 `apps/api` (Express + REST) and `packages/db` (Prisma/PostgreSQL) remain in the repo but are currently **dormant** — no client uses them — kept as the future home of an opt-in cross-device sync feature.
 
 ## 🗂️ Project layout
 
 This is an **npm workspaces monorepo**:
 
-- `apps/api` — 🚀 Express + tRPC API service (Prisma/PostgreSQL) — dormant, not called by any client today
+- `apps/api` — 🚀 Express + REST API service (Prisma/PostgreSQL) — dormant, not called by any client today
 - `apps/desktop` — 🖥️ Electron app, fully local — reads/writes the vault as markdown files via `packages/local-engine`, no login
 - `apps/mobile` — 📱 React Native (Expo) app, fully local — same `packages/local-engine`, via an Expo file-system adapter, no login
 - `packages/core` — 📦 shared types, schemas, and note/link logic used across apps

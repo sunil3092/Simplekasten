@@ -4,7 +4,7 @@ Architecture, per-feature schema, and UI/layout principles for building Simpleka
 
 ## 1. Application Architecture
 
-> **This shipped differently.** The plan below (one Express+tRPC API in front of Postgres, every client as a "front door" to it) was the original design. `apps/web` was removed entirely. **Desktop (Electron) and Mobile (Expo) are fully local instead** — no accounts, no HTTPS/tRPC calls — each reads and writes the vault directly via `packages/local-engine` (markdown files + YAML frontmatter on disk, through a per-platform filesystem adapter). `apps/api` and `packages/db` are still in the repo but **dormant** — no client calls them today — reserved as the future home of an opt-in cross-device sync feature (see `docs/superpowers/specs/2026-09-17-shared-vault-library-design.md`). The rest of this section is kept for historical context on the original API design.
+> **This shipped differently.** The plan below (one Express+tRPC API in front of Postgres, every client as a "front door" to it) was the original design. `apps/web` was removed entirely, and `apps/api` itself later dropped tRPC for REST-only (the two were fully duplicate implementations of the same routes; nothing called either by then). **Desktop (Electron) and Mobile (Expo) are fully local instead** — no accounts, no HTTPS/tRPC calls — each reads and writes the vault directly via `packages/local-engine` (markdown files + YAML frontmatter on disk, through a per-platform filesystem adapter). `apps/api` and `packages/db` are still in the repo but **dormant** — no client calls them today — reserved as the future home of an opt-in cross-device sync feature (see `docs/superpowers/specs/2026-09-17-shared-vault-library-design.md`). The rest of this section is kept for historical context on the original API design.
 
 One Express service is the only thing that touches Postgres. Every client — web today, desktop and mobile later — is just a different front door to the same API.
 
@@ -22,7 +22,7 @@ simplekasten/
 │   └── ui/        Shared React components consumed by apps/web
 ```
 
-**Actual current layout:** `apps/web` and `packages/ui` were removed; `apps/worker` was never built. What exists today: `apps/api` (dormant Express + tRPC), `apps/desktop` (Electron, fully local), `apps/mobile` (Expo, fully local), `packages/core` (shared types/logic, used by all three), `packages/db` (Prisma, used only by the dormant `apps/api`), and `packages/local-engine` (the local vault engine shared by desktop and mobile).
+**Actual current layout:** `apps/web` and `packages/ui` were removed; `apps/worker` was never built. What exists today: `apps/api` (dormant Express + REST — its original tRPC layer was deleted once it became a second, fully duplicate implementation of the same routes with zero callers), `apps/desktop` (Electron, fully local), `apps/mobile` (Expo, fully local), `packages/core` (shared types/logic, used by all three), `packages/db` (Prisma, used only by the dormant `apps/api`), and `packages/local-engine` (the local vault engine shared by desktop and mobile).
 
 **Request flow:** Web / Desktop (Electron) / Mobile (React Native, later) → HTTPS + JWT → Express API (tRPC + Prisma + JWT auth) → PostgreSQL. The API also enqueues background work onto Redis, processed by a separate Worker process (digests, embeddings, spaced-review scheduling), and calls out to Auth.js, object storage, email, and — later — an AI API. Each of `apps/web` and `apps/api` ships as its own Docker image, deployable independently to Render/Fly.io/Railway/a VPS.
 
