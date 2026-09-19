@@ -12,10 +12,13 @@ import {
   NetworkIcon,
   PlusIcon,
   SearchIcon,
+  SettingsIcon,
 } from "../components/icons";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
+import { SettingsModal } from "../components/SettingsModal";
 import { Button, Chip, Kbd, SaveStatusIndicator } from "../components/ui";
+import { useTheme } from "../lib/ThemeProvider";
 import { showVaultLocation, vaultClient } from "../lib/vaultClient";
 
 type NoteType = "fleeting" | "literature" | "permanent" | "structure";
@@ -79,6 +82,8 @@ function Vault() {
   const [selected, setSelected] = useState<NoteDetail | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { notice: themeNotice } = useTheme();
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   // Structure notes are Simplekasten's Maps of Content — a curated table of
   // contents you link into rather than a folder you file things under.
@@ -287,6 +292,16 @@ function Vault() {
         </div>
 
         <div className="flex flex-col gap-1">
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="relative flex items-center gap-2 rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-1.5 text-left text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
+          >
+            <SettingsIcon />
+            Settings
+            {themeNotice && (
+              <span aria-label="Theme problem" className="absolute top-1/2 right-3 h-2 w-2 -translate-y-1/2 rounded-full bg-accent-2" />
+            )}
+          </button>
           <button
             onClick={() => setSwitcherOpen(true)}
             className="flex items-center justify-between rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-1.5 text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
@@ -505,6 +520,8 @@ function Vault() {
           onClose={() => setSwitcherOpen(false)}
         />
       )}
+
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
 
       {graphData && (
         <GraphView
