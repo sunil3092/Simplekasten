@@ -3,6 +3,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 import { createExpoFsAdapter } from "@simplekasten/local-engine/adapters/expo";
 import * as engine from "@simplekasten/local-engine";
+import { installTheme, listInstalledThemes, removeTheme } from "@simplekasten/themes";
 
 // One fixed vault directory — no folder picker on mobile (see the shared
 // vault library spec's "Vault location" section).
@@ -22,4 +23,9 @@ export const vault = {
   listAttachments: (noteId: string) => engine.listAttachments(fs, noteId),
   deleteAttachment: (id: string) => engine.deleteAttachment(fs, id),
   getAttachmentFilePath: (id: string) => engine.getAttachmentFilePath(fs, id),
+  // Installed themes live in the vault (<vault>/themes/<id>.json) so they
+  // travel with it — same storage the desktop app uses.
+  listThemes: () => listInstalledThemes(fs),
+  installTheme: (json: string) => installTheme(fs, json),
+  removeTheme: (id: string) => removeTheme(fs, id),
 };

@@ -2,11 +2,15 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import type { NoteListItem, TagItem } from "@simplekasten/local-engine";
+import { HardShadow } from "@/components/HardShadow";
 import { vault } from "@/lib/vault";
-import { useThemeColors } from "@/theme";
+import { useTheme } from "@/theme";
 
 export default function VaultScreen() {
-  const colors = useThemeColors();
+  const { colors, shape } = useTheme();
+  // Chips are pills under the default theme; a themed radius below that
+  // (e.g. Memphis's square 0) applies as-is.
+  const chipRadius = shape.radius >= 8 ? 999 : shape.radius;
   const router = useRouter();
   const [notes, setNotes] = useState<NoteListItem[]>([]);
   const [tags, setTags] = useState<TagItem[]>([]);
@@ -51,13 +55,23 @@ export default function VaultScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.surface }]}>
-      <Pressable
-        onPress={createNote}
-        disabled={creating}
-        style={[styles.newNoteButton, { borderColor: colors.accent, opacity: creating ? 0.6 : 1 }]}
-      >
-        <Text style={{ color: colors.accentInk, fontWeight: "600" }}>+ New note</Text>
-      </Pressable>
+      <HardShadow style={styles.newNoteWrap}>
+        <Pressable
+          onPress={createNote}
+          disabled={creating}
+          style={[
+            styles.newNoteButton,
+            {
+              borderColor: colors.accent,
+              borderWidth: shape.borderWidth,
+              borderRadius: shape.radius,
+              opacity: creating ? 0.6 : 1,
+            },
+          ]}
+        >
+          <Text style={{ color: colors.accentInk, fontWeight: "600" }}>+ New note</Text>
+        </Pressable>
+      </HardShadow>
 
       {tags.length > 0 && (
         <View style={styles.tagRow}>
@@ -68,6 +82,8 @@ export default function VaultScreen() {
               style={[
                 styles.tagChip,
                 {
+                  borderWidth: shape.borderWidth,
+                  borderRadius: chipRadius,
                   borderColor: activeTag === t.name ? colors.accent2 : colors.line,
                   backgroundColor: activeTag === t.name ? colors.accent2Soft : "transparent",
                 },
@@ -106,7 +122,8 @@ export default function VaultScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
-  newNoteButton: { borderWidth: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center", marginBottom: 12 },
+  newNoteWrap: { marginBottom: 12 },
+  newNoteButton: { borderWidth: 1, borderRadius: 8, paddingVertical: 10, alignItems: "center" },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 8 },
   tagChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   noteRow: { flexDirection: "row", alignItems: "baseline", gap: 8, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: "#00000010" },
