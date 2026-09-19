@@ -2,9 +2,21 @@
 // apps/desktop/preload.js) — every note/tag/graph/search operation is a
 // local filesystem call, never a network request. No auth: there's nothing
 // to log into, this window only ever has one local vault open.
+import type { InstalledThemes, InstallResult, ModePreference } from "@simplekasten/themes";
+
 declare global {
   interface Window {
     simplekasten: {
+      settings: {
+        get: () => Promise<{ theme: string; themeMode: ModePreference }>;
+        set: (patch: Partial<{ theme: string; themeMode: ModePreference }>) => Promise<void>;
+      };
+      themes: {
+        list: () => Promise<InstalledThemes>;
+        install: () => Promise<InstallResult | { ok: false; errors: string[]; canceled: true }>;
+        installFromText: (json: string) => Promise<InstallResult>;
+        remove: (id: string) => Promise<void>;
+      };
       vault: {
         listNotes: (tag?: string) => Promise<unknown>;
         getNoteById: (id: string) => Promise<unknown>;

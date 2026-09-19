@@ -10,6 +10,9 @@ const nextConfig = {
   // window. Relative asset paths are what make the export loadable off disk.
   assetPrefix: "./",
   images: { unoptimized: true },
+  // Workspace packages ship TypeScript source (no build step); Next has to
+  // compile them when the renderer imports them.
+  transpilePackages: ["@simplekasten/themes"],
 };
 
 module.exports = nextConfig;

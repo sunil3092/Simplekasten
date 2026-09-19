@@ -8,6 +8,7 @@ const fs = require("fs");
 const path = require("path");
 const localEngine = require("@simplekasten/local-engine");
 const { createNodeFsAdapter } = require("@simplekasten/local-engine/adapters/node");
+const themesLib = require("@simplekasten/themes");
 
 const START_URL =
   process.env.ELECTRON_START_URL ||
@@ -65,6 +66,45 @@ function registerIpcHandlers() {
 
     saveSettings({ ...loadSettings(), vaultPath: result.filePaths[0] });
     return result.filePaths[0];
+  });
+
+  // ---- Themes & appearance settings -------------------------------------
+  const THEME_MODES = ["system", "light", "dark"];
+  const MAX_THEME_FILE_BYTES = 256 * 1024;
+
+  ipcMain.handle("settings:get", () => {
+    const s = loadSettings();
+    return {
+      theme: typeof s.theme === "string" ? s.theme : "default",
+      themeMode: THEME_MODES.includes(s.themeMode) ? s.themeMode : "system",
+    };
+  });
+
+  ipcMain.handle("settings:set", (_event, patch) => {
+    const next = { ...loadSettings() };
+    if (typeof patch?.theme === "string") next.theme = patch.theme;
+    if (THEME_MODES.includes(patch?.themeMode)) next.themeMode = patch.themeMode;
+    saveSettings(next);
+  });
+
+  ipcMain.handle("themes:list", () => themesLib.listInstalledThemes(currentAdapter()));
+  ipcMain.handle("themes:installFromText", (_event, json) =>
+    themesLib.installTheme(currentAdapter(), typeof json === "string" ? json : ""),
+  );
+  ipcMain.handle("themes:remove", (_event, id) => themesLib.removeTheme(currentAdapter(), String(id)));
+  ipcMain.handle("themes:install", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "Install theme",
+      properties: ["openFile"],
+      filters: [{ name: "Theme (JSON)", extensions: ["json"] }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return { ok: false, errors: [], canceled: true };
+
+    const file = result.filePaths[0];
+    if (fs.statSync(file).size > MAX_THEME_FILE_BYTES) {
+      return { ok: false, errors: ["File is too large to be a theme (max 256 KB)"] };
+    }
+    return themesLib.installTheme(currentAdapter(), fs.readFileSync(file, "utf8"));
   });
 }
 

@@ -18,4 +18,14 @@ contextBridge.exposeInMainWorld("simplekasten", {
     getVaultPath: () => ipcRenderer.invoke("vault:getVaultPath"),
     chooseVaultFolder: () => ipcRenderer.invoke("vault:chooseVaultFolder"),
   },
+  settings: {
+    get: () => ipcRenderer.invoke("settings:get"),
+    set: (patch) => ipcRenderer.invoke("settings:set", patch),
+  },
+  themes: {
+    list: () => ipcRenderer.invoke("themes:list"),
+    install: () => ipcRenderer.invoke("themes:install"),
+    installFromText: (json) => ipcRenderer.invoke("themes:installFromText", json),
+    remove: (id) => ipcRenderer.invoke("themes:remove", id),
+  },
 });
