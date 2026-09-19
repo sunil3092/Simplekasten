@@ -61,4 +61,7 @@ export function applyThemeToDocument(theme: ResolvedTheme, root: HTMLElement = d
     else root.style.setProperty(name, value);
   }
   root.style.colorScheme = theme.mode;
+  // Tailwind inlines its shadow-* values instead of reading --shadow-*, so the
+  // themed shadow is applied by attribute-scoped rules in globals.css.
+  root.toggleAttribute("data-hard-shadow", theme.shape.shadow !== null);
 }

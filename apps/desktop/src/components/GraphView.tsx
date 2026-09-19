@@ -114,7 +114,7 @@ export function GraphView({ nodes, edges, activeNoteId, onSelectNode, onClose }:
           )}
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-sm text-ink-muted transition-colors hover:border-accent/50 hover:text-ink"
+            className="flex items-center gap-1.5 rounded-lg border-(length:--border-w) border-line px-3 py-1.5 text-sm text-ink-muted transition-colors hover:border-accent/50 hover:text-ink"
           >
             <XIcon />
             Close
@@ -132,8 +132,9 @@ export function GraphView({ nodes, edges, activeNoteId, onSelectNode, onClose }:
             nodeLabel="title"
             nodeRelSize={5}
             nodeColor={(node: object) => TYPE_COLORS[(node as GraphNode).type] ?? TYPE_COLORS.fleeting}
-            linkColor={() => "#94a3b855"}
-            linkDirectionalArrowLength={4}
+            linkColor={() => "#94a3b8cc"}
+            linkWidth={1.5}
+            linkDirectionalArrowLength={5}
             linkDirectionalArrowRelPos={1}
             onNodeClick={(node: object) => onSelectNode((node as GraphNode).id)}
             backgroundColor="rgba(0,0,0,0)"
@@ -143,7 +144,7 @@ export function GraphView({ nodes, edges, activeNoteId, onSelectNode, onClose }:
           <p className="flex h-full items-center justify-center text-sm text-ink-faint">Nothing to graph yet.</p>
         )}
         {presentTypes.length > 0 && (
-          <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-xl border border-line bg-surface/90 px-3 py-2.5 text-xs text-ink-muted shadow-sm backdrop-blur-sm">
+          <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-xl border-(length:--border-w) border-line bg-surface/90 px-3 py-2.5 text-xs text-ink-muted shadow-sm backdrop-blur-sm">
             {presentTypes.map((type) => (
               <span key={type} className="flex items-center gap-2">
                 <span className="h-2 w-2 flex-none rounded-full" style={{ backgroundColor: TYPE_COLORS[type] ?? TYPE_COLORS.fleeting }} />

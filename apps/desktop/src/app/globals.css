@@ -54,6 +54,27 @@ body {
   }
 }
 
+/* Themed hard shadows. Tailwind inlines its shadow-* values rather than reading
+   --shadow-*, so overriding the variables alone doesn't reach the utilities.
+   themeRuntime sets data-hard-shadow only when the active theme defines a
+   shadow; the variables it also writes carry the offset/colour. */
+:root[data-hard-shadow] .shadow-sm,
+:root[data-hard-shadow] .hover\:shadow-sm:hover {
+  box-shadow: var(--shadow-sm);
+}
+:root[data-hard-shadow] .shadow-md {
+  box-shadow: var(--shadow-md);
+}
+:root[data-hard-shadow] .shadow-lg {
+  box-shadow: var(--shadow-lg);
+}
+:root[data-hard-shadow] .shadow-xl {
+  box-shadow: var(--shadow-xl);
+}
+:root[data-hard-shadow] .shadow-2xl {
+  box-shadow: var(--shadow-2xl);
+}
+
 ::selection {
   background-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
 }

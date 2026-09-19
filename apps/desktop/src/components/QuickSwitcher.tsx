@@ -107,7 +107,7 @@ export function QuickSwitcher({ recentNotes, onSearch, onSelect, onCreate, onClo
       onMouseDown={onClose}
     >
       <div
-        className="animate-fade-scale-in w-full max-w-lg overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl"
+        className="animate-fade-scale-in w-full max-w-lg overflow-hidden rounded-2xl border-(length:--border-w) border-line bg-surface shadow-2xl"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 border-b border-line px-4 py-3">

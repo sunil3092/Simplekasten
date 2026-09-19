@@ -51,4 +51,12 @@ describe("applyThemeToDocument", () => {
     expect(root.style.getPropertyValue("--shadow-md")).toBe("");
     expect(root.style.colorScheme).toBe("dark");
   });
+
+  it("flags data-hard-shadow only while the active theme defines a shadow", () => {
+    const root = document.createElement("html");
+    applyThemeToDocument(resolveTheme(memphisTheme, "light"), root);
+    expect(root.hasAttribute("data-hard-shadow")).toBe(true);
+    applyThemeToDocument(resolveTheme(defaultTheme, "light"), root);
+    expect(root.hasAttribute("data-hard-shadow")).toBe(false);
+  });
 });

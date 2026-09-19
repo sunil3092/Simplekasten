@@ -1229,7 +1229,7 @@ Expected: clean; the existing `QuickSwitcher.test.tsx` still passes.
 
 Start `next dev -p 3111` and stub as in Task 5. For each of `{theme:"default"}` and `{theme:"memphis"}`:
 - `page.evaluate` computed style of the "Jump to…" button: `borderTopWidth` must be `1px` for default, `3px` for memphis; `borderTopLeftRadius` `8px` vs `0px`; `boxShadow` must be `none` for the default sidebar buttons and contain `rgb(255, 62, 165)` for the memphis primary button ("+ New note", which uses `shadow-sm`).
-- Screenshot both and read them. If `rounded-lg`/`shadow-sm` did **not** follow the variables (Tailwind v4 minor versions differ), stop and report it — do not paper over it — the fallback is adding `--radius-*`/`--shadow-*` to the `@theme` block in `globals.css` so utilities are generated against variables.
+- Screenshot both and read them. **Outcome (Tailwind 4.3.3):** `rounded-*` follows `--radius-*`, but `shadow-*` does not — Tailwind inlines the shadow values, so overriding `--shadow-*` alone has no effect (declaring them in `@theme` doesn't change that). Fix that shipped: `applyThemeToDocument` toggles a `data-hard-shadow` attribute on `<html>` when the theme has a shadow, and `globals.css` has attribute-scoped rules (`shadow-sm`, `hover:shadow-sm`, `shadow-md/lg/xl/2xl`) that use `var(--shadow-*)`. Default themes never get the attribute, so they keep Tailwind's stock shadows. Note: this browser snaps borders to device pixels (DPR 1.5), so `1px`/`3px` compute as `0.667px`/`2.667px` — compare against a plain `border: 1px` element rather than the literal number.
 Stop the server, delete screenshots.
 
 - [ ] **Step 5: Commit**

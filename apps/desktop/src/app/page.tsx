@@ -289,7 +289,7 @@ function Vault() {
         <div className="flex flex-col gap-1">
           <button
             onClick={() => setSwitcherOpen(true)}
-            className="flex items-center justify-between rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
+            className="flex items-center justify-between rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-1.5 text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
           >
             <span className="flex items-center gap-2">
               <SearchIcon />
@@ -299,7 +299,7 @@ function Vault() {
           </button>
           <button
             onClick={openGraph}
-            className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-left text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
+            className="flex items-center gap-2 rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-1.5 text-left text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
           >
             <NetworkIcon />
             Graph view
@@ -334,7 +334,7 @@ function Vault() {
                 <li key={n.id}>
                   <button
                     onClick={() => openNote(n.id)}
-                    className={`block w-full rounded-lg border border-dashed px-2.5 py-1.5 text-left text-sm transition-colors ${
+                    className={`block w-full rounded-lg border-(length:--border-w) border-dashed px-2.5 py-1.5 text-left text-sm transition-colors ${
                       n.id === selected?.id ? "border-accent bg-accent-soft text-accent-ink" : "border-line text-ink-muted hover:border-accent/50"
                     }`}
                   >
@@ -387,7 +387,7 @@ function Vault() {
                   <select
                     value={selected.type}
                     onChange={(e) => updateType(e.target.value as NoteType)}
-                    className={`appearance-none rounded-md border py-1 pr-6 pl-2.5 font-mono text-[10px] font-medium tracking-wide uppercase transition-colors focus:outline-none ${TYPE_STYLES[selected.type]}`}
+                    className={`appearance-none rounded-md border-(length:--border-w) py-1 pr-6 pl-2.5 font-mono text-[10px] font-medium tracking-wide uppercase transition-colors focus:outline-none ${TYPE_STYLES[selected.type]}`}
                   >
                     <option value="fleeting">Fleeting</option>
                     <option value="literature">Literature</option>
@@ -402,7 +402,7 @@ function Vault() {
                     <button
                       key={name}
                       onClick={() => toggleTag(name)}
-                      className="inline-flex items-center gap-0.5 rounded-full border border-line px-2 py-0.5 font-mono text-[10px] text-ink-muted transition-colors hover:border-accent-2 hover:text-accent-2"
+                      className="inline-flex items-center gap-0.5 rounded-full border-(length:--border-w) border-line px-2 py-0.5 font-mono text-[10px] text-ink-muted transition-colors hover:border-accent-2 hover:text-accent-2"
                     >
                       <HashIcon />
                       {name}
@@ -449,7 +449,7 @@ function Vault() {
                     <li key={item.noteId ?? `${item.title}-${i}`}>
                       <button
                         onClick={() => navigateToTitle(item.title)}
-                        className={`flex w-full items-center gap-1.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:border-accent/60 hover:shadow-sm ${
+                        className={`flex w-full items-center gap-1.5 rounded-lg border-(length:--border-w) px-3 py-2 text-left text-sm transition-colors hover:border-accent/60 hover:shadow-sm ${
                           item.resolved ? "border-line text-ink" : "border-dashed border-line text-ink-faint"
                         }`}
                       >
@@ -473,7 +473,7 @@ function Vault() {
                 <li key={b.noteId}>
                   <button
                     onClick={() => openNote(b.noteId)}
-                    className="flex w-full items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-left text-sm text-ink transition-colors hover:border-accent/60 hover:shadow-sm"
+                    className="flex w-full items-center gap-1.5 rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-2 text-left text-sm text-ink transition-colors hover:border-accent/60 hover:shadow-sm"
                   >
                     <span className="font-mono text-[10px] text-ink-faint">{b.zettelId}</span>
                     <span className="truncate">{b.title}</span>
@@ -481,7 +481,7 @@ function Vault() {
                 </li>
               ))}
               {selected.backlinks.length === 0 && (
-                <li className="rounded-lg border border-dashed border-line px-3 py-4 text-center text-sm text-ink-faint">
+                <li className="rounded-lg border-(length:--border-w) border-dashed border-line px-3 py-4 text-center text-sm text-ink-faint">
                   Nothing links here yet.
                 </li>
               )}

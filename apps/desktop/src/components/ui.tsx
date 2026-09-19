@@ -4,9 +4,9 @@ export const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-a
 
 const BUTTON_VARIANTS = {
   primary: "bg-accent text-white shadow-sm hover:bg-accent-ink disabled:hover:bg-accent",
-  secondary: "border border-line bg-surface text-ink hover:border-accent/60 hover:bg-surface-2",
+  secondary: "border-(length:--border-w) border-line bg-surface text-ink hover:border-accent/60 hover:bg-surface-2",
   ghost: "text-ink-muted hover:bg-surface-2 hover:text-ink",
-  danger: "border border-danger/30 bg-danger-soft text-danger hover:border-danger/60",
+  danger: "border-(length:--border-w) border-danger/30 bg-danger-soft text-danger hover:border-danger/60",
 } as const;
 
 const BUTTON_SIZES = {
@@ -41,7 +41,7 @@ export function IconButton({ className = "", "aria-label": ariaLabel, ...props }
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink transition-colors duration-150 placeholder:text-ink-faint focus:border-accent ${focusRing} ${className}`}
+      className={`w-full rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-2 text-sm text-ink transition-colors duration-150 placeholder:text-ink-faint focus:border-accent ${focusRing} ${className}`}
       {...props}
     />
   );
@@ -49,7 +49,7 @@ export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInpu
 
 export function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className="rounded-md border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-medium text-ink-faint">
+    <kbd className="rounded-md border-(length:--border-w) border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-medium text-ink-faint">
       {children}
     </kbd>
   );
@@ -67,7 +67,7 @@ export function Chip({
       : "border-accent bg-accent-soft text-accent-ink";
   return (
     <button
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 font-mono text-[11px] font-medium transition-colors duration-150 ${
+      className={`inline-flex items-center gap-1 rounded-full border-(length:--border-w) px-2.5 py-1 font-mono text-[11px] font-medium transition-colors duration-150 ${
         active ? activeClasses : "border-line text-ink-muted hover:border-ink-faint"
       } ${focusRing} ${className}`}
       {...props}
@@ -85,7 +85,7 @@ export function SegmentedControl<T extends string>({
   options: { value: T; label: string }[];
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5 text-xs">
+    <div className="inline-flex rounded-lg border-(length:--border-w) border-line bg-surface-2 p-0.5 text-xs">
       {options.map((opt) => (
         <button
           key={opt.value}
