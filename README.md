@@ -47,6 +47,7 @@ This is an **npm workspaces monorepo**:
 - `packages/core` — 📦 shared types, schemas, and note/link logic used across apps
 - `packages/db` — 🐘 Prisma schema and database client — dormant, only used by the dormant `apps/api`
 - `packages/local-engine` — 💾 local-first vault engine powering both the desktop and mobile apps
+- `packages/themes` — 🎨 shared theme format, built-in themes (Default, Memphis) and install/list/remove helpers used by both apps
 
 ## ⚙️ Requirements
 
@@ -88,6 +89,39 @@ npm run dev:api       # 🚀 dormant API service (no client calls it today)
 💾 The desktop app is fully local, backed by its local vault engine — see [apps/desktop/README.md](./apps/desktop/README.md).
 
 📱 For mobile, see [apps/mobile/README.md](./apps/mobile/README.md).
+
+## 🎨 Themes
+
+Desktop and mobile share one theme format. A theme is a single **JSON file** — inert data, never code — that controls colours (light and dark), shape (border width, corner radius, an optional hard offset shadow) and font. Two themes ship built in: **Default** and **Memphis** (cream ground, hot pink/teal accents, heavy black borders, square corners, a blur-free pink shadow).
+
+**Switching and installing:** open **Settings** (the ⚙ in the desktop sidebar, or in the mobile vault header). Pick a theme, choose System / Light / Dark, and use **Install theme…** to import a `.json` file (or **Paste JSON**). Errors are shown inline with the offending field path.
+
+**Where they live:** installed themes are saved in your vault as `<vault>/themes/<id>.json`, so they travel with it. There's no device-to-device sync yet — install the file on each device, or copy the vault folder. Your chosen theme and mode are stored in each app's own `settings.json`. If a saved theme can no longer be loaded, the app falls back to Default and flags it in Settings.
+
+**Writing your own:**
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "sunset",
+  "name": "Sunset",
+  "author": "you",
+  "colors": {
+    "light": { "bg": "#fff4d6", "surface": "#ffffff", "surface2": "#ffe8a3", "ink": "#111111", "inkMuted": "#3b3b3b", "inkFaint": "#6b6b6b", "line": "#111111", "lineSoft": "#e6d9b0", "accent": "#e6007e", "accentInk": "#a3005a", "accentSoft": "#ffd6ec", "accent2": "#007f73", "accent2Soft": "#c9f5ef", "danger": "#d62828", "dangerSoft": "#ffdada" }
+  },
+  "shape": { "borderWidth": 3, "radius": 0, "shadow": { "x": 4, "y": 4, "color": "#ff3ea5" } },
+  "font": { "display": "rounded-bold", "body": "sans", "mono": "mono" }
+}
+```
+
+- `colors.light` is required. `colors.dark` is optional (same 15 keys); without it the light palette is also used in dark mode.
+- All 15 colour keys are required in each palette you provide, as `#rgb` or `#rrggbb`.
+- `borderWidth` 0–6, `radius` 0–24, `shadow` `x`/`y` 0–16 (`shadow` is optional).
+- `font` values are keywords: `sans`, `rounded-bold`, `serif`, `mono`.
+- `id` is 1–40 characters of `a-z`, `0-9`, `-`. `default` and `memphis` are reserved. Imported files over 256 KB are rejected.
+- Unknown keys are rejected, so typos surface as errors instead of being silently ignored.
+
+The design is in [docs/superpowers/specs/2026-09-19-installable-themes-design.md](./docs/superpowers/specs/2026-09-19-installable-themes-design.md).
 
 ## ✅ Testing & checks
 
