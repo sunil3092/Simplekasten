@@ -1,4 +1,4 @@
-import { Link, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { useThemeColors } from "@/theme";
 
@@ -16,19 +16,8 @@ function ThemedStack() {
         contentStyle: { backgroundColor: colors.surface },
       }}
     >
-      <Stack.Screen
-        name="vault/index"
-        options={{
-          title: "Simplekasten",
-          headerRight: () => (
-            <Link href="/settings" accessibilityLabel="Settings" style={{ color: colors.ink, fontSize: 20, paddingHorizontal: 8 }}>
-              ⚙
-            </Link>
-          ),
-        }}
-      />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="vault/[id]" options={{ title: "" }} />
-      <Stack.Screen name="settings" options={{ title: "Settings", presentation: "modal" }} />
     </Stack>
   );
 }
