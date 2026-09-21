@@ -1,5 +1,14 @@
 # Installable themes (Memphis) — design
 
+> **Update (2026-09-21):** Memphis is now the **default** theme and the original
+> look was renamed **Classic** (id `classic`; `default` is no longer a theme id).
+> Reserved ids are `memphis` and `classic`; `defaultTheme` / `DEFAULT_THEME_ID`
+> in `@simplekasten/themes` point at Memphis and drive every fallback. Memphis was
+> rebuilt on the purple #672394 / pink #f725a0 / yellow #fad141 / teal #0cb2c0 /
+> cream #e8e6d9 palette (teal shadow, yellow dark-mode borders). The text below is
+> the original design and still describes the format; where it says "Default",
+> read "Classic" for the old look.
+
 ## Goal
 
 Let desktop and mobile share one theme format. Themes are single JSON files a
