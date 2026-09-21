@@ -1,7 +1,7 @@
 import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder } from "expo-audio";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition";
+import type { ExpoSpeechRecognitionModule as ExpoSpeechRecognitionModuleType, useSpeechRecognitionEvent as useSpeechRecognitionEventType } from "expo-speech-recognition";
 import type { NoteType } from "@simplekasten/core";
 import type { NoteDetail } from "@simplekasten/local-engine";
 import { useEffect, useRef, useState } from "react";
@@ -10,6 +10,19 @@ import { PhotoThumbnail } from "@/components/PhotoThumbnail";
 import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { vault } from "@/lib/vault";
 import { useThemeColors } from "@/theme";
+
+// expo-speech-recognition's native module throws at import time when it
+// isn't linked (e.g. Expo Go) — a static import would crash every note
+// screen, not just dictation, so it's loaded defensively here instead.
+let ExpoSpeechRecognitionModule: typeof ExpoSpeechRecognitionModuleType | null = null;
+let useSpeechRecognitionEvent: typeof useSpeechRecognitionEventType = () => {};
+try {
+  const speech = require("expo-speech-recognition");
+  ExpoSpeechRecognitionModule = speech.ExpoSpeechRecognitionModule;
+  useSpeechRecognitionEvent = speech.useSpeechRecognitionEvent;
+} catch {
+  // dictation becomes a no-op; toggleDictation() surfaces this to the user.
+}
 
 const TYPES: { value: NoteType; label: string }[] = [
   { value: "fleeting", label: "Fleeting" },
@@ -178,6 +191,10 @@ export default function NoteScreen() {
 
   async function toggleDictation() {
     setAttachmentError(null);
+    if (!ExpoSpeechRecognitionModule) {
+      setAttachmentError("Speech recognition isn't available here.");
+      return;
+    }
     if (dictating) {
       ExpoSpeechRecognitionModule.stop();
       return;
