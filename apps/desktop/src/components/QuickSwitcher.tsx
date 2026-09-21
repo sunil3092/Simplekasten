@@ -121,8 +121,8 @@ export function QuickSwitcher({ recentNotes, onSearch, onSelect, onCreate, onClo
             <button
               onMouseEnter={() => setActiveIndex(i)}
               onClick={() => onSelect(n.id)}
-              className={`flex w-full items-start gap-2.5 border-l-2 px-4 py-2 text-left transition-colors duration-100 ${
-                i === activeIndex ? "border-accent bg-accent-soft" : "border-transparent"
+              className={`flex w-full items-start gap-2.5 px-4 py-2 text-left transition-colors duration-100 ${
+                i === activeIndex ? "bg-accent-soft" : ""
               }`}
             >
               <FileTextIcon className="mt-0.5 flex-none text-ink-faint" />
@@ -141,8 +141,8 @@ export function QuickSwitcher({ recentNotes, onSearch, onSelect, onCreate, onClo
             <button
               onMouseEnter={() => setActiveIndex(items.length)}
               onClick={() => onCreate(query.trim())}
-              className={`flex w-full items-center gap-2.5 border-l-2 px-4 py-2 text-left text-sm transition-colors duration-100 ${
-                activeIndex === items.length ? "border-accent-2 bg-accent-2-soft text-accent-2" : "border-transparent text-ink-muted"
+              className={`flex w-full items-center gap-2.5 px-4 py-2 text-left text-sm transition-colors duration-100 ${
+                activeIndex === items.length ? "bg-accent-2-soft text-accent-2" : "text-ink-muted"
               }`}
             >
               <PlusIcon className="flex-none" />

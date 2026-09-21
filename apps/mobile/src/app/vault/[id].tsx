@@ -299,21 +299,25 @@ export default function NoteScreen() {
         </View>
       )}
 
-      {type === "structure" && (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.inkFaint }]}>CONTENTS ({note.contents.length})</Text>
-          {note.contents.map((item, i) => (
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.inkFaint }]}>
+          {type === "structure" ? "CONTENTS" : "LINKS"} ({note.contents.length})
+        </Text>
+        {note.contents.length === 0 ? (
+          <Text style={{ color: colors.inkFaint, fontSize: 13 }}>Link to notes with [[wiki-links]].</Text>
+        ) : (
+          note.contents.map((item, i) => (
             <Pressable
               key={item.noteId ?? `${item.title}-${i}`}
               disabled={!item.noteId}
               onPress={() => item.noteId && router.push(`/vault/${item.noteId}`)}
-              style={[styles.linkRow, { borderColor: item.resolved ? colors.line : colors.line, borderStyle: item.resolved ? "solid" : "dashed" }]}
+              style={[styles.linkRow, { borderColor: colors.line, borderStyle: item.resolved ? "solid" : "dashed" }]}
             >
               <Text style={{ color: item.resolved ? colors.ink : colors.inkFaint, fontSize: 14 }}>{item.title}</Text>
             </Pressable>
-          ))}
-        </View>
-      )}
+          ))
+        )}
+      </View>
 
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: colors.inkFaint }]}>LINKED MENTIONS ({note.backlinks.length})</Text>

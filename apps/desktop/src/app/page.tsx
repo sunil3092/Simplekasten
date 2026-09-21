@@ -354,10 +354,8 @@ function Vault() {
               <li key={n.id}>
                 <button
                   onClick={() => openNote(n.id)}
-                  className={`flex w-full items-baseline gap-2 rounded-lg border-l-2 px-2.5 py-1.5 text-left text-sm transition-colors duration-150 ${
-                    selected?.id === n.id
-                      ? "border-accent bg-accent-soft text-accent-ink"
-                      : "border-transparent text-ink hover:bg-surface-2"
+                  className={`flex w-full items-baseline gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors duration-150 ${
+                    selected?.id === n.id ? "bg-accent-soft text-accent-ink" : "text-ink hover:bg-surface-2"
                   }`}
                 >
                   <span className="font-mono text-[11px] text-ink-faint">{n.zettelId}</span>
@@ -430,26 +428,26 @@ function Vault() {
 
         {selected && (
           <aside className="w-72 flex-none overflow-y-auto border-l-(length:--border-w) border-line bg-surface px-5 py-6">
-            {selected.type === "structure" && (
-              <>
-                <SectionHeading icon={<LayersIcon />}>Contents ({selected.contents.length})</SectionHeading>
-                <ul className="mb-6 flex flex-col gap-2">
-                  {selected.contents.map((item, i) => (
-                    <li key={item.noteId ?? `${item.title}-${i}`}>
-                      <NoteLink
-                        zettelId={item.zettelId}
-                        title={item.title}
-                        unresolved={!item.resolved}
-                        onClick={() => navigateToTitle(item.title)}
-                      />
-                    </li>
-                  ))}
-                  {selected.contents.length === 0 && (
-                    <li className="text-sm text-ink-faint">Link to notes with [[wiki-links]] to build the contents list.</li>
-                  )}
-                </ul>
-              </>
-            )}
+            <SectionHeading icon={selected.type === "structure" ? <LayersIcon /> : <NetworkIcon />}>
+              {selected.type === "structure" ? "Contents" : "Links"} ({selected.contents.length})
+            </SectionHeading>
+            <ul className="mb-6 flex flex-col gap-2">
+              {selected.contents.map((item, i) => (
+                <li key={item.noteId ?? `${item.title}-${i}`}>
+                  <NoteLink
+                    zettelId={item.zettelId}
+                    title={item.title}
+                    unresolved={!item.resolved}
+                    onClick={() => navigateToTitle(item.title)}
+                  />
+                </li>
+              ))}
+              {selected.contents.length === 0 && (
+                <li className="rounded-lg border-(length:--border-w) border-dashed border-line px-3 py-4 text-center text-sm text-ink-faint">
+                  Link to notes with [[wiki-links]].
+                </li>
+              )}
+            </ul>
             <SectionHeading icon={<LinkIcon />}>Linked mentions ({selected.backlinks.length})</SectionHeading>
             <ul className="flex flex-col gap-2">
               {selected.backlinks.map((b) => (
