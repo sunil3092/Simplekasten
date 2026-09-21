@@ -3,7 +3,7 @@
 import { autocompletion, closeBrackets, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
 import { RangeSetBuilder } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import { Decoration, type DecorationSet, EditorView, placeholder, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { useEffect, useRef } from "react";
 
@@ -97,7 +97,9 @@ const theme = EditorView.theme({
     color: "var(--color-ink)",
     backgroundColor: "transparent",
   },
-  ".cm-content": { padding: 0, caretColor: "var(--color-ink)" },
+  // Tall enough that an empty note still shows a clickable body area.
+  ".cm-content": { padding: 0, minHeight: "240px", caretColor: "var(--color-ink)" },
+  ".cm-placeholder": { color: "var(--color-ink-faint)" },
   ".cm-line": { padding: 0 },
   "&.cm-focused": { outline: "none" },
   ".cm-wikilink": {
@@ -160,6 +162,7 @@ export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick,
         minimalSetup,
         markdown(),
         EditorView.lineWrapping,
+        placeholder("Start writing… type [[ to link to another note"),
         closeBrackets(),
         autocompletion({ override: [wikiLinkCompletionSource(noteTitlesRef)] }),
         clickableSpans(WIKI_LINK_PATTERN, "cm-wikilink", (title) => onNavigateRef.current(title)),
