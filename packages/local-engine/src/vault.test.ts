@@ -43,6 +43,20 @@ describe("vault engine", () => {
     expect(targetDetail?.backlinks).toEqual([{ noteId: source.id, title: "Source", zettelId: source.zettelId }]);
   });
 
+  it("strips wiki-link brackets from titles so the note stays linkable", async () => {
+    const fs = createMemoryFs();
+    const created = await createNote(fs, { title: "Ponytail [[Claude Code]]", content: "" });
+    expect(created.title).toBe("Ponytail Claude Code");
+
+    const source = await createNote(fs, { title: "Source", content: "[[Ponytail Claude Code]]" });
+    const renamed = await updateNote(fs, { id: created.id, title: "[[Renamed]]" });
+    expect(renamed.title).toBe("Renamed");
+
+    await updateNote(fs, { id: source.id, content: "[[Renamed]]" });
+    const detail = await getNoteById(fs, renamed.id);
+    expect(detail?.backlinks).toEqual([{ noteId: source.id, title: "Source", zettelId: source.zettelId }]);
+  });
+
   it("re-derives links after an update, dropping ones no longer referenced", async () => {
     const fs = createMemoryFs();
     const target = await createNote(fs, { title: "Target", content: "" });

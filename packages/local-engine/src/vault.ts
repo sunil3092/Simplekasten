@@ -89,6 +89,13 @@ function nextZettelId(notes: VaultNote[]): string {
   return String(max + 1);
 }
 
+// Titles are what [[wiki links]] resolve against, and the link pattern can't
+// match a target that itself contains "]]" — a title like "Foo [[Bar]]" could
+// never be linked to. Strip the brackets so every title stays linkable.
+function sanitizeTitle(title: string): string {
+  return title.replace(/\[\[|\]\]/g, "").replace(/\s+/g, " ").trim();
+}
+
 export async function listNotes(fs: FileSystemAdapter, tag?: string): Promise<NoteListItem[]> {
   const notes = (await loadAllNotes(fs)).filter((n) => !n.deletedAt);
 
@@ -152,7 +159,7 @@ export async function createNote(fs: FileSystemAdapter, input: CreateNoteInput):
   const note: VaultNote = {
     id: generateId(),
     zettelId: nextZettelId(notes),
-    title: input.title,
+    title: sanitizeTitle(input.title),
     content: input.content,
     type: input.type ?? "fleeting",
     createdAt: now,
@@ -173,7 +180,7 @@ export async function updateNote(fs: FileSystemAdapter, input: UpdateNoteInput):
 
   const updated: VaultNote = {
     ...existing,
-    title: input.title ?? existing.title,
+    title: input.title !== undefined ? sanitizeTitle(input.title) : existing.title,
     content: input.content ?? existing.content,
     type: input.type ?? existing.type,
     updatedAt: new Date().toISOString(),
