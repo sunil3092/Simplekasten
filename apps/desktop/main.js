@@ -75,7 +75,7 @@ function registerIpcHandlers() {
   ipcMain.handle("settings:get", () => {
     const s = loadSettings();
     return {
-      theme: typeof s.theme === "string" ? s.theme : "default",
+      theme: typeof s.theme === "string" ? s.theme : themesLib.DEFAULT_THEME_ID,
       themeMode: THEME_MODES.includes(s.themeMode) ? s.themeMode : "system",
     };
   });

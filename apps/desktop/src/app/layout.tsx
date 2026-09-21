@@ -8,7 +8,7 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-hard-shadow="">
       <head>
         {/* Relative href so it resolves both under `next dev` and from
             out/index.html over file:// in the packaged app. */}

@@ -3,31 +3,48 @@
 /* Inter and JetBrains Mono are self-hosted — see public/fonts/fonts.css,
    linked from layout.tsx. No network fetch at launch. */
 
-/* Modern, professional design tokens: neutral slate surfaces, a single
-   emerald accent, Inter for all UI/body text, JetBrains Mono reserved for
-   metadata (zettel IDs, shortcuts, tags) so it reads as data rather than
-   prose. Same token names as before, so every existing bg-, text- and
-   border- utility across the app repaints with zero markup changes. */
+/* First-paint tokens: the default theme (Memphis — see
+   packages/themes/src/builtin.ts), so nothing flashes slate before
+   ThemeProvider applies the saved theme. globals.test.ts fails if these drift
+   from the theme definition. Same token names as always, so every bg-, text-
+   and border- utility repaints from one place. */
 @theme {
-  --color-bg: #f8fafc;
-  --color-surface: #ffffff;
-  --color-surface-2: #f1f5f9;
-  --color-ink: #0f172a;
-  --color-ink-muted: #475569;
-  --color-ink-faint: #94a3b8;
-  --color-line: #e2e8f0;
-  --color-line-soft: #edf1f5;
-  --color-accent: #059669;
-  --color-accent-ink: #065f46;
-  --color-accent-soft: #ecfdf5;
-  --color-accent-2: #b45309;
-  --color-accent-2-soft: #fffbeb;
-  --color-danger: #dc2626;
-  --color-danger-soft: #fef2f2;
+  --color-bg: #e8e6d9;
+  --color-surface: #faf8f0;
+  --color-surface-2: #fbe28a;
+  --color-ink: #1f0f2e;
+  --color-ink-muted: #4a3560;
+  --color-ink-faint: #6b5a7d;
+  --color-line: #1f0f2e;
+  --color-line-soft: #cfc9b6;
+  --color-accent: #f725a0;
+  --color-accent-ink: #672394;
+  --color-accent-soft: #fdc9e6;
+  --color-accent-2: #08707c;
+  --color-accent-2-soft: #bfeaf0;
+  --color-danger: #c81e3a;
+  --color-danger-soft: #fcd5da;
 
-  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Arial Rounded MT Bold", "Nunito", "Varela Round", ui-rounded, "Trebuchet MS", system-ui, sans-serif;
   --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+/* Shape fallbacks. Plain :root (not @theme) because Tailwind inlines @theme
+   shadow values into its utilities — these only feed the data-hard-shadow
+   rules below and the runtime overrides. */
+:root {
+  --border-w: 3px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --shadow-sm: 2px 2px 0 #0cb2c0;
+  --shadow-md: 4px 4px 0 #0cb2c0;
+  --shadow-lg: 6px 6px 0 #0cb2c0;
+  --shadow-xl: 8px 8px 0 #0cb2c0;
+  --shadow-2xl: 10px 10px 0 #0cb2c0;
 }
 
 body {
@@ -36,21 +53,21 @@ body {
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-bg: #0b1120;
-    --color-surface: #111827;
-    --color-surface-2: #1e293b;
-    --color-ink: #f1f5f9;
-    --color-ink-muted: #94a3b8;
-    --color-ink-faint: #64748b;
-    --color-line: #2b3646;
-    --color-line-soft: #1c2534;
-    --color-accent: #34d399;
-    --color-accent-ink: #a7f3d0;
-    --color-accent-soft: #0f2b22;
-    --color-accent-2: #fbbf24;
-    --color-accent-2-soft: #3a2c0d;
-    --color-danger: #f87171;
-    --color-danger-soft: #3a1414;
+    --color-bg: #1d0a2e;
+    --color-surface: #2a1044;
+    --color-surface-2: #3c1a5e;
+    --color-ink: #e8e6d9;
+    --color-ink-muted: #c4bccf;
+    --color-ink-faint: #9a8bb0;
+    --color-line: #fad141;
+    --color-line-soft: #4a2a72;
+    --color-accent: #f725a0;
+    --color-accent-ink: #ff9ad0;
+    --color-accent-soft: #4a1547;
+    --color-accent-2: #0cb2c0;
+    --color-accent-2-soft: #0b3d4a;
+    --color-danger: #ff6b7d;
+    --color-danger-soft: #4a1a2a;
   }
 }
 

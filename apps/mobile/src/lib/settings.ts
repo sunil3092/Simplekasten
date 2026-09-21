@@ -1,5 +1,5 @@
 import * as FileSystem from "expo-file-system/legacy";
-import type { ModePreference } from "@simplekasten/themes";
+import { DEFAULT_THEME_ID, type ModePreference } from "@simplekasten/themes";
 
 const SETTINGS_PATH = `${FileSystem.documentDirectory}settings.json`;
 const MODES: ModePreference[] = ["system", "light", "dark"];
@@ -9,7 +9,7 @@ export interface AppearanceSettings {
   themeMode: ModePreference;
 }
 
-const DEFAULTS: AppearanceSettings = { theme: "default", themeMode: "system" };
+const DEFAULTS: AppearanceSettings = { theme: DEFAULT_THEME_ID, themeMode: "system" };
 
 async function readAll(): Promise<Record<string, unknown>> {
   try {

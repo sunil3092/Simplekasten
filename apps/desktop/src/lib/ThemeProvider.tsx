@@ -2,6 +2,7 @@
 
 import {
   builtInThemes,
+  DEFAULT_THEME_ID,
   defaultTheme,
   resolveModePreference,
   resolveTheme,
@@ -37,7 +38,7 @@ export function useTheme(): ThemeContextValue {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [installed, setInstalled] = useState<Theme[]>([]);
-  const [activeId, setActiveId] = useState("default");
+  const [activeId, setActiveId] = useState(DEFAULT_THEME_ID);
   const [mode, setModeState] = useState<ModePreference>("system");
   const [systemDark, setSystemDark] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -66,7 +67,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       setModeState(settings.themeMode);
       setActiveId(settings.theme);
       const known = [...builtInThemes, ...list.themes].some((t) => t.id === settings.theme);
-      if (!known) setNotice(`Theme "${settings.theme}" could not be loaded, so Default is being used.`);
+      if (!known) setNotice(`Theme "${settings.theme}" could not be loaded, so ${defaultTheme.name} is being used.`);
     })().catch(() => {});
     return () => {
       cancelled = true;
@@ -111,8 +112,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       await themeClient.remove(id);
       await refreshInstalled();
-      // Removing the active theme falls back to Default (and persists that).
-      if (id === activeId) await setTheme("default");
+      // Removing the active theme falls back to the default theme (and persists that).
+      if (id === activeId) await setTheme(DEFAULT_THEME_ID);
     },
     [activeId, refreshInstalled, setTheme],
   );

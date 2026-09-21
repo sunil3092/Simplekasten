@@ -1,10 +1,10 @@
 import type { Theme } from "./schema";
 
-/** Exactly today's look — values copied from apps/desktop/src/app/globals.css. */
-export const defaultTheme: Theme = {
+/** The original slate-and-emerald look: thin borders, rounded corners, no shadow. */
+export const classicTheme: Theme = {
   schemaVersion: 1,
-  id: "default",
-  name: "Default",
+  id: "classic",
+  name: "Classic",
   colors: {
     light: {
       bg: "#f8fafc", surface: "#ffffff", surface2: "#f1f5f9", ink: "#0f172a", inkMuted: "#475569",
@@ -22,8 +22,11 @@ export const defaultTheme: Theme = {
 };
 
 /**
- * Memphis: cream/butter ground, hot pink + teal + yellow accents, heavy black
- * borders, square corners and a blur-free pink offset shadow.
+ * Memphis, built on a five-colour palette — purple #672394, pink #f725a0,
+ * yellow #fad141, teal #0cb2c0, cream #e8e6d9. Light: cream ground with
+ * purple-black ink and borders. Dark: deep-purple ground with cream ink and
+ * yellow borders. Pink is the accent and teal the second accent and the
+ * blur-free offset shadow in both modes; heavy borders, square corners.
  */
 export const memphisTheme: Theme = {
   schemaVersion: 1,
@@ -31,18 +34,22 @@ export const memphisTheme: Theme = {
   name: "Memphis",
   colors: {
     light: {
-      bg: "#fff4d6", surface: "#ffffff", surface2: "#ffe8a3", ink: "#111111", inkMuted: "#3b3b3b",
-      inkFaint: "#6b6b6b", line: "#111111", lineSoft: "#e6d9b0", accent: "#e6007e", accentInk: "#a3005a",
-      accentSoft: "#ffd6ec", accent2: "#007f73", accent2Soft: "#c9f5ef", danger: "#d62828", dangerSoft: "#ffdada",
+      bg: "#e8e6d9", surface: "#faf8f0", surface2: "#fbe28a", ink: "#1f0f2e", inkMuted: "#4a3560",
+      inkFaint: "#6b5a7d", line: "#1f0f2e", lineSoft: "#cfc9b6", accent: "#f725a0", accentInk: "#672394",
+      accentSoft: "#fdc9e6", accent2: "#08707c", accent2Soft: "#bfeaf0", danger: "#c81e3a", dangerSoft: "#fcd5da",
     },
     dark: {
-      bg: "#14163a", surface: "#1e2159", surface2: "#2a2e7a", ink: "#fff4d6", inkMuted: "#c9c3e6",
-      inkFaint: "#9a95c7", line: "#f3e9c6", lineSoft: "#3a3f94", accent: "#e6007e", accentInk: "#ffb3dd",
-      accentSoft: "#4a1a45", accent2: "#2ee6d0", accent2Soft: "#0e3f45", danger: "#ff6b6b", dangerSoft: "#4a1a1f",
+      bg: "#1d0a2e", surface: "#2a1044", surface2: "#3c1a5e", ink: "#e8e6d9", inkMuted: "#c4bccf",
+      inkFaint: "#9a8bb0", line: "#fad141", lineSoft: "#4a2a72", accent: "#f725a0", accentInk: "#ff9ad0",
+      accentSoft: "#4a1547", accent2: "#0cb2c0", accent2Soft: "#0b3d4a", danger: "#ff6b7d", dangerSoft: "#4a1a2a",
     },
   },
-  shape: { borderWidth: 3, radius: 0, shadow: { x: 4, y: 4, color: "#ff3ea5" } },
+  shape: { borderWidth: 3, radius: 0, shadow: { x: 4, y: 4, color: "#0cb2c0" } },
   font: { display: "rounded-bold", body: "sans", mono: "mono" },
 };
 
-export const builtInThemes: Theme[] = [defaultTheme, memphisTheme];
+/** Used when nothing is saved, or the saved theme can no longer be loaded. */
+export const defaultTheme: Theme = memphisTheme;
+export const DEFAULT_THEME_ID = defaultTheme.id;
+
+export const builtInThemes: Theme[] = [memphisTheme, classicTheme];

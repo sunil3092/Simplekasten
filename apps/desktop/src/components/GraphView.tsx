@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "../lib/ThemeProvider";
+import { noteTypeInfo } from "../lib/noteTypes";
 import { XIcon } from "./icons";
 import { SegmentedControl } from "./ui";
 
@@ -29,20 +31,6 @@ interface GraphViewProps {
   onSelectNode: (id: string) => void;
   onClose: () => void;
 }
-
-const TYPE_COLORS: Record<string, string> = {
-  fleeting: "#94a3b8",
-  literature: "#b45309",
-  permanent: "#059669",
-  structure: "#475569",
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  fleeting: "Fleeting",
-  literature: "Literature",
-  permanent: "Permanent",
-  structure: "Structure",
-};
 
 function useElementSize<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -75,6 +63,9 @@ function localNeighborhoodIds(edges: GraphEdge[], activeNoteId: string): Set<str
 export function GraphView({ nodes, edges, activeNoteId, onSelectNode, onClose }: GraphViewProps) {
   const [scope, setScope] = useState<"local" | "vault">(activeNoteId ? "local" : "vault");
   const { ref: containerRef, size } = useElementSize<HTMLDivElement>();
+  // The canvas can't read CSS variables, so it takes its colours from the active theme.
+  const { colors } = useTheme().resolved;
+  const typeColor = (type: string) => colors[noteTypeInfo(type).graphColor];
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -99,7 +90,7 @@ export function GraphView({ nodes, edges, activeNoteId, onSelectNode, onClose }:
 
   return (
     <div className="animate-fade-in fixed inset-0 z-50 flex flex-col bg-bg" data-testid="graph-view">
-      <div className="flex items-center justify-between border-b border-line px-5 py-3">
+      <div className="flex items-center justify-between border-b-(length:--border-w) border-line px-5 py-3">
         <h2 className="font-display text-lg font-bold text-ink">Graph view</h2>
         <div className="flex items-center gap-3">
           {activeNoteId && (
@@ -131,8 +122,8 @@ export function GraphView({ nodes, edges, activeNoteId, onSelectNode, onClose }:
             nodeId="id"
             nodeLabel="title"
             nodeRelSize={5}
-            nodeColor={(node: object) => TYPE_COLORS[(node as GraphNode).type] ?? TYPE_COLORS.fleeting}
-            linkColor={() => "#94a3b8cc"}
+            nodeColor={(node: object) => typeColor((node as GraphNode).type)}
+            linkColor={() => colors.inkFaint}
             linkWidth={1.5}
             linkDirectionalArrowLength={5}
             linkDirectionalArrowRelPos={1}
@@ -144,11 +135,11 @@ export function GraphView({ nodes, edges, activeNoteId, onSelectNode, onClose }:
           <p className="flex h-full items-center justify-center text-sm text-ink-faint">Nothing to graph yet.</p>
         )}
         {presentTypes.length > 0 && (
-          <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-xl border-(length:--border-w) border-line bg-surface/90 px-3 py-2.5 text-xs text-ink-muted shadow-sm backdrop-blur-sm">
+          <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-xl border-(length:--border-w) border-line bg-surface px-3 py-2.5 text-xs text-ink-muted shadow-sm">
             {presentTypes.map((type) => (
               <span key={type} className="flex items-center gap-2">
-                <span className="h-2 w-2 flex-none rounded-full" style={{ backgroundColor: TYPE_COLORS[type] ?? TYPE_COLORS.fleeting }} />
-                {TYPE_LABELS[type] ?? type}
+                <span className="h-2 w-2 flex-none rounded-full" style={{ backgroundColor: typeColor(type) }} />
+                {noteTypeInfo(type).label}
               </span>
             ))}
           </div>

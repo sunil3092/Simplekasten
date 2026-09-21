@@ -9,7 +9,7 @@ const sunset: Theme = { ...memphisTheme, id: "sunset", name: "Sunset" };
 function renderModal(overrides: Partial<ThemeContextValue> = {}) {
   const value: ThemeContextValue = {
     themes: [...builtInThemes, sunset],
-    activeId: "default",
+    activeId: "memphis",
     mode: "system",
     resolved: resolveTheme(builtInThemes[0], "light"),
     notice: null,
@@ -32,15 +32,15 @@ function renderModal(overrides: Partial<ThemeContextValue> = {}) {
 describe("SettingsModal", () => {
   it("lists built-in and installed themes with the active one selected", () => {
     renderModal();
-    expect(screen.getByRole("radio", { name: /default/i })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /memphis/i })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: /memphis/i })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /classic/i })).not.toBeChecked();
     expect(screen.getByRole("radio", { name: /sunset/i })).toBeInTheDocument();
   });
 
   it("selects a theme", () => {
     const { value } = renderModal();
-    fireEvent.click(screen.getByRole("radio", { name: /memphis/i }));
-    expect(value.setTheme).toHaveBeenCalledWith("memphis");
+    fireEvent.click(screen.getByRole("radio", { name: /classic/i }));
+    expect(value.setTheme).toHaveBeenCalledWith("classic");
   });
 
   it("changes the mode", () => {
@@ -68,7 +68,7 @@ describe("SettingsModal", () => {
   });
 
   it("shows the fallback notice when present", () => {
-    renderModal({ notice: 'Theme "gone" could not be loaded, so Default is being used.' });
+    renderModal({ notice: 'Theme "gone" could not be loaded, so Memphis is being used.' });
     expect(screen.getByRole("status")).toHaveTextContent("could not be loaded");
   });
 

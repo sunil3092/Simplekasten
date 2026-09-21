@@ -1,4 +1,4 @@
-import type { InstalledThemes, InstallResult, ModePreference } from "@simplekasten/themes";
+import { DEFAULT_THEME_ID, type InstalledThemes, type InstallResult, type ModePreference } from "@simplekasten/themes";
 
 export type InstallOutcome = InstallResult | { ok: false; errors: string[]; canceled: true };
 export interface AppearanceSettings {
@@ -6,7 +6,7 @@ export interface AppearanceSettings {
   themeMode: ModePreference;
 }
 
-const DEFAULTS: AppearanceSettings = { theme: "default", themeMode: "system" };
+const DEFAULTS: AppearanceSettings = { theme: DEFAULT_THEME_ID, themeMode: "system" };
 
 // The bridge only exists inside Electron. Guarding here keeps the renderer
 // usable in a plain browser (dev/tests) with the Default theme.

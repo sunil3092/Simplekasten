@@ -17,11 +17,11 @@ import {
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
 import { SettingsModal } from "../components/SettingsModal";
-import { Button, Chip, Kbd, SaveStatusIndicator } from "../components/ui";
+import { Button, Chip, Kbd, NoteLink, SaveStatusIndicator, SectionHeading } from "../components/ui";
+import { NOTE_TYPES, noteTypeInfo, type NoteType } from "../lib/noteTypes";
 import { useTheme } from "../lib/ThemeProvider";
 import { showVaultLocation, vaultClient } from "../lib/vaultClient";
 
-type NoteType = "fleeting" | "literature" | "permanent" | "structure";
 interface NoteListItem {
   id: string;
   zettelId: string;
@@ -54,13 +54,6 @@ interface SearchResultItem {
   zettelId: string;
   snippet: string;
 }
-
-const TYPE_STYLES: Record<NoteType, string> = {
-  fleeting: "bg-surface-2 text-ink-muted border-line",
-  literature: "bg-accent-2-soft text-accent-2 border-accent-2/40",
-  permanent: "bg-accent-soft text-accent-ink border-accent/40",
-  structure: "bg-surface-2 text-ink-muted border-line border-dashed",
-};
 
 export default function Home() {
   return <Vault />;
@@ -271,61 +264,45 @@ function Vault() {
 
   return (
     <div className="flex h-screen bg-bg">
-      <aside className="flex w-64 flex-none flex-col border-r border-line bg-surface px-3.5 py-4">
+      <aside className="flex w-64 flex-none flex-col border-r-(length:--border-w) border-line bg-surface px-3.5 py-4">
         <div className="mb-3">
           <div className="truncate px-2 py-1.5 text-sm font-semibold text-ink">{vaultName}</div>
           <div className="mt-1 flex flex-col gap-1">
-            <button
-              onClick={chooseFolder}
-              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
-            >
+            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={chooseFolder}>
               Choose vault folder…
-            </button>
-            <button
-              onClick={showVault}
-              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
-            >
+            </Button>
+            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={showVault}>
               <DownloadIcon />
               Show vault location
-            </button>
+            </Button>
           </div>
         </div>
 
-        <div className="flex flex-col gap-1">
-          <button
-            onClick={() => setSettingsOpen(true)}
-            className="relative flex items-center gap-2 rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-1.5 text-left text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
-          >
+        <div className="flex flex-col gap-1.5">
+          <Button className="relative w-full justify-start" onClick={() => setSettingsOpen(true)}>
             <SettingsIcon />
             Settings
             {themeNotice && (
               <span aria-label="Theme problem" className="absolute top-1/2 right-3 h-2 w-2 -translate-y-1/2 rounded-full bg-accent-2" />
             )}
-          </button>
-          <button
-            onClick={() => setSwitcherOpen(true)}
-            className="flex items-center justify-between rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-1.5 text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
-          >
-            <span className="flex items-center gap-2">
-              <SearchIcon />
-              Jump to…
+          </Button>
+          <Button className="w-full" onClick={() => setSwitcherOpen(true)}>
+            <span className="flex w-full items-center justify-between">
+              <span className="flex items-center gap-2">
+                <SearchIcon />
+                Jump to…
+              </span>
+              <Kbd>⌘K</Kbd>
             </span>
-            <Kbd>⌘K</Kbd>
-          </button>
-          <button
-            onClick={openGraph}
-            className="flex items-center gap-2 rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-1.5 text-left text-sm text-ink-faint transition-colors hover:border-accent/50 hover:text-ink-muted"
-          >
+          </Button>
+          <Button className="w-full justify-start" onClick={openGraph}>
             <NetworkIcon />
             Graph view
-          </button>
-          <button
-            onClick={() => createNote()}
-            className="flex items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-left text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-ink"
-          >
+          </Button>
+          <Button variant="primary" className="w-full justify-start" onClick={() => createNote()}>
             <PlusIcon />
-            <span>+ New note</span>
-          </button>
+            New note
+          </Button>
         </div>
 
         {tags.length > 0 && (
@@ -340,10 +317,9 @@ function Vault() {
 
         {mapsOfContent.length > 0 && (
           <div className="mt-4">
-            <h3 className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] font-medium tracking-wider text-ink-faint uppercase">
-              <LayersIcon />
+            <SectionHeading compact icon={<LayersIcon />} className="mb-1.5">
               Maps of content
-            </h3>
+            </SectionHeading>
             <ul className="flex flex-col gap-1">
               {mapsOfContent.map((n) => (
                 <li key={n.id}>
@@ -402,12 +378,13 @@ function Vault() {
                   <select
                     value={selected.type}
                     onChange={(e) => updateType(e.target.value as NoteType)}
-                    className={`appearance-none rounded-md border-(length:--border-w) py-1 pr-6 pl-2.5 font-mono text-[10px] font-medium tracking-wide uppercase transition-colors focus:outline-none ${TYPE_STYLES[selected.type]}`}
+                    className={`appearance-none rounded-md border-(length:--border-w) py-1 pr-6 pl-2.5 font-mono text-[10px] font-medium tracking-wide uppercase transition-colors focus:outline-none ${noteTypeInfo(selected.type).badge}`}
                   >
-                    <option value="fleeting">Fleeting</option>
-                    <option value="literature">Literature</option>
-                    <option value="permanent">Permanent</option>
-                    <option value="structure">Structure</option>
+                    {NOTE_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
                   </select>
                   <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 opacity-60" />
                 </div>
@@ -452,25 +429,19 @@ function Vault() {
         </div>
 
         {selected && (
-          <aside className="w-72 flex-none overflow-y-auto border-l border-line bg-surface px-5 py-6">
+          <aside className="w-72 flex-none overflow-y-auto border-l-(length:--border-w) border-line bg-surface px-5 py-6">
             {selected.type === "structure" && (
               <>
-                <h3 className="mb-3 flex items-center gap-1.5 font-mono text-xs font-medium tracking-wide text-ink-faint uppercase">
-                  <LayersIcon />
-                  Contents ({selected.contents.length})
-                </h3>
+                <SectionHeading icon={<LayersIcon />}>Contents ({selected.contents.length})</SectionHeading>
                 <ul className="mb-6 flex flex-col gap-2">
                   {selected.contents.map((item, i) => (
                     <li key={item.noteId ?? `${item.title}-${i}`}>
-                      <button
+                      <NoteLink
+                        zettelId={item.zettelId}
+                        title={item.title}
+                        unresolved={!item.resolved}
                         onClick={() => navigateToTitle(item.title)}
-                        className={`flex w-full items-center gap-1.5 rounded-lg border-(length:--border-w) px-3 py-2 text-left text-sm transition-colors hover:border-accent/60 hover:shadow-sm ${
-                          item.resolved ? "border-line text-ink" : "border-dashed border-line text-ink-faint"
-                        }`}
-                      >
-                        {item.zettelId && <span className="font-mono text-[10px] text-ink-faint">{item.zettelId}</span>}
-                        <span className="truncate">{item.title}</span>
-                      </button>
+                      />
                     </li>
                   ))}
                   {selected.contents.length === 0 && (
@@ -479,20 +450,11 @@ function Vault() {
                 </ul>
               </>
             )}
-            <h3 className="mb-3 flex items-center gap-1.5 font-mono text-xs font-medium tracking-wide text-ink-faint uppercase">
-              <LinkIcon />
-              Linked mentions ({selected.backlinks.length})
-            </h3>
+            <SectionHeading icon={<LinkIcon />}>Linked mentions ({selected.backlinks.length})</SectionHeading>
             <ul className="flex flex-col gap-2">
               {selected.backlinks.map((b) => (
                 <li key={b.noteId}>
-                  <button
-                    onClick={() => openNote(b.noteId)}
-                    className="flex w-full items-center gap-1.5 rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-2 text-left text-sm text-ink transition-colors hover:border-accent/60 hover:shadow-sm"
-                  >
-                    <span className="font-mono text-[10px] text-ink-faint">{b.zettelId}</span>
-                    <span className="truncate">{b.title}</span>
-                  </button>
+                  <NoteLink zettelId={b.zettelId} title={b.title} onClick={() => openNote(b.noteId)} />
                 </li>
               ))}
               {selected.backlinks.length === 0 && (
@@ -548,7 +510,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <p className="mb-4 text-sm text-ink-muted">Your vault is empty — create the first note to get started.</p>
       <Button variant="primary" onClick={onCreate}>
         <PlusIcon />
-        <span>+ New note</span>
+        New note
       </Button>
     </div>
   );

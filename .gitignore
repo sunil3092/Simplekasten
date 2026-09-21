@@ -27,3 +27,9 @@ e2e/.cache/
 
 # Local attachment storage (MVP stand-in for S3 — see Attachment model comment)
 apps/api/uploads/
+
+# Playwright
+apps/desktop/e2e/results/
+apps/desktop/test-results/
+.playwright-mcp/
+test-results/

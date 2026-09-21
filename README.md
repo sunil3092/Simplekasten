@@ -47,7 +47,7 @@ This is an **npm workspaces monorepo**:
 - `packages/core` — 📦 shared types, schemas, and note/link logic used across apps
 - `packages/db` — 🐘 Prisma schema and database client — dormant, only used by the dormant `apps/api`
 - `packages/local-engine` — 💾 local-first vault engine powering both the desktop and mobile apps
-- `packages/themes` — 🎨 shared theme format, built-in themes (Default, Memphis) and install/list/remove helpers used by both apps
+- `packages/themes` — 🎨 shared theme format, built-in themes (Memphis, Classic) and install/list/remove helpers used by both apps
 
 ## ⚙️ Requirements
 
@@ -92,11 +92,11 @@ npm run dev:api       # 🚀 dormant API service (no client calls it today)
 
 ## 🎨 Themes
 
-Desktop and mobile share one theme format. A theme is a single **JSON file** — inert data, never code — that controls colours (light and dark), shape (border width, corner radius, an optional hard offset shadow) and font. Two themes ship built in: **Default** and **Memphis** (cream ground, hot pink/teal accents, heavy black borders, square corners, a blur-free pink shadow).
+Desktop and mobile share one theme format. A theme is a single **JSON file** — inert data, never code — that controls colours (light and dark), shape (border width, corner radius, an optional hard offset shadow) and font. Two themes ship built in: **Memphis** (the default — a purple/pink/yellow/teal/cream palette, cream ground in light mode and deep purple in dark, heavy borders, square corners, a blur-free teal shadow) and **Classic** (the original slate-and-emerald look).
 
 **Switching and installing:** open **Settings** (the ⚙ in the desktop sidebar, or in the mobile vault header). Pick a theme, choose System / Light / Dark, and use **Install theme…** to import a `.json` file (or **Paste JSON**). Errors are shown inline with the offending field path.
 
-**Where they live:** installed themes are saved in your vault as `<vault>/themes/<id>.json`, so they travel with it. There's no device-to-device sync yet — install the file on each device, or copy the vault folder. Your chosen theme and mode are stored in each app's own `settings.json`. If a saved theme can no longer be loaded, the app falls back to Default and flags it in Settings.
+**Where they live:** installed themes are saved in your vault as `<vault>/themes/<id>.json`, so they travel with it. There's no device-to-device sync yet — install the file on each device, or copy the vault folder. Your chosen theme and mode are stored in each app's own `settings.json`. If a saved theme can no longer be loaded, the app falls back to Memphis and flags it in Settings.
 
 **Writing your own:**
 

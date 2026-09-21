@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import type { ModePreference } from "@simplekasten/themes";
+import { RESERVED_THEME_IDS, type ModePreference } from "@simplekasten/themes";
 import { HardShadow } from "@/components/HardShadow";
 import { useTheme } from "@/components/ThemeProvider";
 
-const BUILT_IN_IDS = ["default", "memphis"];
 const MODES: { value: ModePreference; label: string }[] = [
   { value: "system", label: "System" },
   { value: "light", label: "Light" },
@@ -46,7 +45,7 @@ export default function SettingsScreen() {
       <Text style={heading}>THEME</Text>
       {themes.map((theme) => {
         const selected = activeId === theme.id;
-        const builtIn = BUILT_IN_IDS.includes(theme.id);
+        const builtIn = RESERVED_THEME_IDS.includes(theme.id);
         return (
           <View key={theme.id} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <View style={{ flex: 1 }}>

@@ -9,7 +9,7 @@ export type ColorKey = (typeof COLOR_KEYS)[number];
 export const FONT_KEYWORDS = ["sans", "rounded-bold", "serif", "mono"] as const;
 export type FontKeyword = (typeof FONT_KEYWORDS)[number];
 
-export const RESERVED_THEME_IDS: readonly string[] = ["default", "memphis"];
+export const RESERVED_THEME_IDS: readonly string[] = ["memphis", "classic"];
 
 const hexColor = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "must be a #rgb or #rrggbb colour");
 

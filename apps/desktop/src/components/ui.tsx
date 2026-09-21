@@ -1,6 +1,6 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { useEffect, type ButtonHTMLAttributes, type ReactNode } from "react";
 
-export const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-1 focus-visible:ring-offset-surface";
+const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-1 focus-visible:ring-offset-surface";
 
 const BUTTON_VARIANTS = {
   primary: "bg-accent text-white shadow-sm hover:bg-accent-ink disabled:hover:bg-accent",
@@ -38,15 +38,6 @@ export function IconButton({ className = "", "aria-label": ariaLabel, ...props }
   );
 }
 
-export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={`w-full rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-2 text-sm text-ink transition-colors duration-150 placeholder:text-ink-faint focus:border-accent ${focusRing} ${className}`}
-      {...props}
-    />
-  );
-}
-
 export function Kbd({ children }: { children: ReactNode }) {
   return (
     <kbd className="rounded-md border-(length:--border-w) border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] font-medium text-ink-faint">
@@ -57,18 +48,13 @@ export function Kbd({ children }: { children: ReactNode }) {
 
 export function Chip({
   active,
-  tone = "accent",
   className = "",
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; tone?: "accent" | "accent-2" }) {
-  const activeClasses =
-    tone === "accent-2"
-      ? "border-accent-2 bg-accent-2-soft text-accent-2"
-      : "border-accent bg-accent-soft text-accent-ink";
+}: ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
   return (
     <button
       className={`inline-flex items-center gap-1 rounded-full border-(length:--border-w) px-2.5 py-1 font-mono text-[11px] font-medium transition-colors duration-150 ${
-        active ? activeClasses : "border-line text-ink-muted hover:border-ink-faint"
+        active ? "border-accent bg-accent-soft text-accent-ink" : "border-line text-ink-muted hover:border-ink-faint"
       } ${focusRing} ${className}`}
       {...props}
     />
@@ -111,5 +97,92 @@ export function SaveStatusIndicator({ status }: { status: "idle" | "saving" | "s
       />
       <span>{status === "saving" ? "Saving…" : "Saved"}</span>
     </span>
+  );
+}
+
+/** Small uppercase label above a group of controls or links. */
+export function SectionHeading({
+  icon,
+  compact,
+  className = "mb-3",
+  children,
+}: {
+  icon?: ReactNode;
+  compact?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <h3
+      className={`flex items-center gap-1.5 font-mono font-medium text-ink-faint uppercase ${
+        compact ? "text-[10px] tracking-wider" : "text-xs tracking-wide"
+      } ${className}`}
+    >
+      {icon}
+      {children}
+    </h3>
+  );
+}
+
+/** A note reference row: zettel id + title, dashed when the target doesn't exist yet. */
+export function NoteLink({
+  zettelId,
+  title,
+  unresolved,
+  onClick,
+}: {
+  zettelId: string | null;
+  title: string;
+  unresolved?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-1.5 rounded-lg border-(length:--border-w) px-3 py-2 text-left text-sm transition-colors hover:border-accent/60 hover:shadow-sm ${
+        unresolved ? "border-dashed border-line text-ink-faint" : "border-line bg-surface text-ink"
+      }`}
+    >
+      {zettelId && <span className="font-mono text-[10px] text-ink-faint">{zettelId}</span>}
+      <span className="truncate">{title}</span>
+    </button>
+  );
+}
+
+/** Centered dialog over a dimmed backdrop. Escape or a click outside closes it. */
+export function Modal({
+  onClose,
+  topClass,
+  label,
+  children,
+}: {
+  onClose: () => void;
+  /** Literal Tailwind top-padding class, e.g. "pt-[10vh]". */
+  topClass: string;
+  label?: string;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className={`animate-fade-in fixed inset-0 z-50 flex items-start justify-center bg-ink/40 ${topClass} backdrop-blur-[2px]`}
+      onMouseDown={onClose}
+    >
+      <div
+        role={label ? "dialog" : undefined}
+        aria-label={label}
+        className="animate-fade-scale-in w-full max-w-lg overflow-hidden rounded-2xl border-(length:--border-w) border-line bg-surface shadow-2xl"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
