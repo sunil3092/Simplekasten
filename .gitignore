@@ -9,9 +9,6 @@ out/
 .env.local
 .DS_Store
 
-# Prisma
-packages/db/generated/
-
 # Electron
 apps/desktop/out/
 apps/desktop/release/
@@ -24,9 +21,6 @@ e2e/test-results/
 e2e/playwright-report/
 e2e/blob-report/
 e2e/.cache/
-
-# Local attachment storage (MVP stand-in for S3 — see Attachment model comment)
-apps/api/uploads/
 
 # Playwright
 apps/desktop/e2e/results/

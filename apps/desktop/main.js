@@ -1,6 +1,6 @@
 // tsx's CJS require hook lets this plain-CommonJS main process require
 // @simplekasten/local-engine's TypeScript source directly — same "no build
-// step, run TS at dev-time" approach apps/api already uses with `tsx`.
+// step, run TS at dev-time" approach apps/desktop already uses with `tsx`.
 require("tsx/cjs");
 
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");

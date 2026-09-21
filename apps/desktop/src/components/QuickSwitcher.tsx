@@ -25,7 +25,7 @@ interface QuickSwitcherProps {
   onClose: () => void;
 }
 
-// ts_headline wraps matches in \u0001...\u0002 sentinels (see apps/api note.search) —
+// The engine wraps matches in \u0001...\u0002 sentinels (see searchNotes in local-engine) —
 // split on those instead of dangerouslySetInnerHTML, since a snippet is built
 // from the user's own note content and shouldn't be parsed as HTML.
 function Snippet({ text }: { text: string }) {
@@ -46,8 +46,8 @@ function Snippet({ text }: { text: string }) {
 }
 
 // Ctrl/Cmd+K jump-or-search — the one shortcut every Obsidian and Logseq user
-// already has muscle memory for. Searches full note content (via Postgres
-// full-text search), not just titles; typing a title with no match and
+// already has muscle memory for. Searches full note content
+// (local-engine searchNotes), not just titles; typing a title with no match and
 // pressing Enter creates it, same as Obsidian's Quick Switcher.
 export function QuickSwitcher({ recentNotes, onSearch, onSelect, onCreate, onClose }: QuickSwitcherProps) {
   const [query, setQuery] = useState("");

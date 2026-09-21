@@ -16,10 +16,9 @@ import type {
 
 const NOTES_DIR = "notes";
 
-// Same sentinel characters Postgres's ts_headline wraps matches in on the
-// server (see apps/api/src/routes/notes.ts) — QuickSwitcher's Snippet
-// component already splits on these, so it needs no changes to render a
-// locally-computed snippet.
+// Sentinel characters wrapped around matches in a search snippet.
+// QuickSwitcher's Snippet component splits on these to highlight them without
+// parsing the snippet as HTML.
 const HL_START = "";
 const HL_STOP = "";
 
@@ -27,8 +26,7 @@ function noteFilePath(id: string): string {
   return `${NOTES_DIR}/${id}.md`;
 }
 
-// Good enough for a single local writer — no server round-trip to collide
-// with, unlike a shared Postgres sequence.
+// Good enough for a single local writer — there's nothing else to collide with.
 function generateId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -46,10 +44,9 @@ async function loadAllNotes(fs: FileSystemAdapter): Promise<VaultNote[]> {
   return notes;
 }
 
-// Everything below is recomputed from note content on every read, the same
-// "content is the source of truth, links/tags are derived" rule the API
-// uses (see apps/api/src/links.ts) — there's no separate index to keep in
-// sync or go stale.
+// Everything below is recomputed from note content on every read, the
+// "content is the source of truth, links/tags are derived" rule — there's no
+// separate index to keep in sync or go stale.
 
 function computeLinks(notes: VaultNote[]): LinkRef[] {
   const byLowerTitle = new Map(notes.map((n) => [n.title.toLowerCase(), n.id]));
@@ -233,8 +230,7 @@ function buildSnippet(content: string, matchIndex: number | null, matchLength: n
 
 /**
  * Plain case-insensitive substring match over title+content, ranked
- * title-match-first then most-recently-updated — nowhere near Postgres's
- * ranked full-text search, but this is a single local vault, not a corpus.
+ * title-match-first then most-recently-updated — simple, but this is a single local vault, not a corpus.
  */
 export async function searchNotes(fs: FileSystemAdapter, query: string): Promise<SearchResultItem[]> {
   const q = query.trim().toLowerCase();
