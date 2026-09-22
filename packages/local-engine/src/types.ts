@@ -31,6 +31,8 @@ export interface VaultNote {
   updatedAt: string;
   deletedAt: string | null;
   attachmentIds: string[];
+  /** "YYYY-MM-DD", set only when type === "daily" — the calendar day this note represents. */
+  noteDate: string | null;
 }
 
 export interface Attachment {

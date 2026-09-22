@@ -5,6 +5,8 @@ import {
   deleteNote,
   getGraph,
   getNoteById,
+  getOrCreateDailyNote,
+  listDailyNotes,
   listNotes,
   listTags,
   searchNotes,
@@ -237,5 +239,57 @@ describe("attachments", () => {
     await fs.writeFile("attachments/manifest.json", "{ not json");
 
     await expect(getNoteById(fs, note.id)).rejects.toThrow(/attachments\/manifest\.json" is not valid JSON/);
+  });
+
+  describe("daily notes", () => {
+    it("creates a daily note once per date and returns the same one on a second call", async () => {
+      const fs = createMemoryFs();
+      const first = await getOrCreateDailyNote(fs, "2026-09-22");
+      const second = await getOrCreateDailyNote(fs, "2026-09-22");
+
+      expect(second.id).toBe(first.id);
+      expect(first.type).toBe("daily");
+      expect(first.noteDate).toBe("2026-09-22");
+      expect(first.title).toBe("September 22, 2026");
+      expect(await listNotes(fs)).toHaveLength(1);
+    });
+
+    it("creates a separate note for a different date", async () => {
+      const fs = createMemoryFs();
+      const today = await getOrCreateDailyNote(fs, "2026-09-22");
+      const tomorrow = await getOrCreateDailyNote(fs, "2026-09-23");
+
+      expect(tomorrow.id).not.toBe(today.id);
+      expect(await listNotes(fs)).toHaveLength(2);
+    });
+
+    it("assigns daily notes a zettelId from the normal sequence, not a separate namespace", async () => {
+      const fs = createMemoryFs();
+      await createNote(fs, { title: "Ordinary", content: "" });
+      const daily = await getOrCreateDailyNote(fs, "2026-09-22");
+
+      expect(daily.zettelId).toBe("2");
+    });
+
+    it("lists daily notes newest-first, excluding ordinary and deleted notes", async () => {
+      const fs = createMemoryFs();
+      await createNote(fs, { title: "Ordinary", content: "" });
+      const older = await getOrCreateDailyNote(fs, "2026-09-20");
+      const newer = await getOrCreateDailyNote(fs, "2026-09-22");
+      const deleted = await getOrCreateDailyNote(fs, "2026-09-21");
+      await deleteNote(fs, deleted.id);
+
+      const daily = await listDailyNotes(fs);
+      expect(daily.map((n) => n.id)).toEqual([newer.id, older.id]);
+    });
+
+    it("respects the limit passed to listDailyNotes", async () => {
+      const fs = createMemoryFs();
+      await getOrCreateDailyNote(fs, "2026-09-20");
+      await getOrCreateDailyNote(fs, "2026-09-21");
+      await getOrCreateDailyNote(fs, "2026-09-22");
+
+      expect(await listDailyNotes(fs, 2)).toHaveLength(2);
+    });
   });
 });

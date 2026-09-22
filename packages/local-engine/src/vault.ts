@@ -93,6 +93,19 @@ function sanitizeTitle(title: string): string {
   return title.replace(/\[\[|\]\]/g, "").replace(/\s+/g, " ").trim();
 }
 
+// "2026-09-22" -> "September 22, 2026". Parsed as UTC (the date carries no
+// time-of-day meaning — it's a calendar day, not an instant) so the label
+// can't shift by a day depending on the machine's local timezone offset.
+function formatHumanDate(date: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export async function listNotes(fs: FileSystemAdapter, tag?: string): Promise<NoteListItem[]> {
   const notes = (await loadAllNotes(fs)).filter((n) => !n.deletedAt);
 
@@ -163,6 +176,7 @@ export async function createNote(fs: FileSystemAdapter, input: CreateNoteInput):
     updatedAt: now,
     deletedAt: null,
     attachmentIds: [],
+    noteDate: null,
   };
 
   await fs.ensureDir(NOTES_DIR);
@@ -194,6 +208,45 @@ export async function deleteNote(fs: FileSystemAdapter, id: string): Promise<voi
   if (!existing) throw new Error(`Note "${id}" not found`);
 
   await fs.writeFile(noteFilePath(id), serializeNoteFile({ ...existing, deletedAt: new Date().toISOString() }));
+}
+
+// Get-or-create by calendar date. There's no server round trip to save here
+// — "find, then create if missing" is just two in-process passes over the
+// already-loaded notes, so a caller never needs to check existence itself
+// before asking for "today's" note.
+export async function getOrCreateDailyNote(fs: FileSystemAdapter, date: string): Promise<VaultNote> {
+  const notes = (await loadAllNotes(fs)).filter((n) => !n.deletedAt);
+  const existing = notes.find((n) => n.noteDate === date);
+  if (existing) return existing;
+
+  const now = new Date().toISOString();
+  const note: VaultNote = {
+    id: generateId(),
+    zettelId: nextZettelId(notes),
+    title: formatHumanDate(date),
+    content: "",
+    type: "daily",
+    noteDate: date,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+    attachmentIds: [],
+  };
+
+  await fs.ensureDir(NOTES_DIR);
+  await fs.writeFile(noteFilePath(note.id), serializeNoteFile(note));
+  return note;
+}
+
+// Most recent daily notes, newest first — powers the sidebar's Journal
+// section (desktop) and nothing on mobile yet (see docs/features/daily-notes.md).
+export async function listDailyNotes(fs: FileSystemAdapter, limit = 30): Promise<NoteListItem[]> {
+  const notes = (await loadAllNotes(fs)).filter((n) => !n.deletedAt && n.type === "daily");
+  return notes
+    .slice()
+    .sort((a, b) => (b.noteDate ?? "").localeCompare(a.noteDate ?? ""))
+    .slice(0, limit)
+    .map(({ id, zettelId, title, type, updatedAt }) => ({ id, zettelId, title, type, updatedAt }));
 }
 
 export async function listTags(fs: FileSystemAdapter): Promise<TagItem[]> {
