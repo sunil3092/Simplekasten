@@ -1,3 +1,4 @@
+import { COPY } from "@simplekasten/core";
 import { useEffect, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-1 focus-visible:ring-offset-surface";
@@ -95,7 +96,7 @@ export function SaveStatusIndicator({ status }: { status: "idle" | "saving" | "s
           status === "saving" ? "animate-pulse bg-accent-2" : "bg-accent"
         }`}
       />
-      <span>{status === "saving" ? "Saving…" : "Saved"}</span>
+      <span>{status === "saving" ? COPY.saving : COPY.saved}</span>
     </span>
   );
 }
@@ -184,5 +185,37 @@ export function Modal({
         {children}
       </div>
     </div>
+  );
+}
+
+/** A yes/no question over the current screen — used for destructive actions. */
+export function ConfirmDialog({
+  title,
+  body,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+}: {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal onClose={onCancel} topClass="pt-[20vh]" label={title}>
+      <div className="px-5 pt-5 pb-4">
+        <h2 className="font-display mb-2 text-lg font-bold text-ink">{title}</h2>
+        <p className="text-sm text-ink-muted">{body}</p>
+      </div>
+      <div className="flex justify-end gap-2 border-t-(length:--border-w) border-line-soft px-5 py-3">
+        <Button variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="danger" onClick={onConfirm} autoFocus>
+          {confirmLabel}
+        </Button>
+      </div>
+    </Modal>
   );
 }

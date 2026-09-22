@@ -1,27 +1,17 @@
-import type { ColorKey } from "@simplekasten/themes";
+import { NOTE_TYPES, noteTypeInfo, type ColorKey } from "@simplekasten/themes";
 
-export type NoteType = "fleeting" | "literature" | "permanent" | "structure";
+export type { NoteType } from "@simplekasten/core";
+export { NOTE_TYPES, noteTypeInfo };
 
-interface NoteTypeInfo {
-  value: NoteType;
-  label: string;
-  /** Classes for the type picker badge in the note header. */
-  badge: string;
-  /** Theme colour used for the note's node in the graph. */
-  graphColor: ColorKey;
-}
+// The shared table (packages/themes/src/noteTypes.ts) names theme colours;
+// Tailwind needs literal class names to generate them, so each colour key
+// used by a badge maps to its utility here.
+const BG: Partial<Record<ColorKey, string>> = { surface2: "bg-surface-2", accentSoft: "bg-accent-soft", accent2Soft: "bg-accent-2-soft" };
+const FG: Partial<Record<ColorKey, string>> = { inkMuted: "text-ink-muted", accentInk: "text-accent-ink", accent2: "text-accent-2" };
+const BORDER: Partial<Record<ColorKey, string>> = { line: "border-line", accent: "border-accent", accent2: "border-accent-2" };
 
-// One entry per note type — the type picker, its badge and the graph legend
-// all read from here, so a type's look can't drift between screens.
-export const NOTE_TYPES: NoteTypeInfo[] = [
-  { value: "fleeting", label: "Fleeting", badge: "bg-surface-2 text-ink-muted border-line", graphColor: "accent2" },
-  { value: "literature", label: "Literature", badge: "bg-accent-2-soft text-accent-2 border-accent-2", graphColor: "accent" },
-  { value: "permanent", label: "Permanent", badge: "bg-accent-soft text-accent-ink border-accent", graphColor: "ink" },
-  { value: "structure", label: "Structure", badge: "bg-surface-2 text-ink-muted border-line border-dashed", graphColor: "inkMuted" },
-];
-
-const FALLBACK = NOTE_TYPES[0];
-
-export function noteTypeInfo(type: string): NoteTypeInfo {
-  return NOTE_TYPES.find((t) => t.value === type) ?? FALLBACK;
+/** Tailwind classes for a note type's badge/picker in the note header. */
+export function badgeClasses(type: string): string {
+  const { badge } = noteTypeInfo(type);
+  return [BG[badge.bg], FG[badge.fg], BORDER[badge.border], badge.dashed && "border-dashed"].filter(Boolean).join(" ");
 }

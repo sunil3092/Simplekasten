@@ -5,6 +5,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { RangeSetBuilder } from "@codemirror/state";
 import { Decoration, type DecorationSet, EditorView, placeholder, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
+import { COPY } from "@simplekasten/core";
 import { useEffect, useRef } from "react";
 
 const WIKI_LINK_PATTERN = /\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g;
@@ -162,7 +163,7 @@ export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick,
         minimalSetup,
         markdown(),
         EditorView.lineWrapping,
-        placeholder("Start writing… type [[ to link to another note"),
+        placeholder(COPY.editorPlaceholder),
         closeBrackets(),
         autocompletion({ override: [wikiLinkCompletionSource(noteTitlesRef)] }),
         clickableSpans(WIKI_LINK_PATTERN, "cm-wikilink", (title) => onNavigateRef.current(title)),

@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld("simplekasten", {
     listTags: () => ipcRenderer.invoke("vault:listTags"),
     getVaultPath: () => ipcRenderer.invoke("vault:getVaultPath"),
     chooseVaultFolder: () => ipcRenderer.invoke("vault:chooseVaultFolder"),
+    addAttachment: (noteId) => ipcRenderer.invoke("vault:addAttachment", noteId),
+    deleteAttachment: (id) => ipcRenderer.invoke("vault:deleteAttachment", id),
+    attachmentUrl: (id) => `sk-attachment://${encodeURIComponent(id)}`,
   },
   settings: {
     get: () => ipcRenderer.invoke("settings:get"),

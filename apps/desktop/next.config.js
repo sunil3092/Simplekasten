@@ -12,7 +12,7 @@ const nextConfig = {
   images: { unoptimized: true },
   // Workspace packages ship TypeScript source (no build step); Next has to
   // compile them when the renderer imports them.
-  transpilePackages: ["@simplekasten/themes"],
+  transpilePackages: ["@simplekasten/core", "@simplekasten/themes"],
 };
 
 module.exports = nextConfig;

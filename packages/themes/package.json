@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@simplekasten/core": "*",
     "@simplekasten/local-engine": "*",
     "zod": "^3.23.8"
   },

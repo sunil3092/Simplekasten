@@ -1,5 +1,6 @@
 "use client";
 
+import { COPY } from "@simplekasten/core";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../lib/ThemeProvider";
@@ -132,7 +133,7 @@ export function GraphView({ nodes, edges, activeNoteId, onSelectNode, onClose }:
           />
         )}
         {graphData.nodes.length === 0 && (
-          <p className="flex h-full items-center justify-center text-sm text-ink-faint">Nothing to graph yet.</p>
+          <p className="flex h-full items-center justify-center text-sm text-ink-faint">{COPY.emptyGraph}</p>
         )}
         {presentTypes.length > 0 && (
           <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 rounded-xl border-(length:--border-w) border-line bg-surface px-3 py-2.5 text-xs text-ink-muted shadow-sm">

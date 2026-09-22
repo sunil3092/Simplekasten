@@ -28,6 +28,9 @@ declare global {
         listTags: () => Promise<unknown>;
         getVaultPath: () => Promise<string>;
         chooseVaultFolder: () => Promise<string>;
+        addAttachment: (noteId: string) => Promise<unknown>;
+        deleteAttachment: (id: string) => Promise<void>;
+        attachmentUrl: (id: string) => string;
       };
     };
   }
@@ -48,6 +51,9 @@ export const vaultClient = {
   listTags: () => vault().listTags(),
   getVaultPath: () => vault().getVaultPath(),
   chooseVaultFolder: () => vault().chooseVaultFolder(),
+  addAttachment: (noteId: string) => vault().addAttachment(noteId),
+  deleteAttachment: (id: string) => vault().deleteAttachment(id),
+  attachmentUrl: (id: string) => vault().attachmentUrl(id),
 };
 
 /** The vault folder on disk already *is* the portable export — nothing to zip. */

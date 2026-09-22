@@ -1,6 +1,8 @@
 "use client";
 
+import { COPY } from "@simplekasten/core";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Attachments, type AttachmentItem } from "../components/Attachments";
 import { GraphView } from "../components/GraphView";
 import {
   ChevronDownIcon,
@@ -10,15 +12,17 @@ import {
   LayersIcon,
   LinkIcon,
   NetworkIcon,
+  PaperclipIcon,
   PlusIcon,
   SearchIcon,
   SettingsIcon,
+  TrashIcon,
 } from "../components/icons";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
 import { SettingsModal } from "../components/SettingsModal";
-import { Button, Chip, Kbd, NoteLink, SaveStatusIndicator, SectionHeading } from "../components/ui";
-import { NOTE_TYPES, noteTypeInfo, type NoteType } from "../lib/noteTypes";
+import { Button, Chip, ConfirmDialog, IconButton, Kbd, NoteLink, SaveStatusIndicator, SectionHeading } from "../components/ui";
+import { badgeClasses, NOTE_TYPES, type NoteType } from "../lib/noteTypes";
 import { useTheme } from "../lib/ThemeProvider";
 import { showVaultLocation, vaultClient } from "../lib/vaultClient";
 
@@ -36,6 +40,7 @@ interface NoteDetail {
   content: string;
   type: NoteType;
   tagNames: string[];
+  attachments: AttachmentItem[];
   backlinks: { noteId: string; title: string; zettelId: string }[];
   contents: { noteId: string | null; title: string; zettelId: string | null; resolved: boolean }[];
 }
@@ -76,6 +81,8 @@ function Vault() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const { notice: themeNotice } = useTheme();
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   // Structure notes are Simplekasten's Maps of Content — a curated table of
@@ -179,7 +186,7 @@ function Vault() {
     const fresh = (await vaultClient.getNoteById(payload.id)) as NoteDetail;
     setSelected((current) =>
       current && current.id === payload.id
-        ? { ...current, backlinks: fresh.backlinks, tagNames: fresh.tagNames, contents: fresh.contents }
+        ? { ...current, backlinks: fresh.backlinks, tagNames: fresh.tagNames, contents: fresh.contents, attachments: fresh.attachments }
         : current,
     );
   }
@@ -197,8 +204,45 @@ function Vault() {
 
   async function openNote(id: string) {
     await flushPending();
+    setAttachmentError(null);
     setSelected((await vaultClient.getNoteById(id)) as NoteDetail);
     setSaveStatus("saved");
+  }
+
+  async function deleteSelected() {
+    if (!selected) return;
+    setConfirmingDelete(false);
+    await flushPending();
+    const deletedId = selected.id;
+    await vaultClient.deleteNote(deletedId);
+    const remaining = ((await vaultClient.listNotes(activeTag ?? undefined)) as NoteListItem[]).filter((n) => n.id !== deletedId);
+    setNotes(remaining);
+    refreshTags();
+    if (remaining.length > 0) await openNote(remaining[0].id);
+    else setSelected(null);
+  }
+
+  async function refreshAttachments(id: string) {
+    const fresh = (await vaultClient.getNoteById(id)) as NoteDetail;
+    setSelected((current) => (current && current.id === id ? { ...current, attachments: fresh.attachments } : current));
+  }
+
+  async function addAttachment() {
+    if (!selected) return;
+    const id = selected.id;
+    setAttachmentError(null);
+    try {
+      await flushPending();
+      if (await vaultClient.addAttachment(id)) await refreshAttachments(id);
+    } catch {
+      setAttachmentError("Couldn't attach that file — only images and audio are supported.");
+    }
+  }
+
+  async function removeAttachment(attachmentId: string) {
+    if (!selected) return;
+    await vaultClient.deleteAttachment(attachmentId);
+    await refreshAttachments(selected.id);
   }
 
   async function openGraph() {
@@ -301,7 +345,7 @@ function Vault() {
           </Button>
           <Button variant="primary" className="w-full justify-start" onClick={() => createNote()}>
             <PlusIcon />
-            New note
+            {COPY.newNote}
           </Button>
         </div>
 
@@ -318,7 +362,7 @@ function Vault() {
         {mapsOfContent.length > 0 && (
           <div className="mt-4">
             <SectionHeading compact icon={<LayersIcon />} className="mb-1.5">
-              Maps of content
+              {COPY.mapsOfContent}
             </SectionHeading>
             <ul className="flex flex-col gap-1">
               {mapsOfContent.map((n) => (
@@ -339,10 +383,7 @@ function Vault() {
 
         <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
           <div className="mb-1.5 flex items-center justify-between px-2 font-mono text-[10px] font-medium tracking-wider text-ink-faint uppercase">
-            <span>
-              {notes.length} note{notes.length === 1 ? "" : "s"}
-              {activeTag ? ` · #${activeTag}` : ""}
-            </span>
+            <span>{COPY.noteCount(notes.length, activeTag)}</span>
             {activeTag && (
               <button onClick={() => setActiveTag(null)} className="normal-case transition-colors hover:text-ink-muted">
                 clear
@@ -376,7 +417,7 @@ function Vault() {
                   <select
                     value={selected.type}
                     onChange={(e) => updateType(e.target.value as NoteType)}
-                    className={`appearance-none rounded-md border-(length:--border-w) py-1 pr-6 pl-2.5 font-mono text-[10px] font-medium tracking-wide uppercase transition-colors focus:outline-none ${noteTypeInfo(selected.type).badge}`}
+                    className={`appearance-none rounded-md border-(length:--border-w) py-1 pr-6 pl-2.5 font-mono text-[10px] font-medium tracking-wide uppercase transition-colors focus:outline-none ${badgeClasses(selected.type)}`}
                   >
                     {NOTE_TYPES.map((t) => (
                       <option key={t.value} value={t.value}>
@@ -399,8 +440,14 @@ function Vault() {
                     </button>
                   ))}
                 </div>
-                <span className="ml-auto">
+                <span className="ml-auto flex items-center gap-1">
                   <SaveStatusIndicator status={saveStatus} />
+                  <IconButton aria-label="Attach a photo or audio file" title="Attach a photo or audio file" onClick={addAttachment} className="ml-2">
+                    <PaperclipIcon />
+                  </IconButton>
+                  <IconButton aria-label="Delete note" title="Delete note" onClick={() => setConfirmingDelete(true)} className="hover:text-danger">
+                    <TrashIcon />
+                  </IconButton>
                 </span>
               </div>
 
@@ -409,7 +456,7 @@ function Vault() {
                 value={selected.title}
                 onChange={(e) => updateTitle(e.target.value)}
                 className="font-display mb-5 w-full border-none bg-transparent text-3xl font-bold tracking-tight text-ink outline-none placeholder:text-ink-faint"
-                placeholder="Untitled"
+                placeholder={COPY.titlePlaceholder}
               />
 
               <NoteEditor
@@ -420,6 +467,13 @@ function Vault() {
                 onTagClick={toggleTag}
                 noteTitles={notes.filter((n) => n.id !== selected.id).map((n) => n.title)}
               />
+
+              {attachmentError && (
+                <p role="alert" className="mt-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
+                  {attachmentError}
+                </p>
+              )}
+              <Attachments attachments={selected.attachments} onRemove={removeAttachment} />
             </div>
           ) : (
             <EmptyState onCreate={() => createNote()} />
@@ -444,11 +498,13 @@ function Vault() {
               ))}
               {selected.contents.length === 0 && (
                 <li className="rounded-lg border-(length:--border-w) border-dashed border-line px-3 py-4 text-center text-sm text-ink-faint">
-                  Link to notes with [[wiki-links]].
+                  {COPY.noLinks}
                 </li>
               )}
             </ul>
-            <SectionHeading icon={<LinkIcon />}>Linked mentions ({selected.backlinks.length})</SectionHeading>
+            <SectionHeading icon={<LinkIcon />}>
+              {COPY.linkedMentions} ({selected.backlinks.length})
+            </SectionHeading>
             <ul className="flex flex-col gap-2">
               {selected.backlinks.map((b) => (
                 <li key={b.noteId}>
@@ -457,7 +513,7 @@ function Vault() {
               ))}
               {selected.backlinks.length === 0 && (
                 <li className="rounded-lg border-(length:--border-w) border-dashed border-line px-3 py-4 text-center text-sm text-ink-faint">
-                  Nothing links here yet.
+                  {COPY.noBacklinks}
                 </li>
               )}
             </ul>
@@ -483,6 +539,16 @@ function Vault() {
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
 
+      {confirmingDelete && selected && (
+        <ConfirmDialog
+          title={COPY.deleteNoteTitle}
+          body={COPY.deleteNoteBody(selected.title)}
+          confirmLabel="Delete"
+          onConfirm={deleteSelected}
+          onCancel={() => setConfirmingDelete(false)}
+        />
+      )}
+
       {graphData && (
         <GraphView
           nodes={graphData.nodes}
@@ -505,10 +571,10 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-2 text-ink-faint">
         <FileTextIcon width={26} height={26} />
       </div>
-      <p className="mb-4 text-sm text-ink-muted">Your vault is empty — create the first note to get started.</p>
+      <p className="mb-4 text-sm text-ink-muted">{COPY.emptyVault}</p>
       <Button variant="primary" onClick={onCreate}>
         <PlusIcon />
-        New note
+        {COPY.newNote}
       </Button>
     </div>
   );

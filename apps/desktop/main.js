@@ -3,7 +3,8 @@
 // step, run TS at dev-time" approach apps/desktop already uses with `tsx`.
 require("tsx/cjs");
 
-const { app, BrowserWindow, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, net, protocol } = require("electron");
+const { pathToFileURL } = require("url");
 const fs = require("fs");
 const path = require("path");
 const localEngine = require("@simplekasten/local-engine");
@@ -50,6 +51,42 @@ function currentAdapter() {
 // desktop app's fully-offline design. Method names mirror
 // @simplekasten/local-engine's exports 1:1; see preload.js for the bridge
 // the renderer actually calls.
+// The engine classifies attachments by mime type (image/* → photo,
+// audio/* → voice); the file picker only knows extensions.
+const ATTACHMENT_MIME_TYPES = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  heic: "image/heic",
+  m4a: "audio/m4a",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  aac: "audio/aac",
+};
+
+// sk-attachment://<id> serves an attachment's file from the current vault,
+// so the renderer can use it directly in <img>/<audio> without ever getting
+// a raw filesystem path. Registered as privileged + streaming so <audio>
+// can seek (range requests) and the dev server origin can load it.
+protocol.registerSchemesAsPrivileged([
+  { scheme: "sk-attachment", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+]);
+
+function registerAttachmentProtocol() {
+  protocol.handle("sk-attachment", async (request) => {
+    const id = new URL(request.url).hostname;
+    try {
+      const file = await localEngine.getAttachmentFilePath(currentAdapter(), id);
+      return net.fetch(pathToFileURL(file).toString(), { headers: request.headers });
+    } catch {
+      return new Response("Attachment not found", { status: 404 });
+    }
+  });
+}
+
 function registerIpcHandlers() {
   ipcMain.handle("vault:listNotes", (_event, tag) => localEngine.listNotes(currentAdapter(), tag));
   ipcMain.handle("vault:getNoteById", (_event, id) => localEngine.getNoteById(currentAdapter(), id));
@@ -60,6 +97,25 @@ function registerIpcHandlers() {
   ipcMain.handle("vault:getGraph", () => localEngine.getGraph(currentAdapter()));
   ipcMain.handle("vault:listTags", () => localEngine.listTags(currentAdapter()));
   ipcMain.handle("vault:getVaultPath", () => getVaultPath());
+  ipcMain.handle("vault:addAttachment", async (_event, noteId) => {
+    const result = await dialog.showOpenDialog({
+      title: "Attach a photo or audio file",
+      properties: ["openFile"],
+      filters: [{ name: "Images and audio", extensions: Object.keys(ATTACHMENT_MIME_TYPES) }],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+
+    const file = result.filePaths[0];
+    const mimeType = ATTACHMENT_MIME_TYPES[path.extname(file).slice(1).toLowerCase()];
+    if (!mimeType) throw new Error("Only image and audio files can be attached.");
+    return localEngine.createAttachment(currentAdapter(), {
+      noteId: String(noteId),
+      sourcePath: file,
+      filename: path.basename(file),
+      mimeType,
+    });
+  });
+  ipcMain.handle("vault:deleteAttachment", (_event, id) => localEngine.deleteAttachment(currentAdapter(), String(id)));
   ipcMain.handle("vault:chooseVaultFolder", async () => {
     const result = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
     if (result.canceled || result.filePaths.length === 0) return getVaultPath();
@@ -126,6 +182,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  registerAttachmentProtocol();
   registerIpcHandlers();
   createWindow();
 

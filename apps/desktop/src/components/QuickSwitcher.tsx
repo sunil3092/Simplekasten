@@ -1,5 +1,6 @@
 "use client";
 
+import { COPY } from "@simplekasten/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileTextIcon, PlusIcon, SearchIcon } from "./icons";
 import { Kbd, Modal } from "./ui";
@@ -111,7 +112,7 @@ export function QuickSwitcher({ recentNotes, onSearch, onSelect, onCreate, onClo
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Search notes, or type a new title…"
+          placeholder={COPY.searchPlaceholder}
           className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
         />
       </div>
@@ -146,11 +147,11 @@ export function QuickSwitcher({ recentNotes, onSearch, onSelect, onCreate, onClo
               }`}
             >
               <PlusIcon className="flex-none" />
-              Create &ldquo;{query.trim()}&rdquo;
+              {COPY.createNote(query.trim())}
             </button>
           </li>
         )}
-        {query.trim() && results === null && <li className="px-4 py-3 text-sm text-ink-faint">Searching…</li>}
+        {query.trim() && results === null && <li className="px-4 py-3 text-sm text-ink-faint">{COPY.searching}</li>}
         {!query.trim() && items.length === 0 && (
           <li className="px-4 py-3 text-sm text-ink-faint">No notes yet — type a title to create one.</li>
         )}

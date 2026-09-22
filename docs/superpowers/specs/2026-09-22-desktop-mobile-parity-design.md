@@ -33,9 +33,12 @@ voice recording (mobile only).
 
 ## 1. Shared layer (`packages/core`)
 
-### `noteTypes.ts`
+### `noteTypes.ts` (in `packages/themes`)
 
-Moved here from `apps/desktop/src/lib/noteTypes.ts`. One entry per note type:
+Moved from `apps/desktop/src/lib/noteTypes.ts` to `packages/themes`, not
+`packages/core`: it needs `ColorKey`, and `core` depending on `themes`
+would create a cycle (`themes` → `local-engine` → `core`). One entry per
+note type:
 
 ```ts
 interface NoteTypeInfo {
@@ -58,8 +61,9 @@ stay the same as desktop has now:
 - **permanent:** accentSoft / accentInk / accent
 - **structure:** surface2 / inkMuted / line, dashed
 
-`ColorKey` comes from `@simplekasten/themes`, which `packages/core` gains as
-a type-only dependency.
+Deleting a note is a soft delete in the engine (the file stays on disk with
+`deletedAt` set), so the confirmation says so and doesn't promise that
+attachments are removed.
 
 ### `icons.ts`
 
