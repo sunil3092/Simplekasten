@@ -135,10 +135,11 @@ there's nothing else to collide with").
   sandbox, so Expo's web target or a description of the manual walkthrough
   stands in when a real device/emulator isn't available).
 
-## Where this left off
+## Status: shipped 2026-09-22
 
-Not started as of 2026-09-22 (spec rewrite only). Next concrete step:
-`packages/local-engine/src/types.ts` — add `noteDate` to `VaultNote`, then
-`note-file.ts` frontmatter round-trip, then `vault.ts`'s two new functions
-and their unit tests, in that order — the rest (desktop UI, mobile UI)
-depends on this layer existing and typechecking first.
+Implemented as specced above. `NoteDetail` also gained `noteDate` (not
+originally listed in this spec — needed so the UI can compute prev/next-day
+without re-parsing the human-readable title) — populated in
+`getNoteById`. See `docs/ROADMAP.md`'s status table for verification
+details (115 unit tests, 15 desktop e2e tests, mobile typecheck + visual
+smoke test).

@@ -96,6 +96,8 @@ function registerIpcHandlers() {
   ipcMain.handle("vault:search", (_event, query) => localEngine.searchNotes(currentAdapter(), query));
   ipcMain.handle("vault:getGraph", () => localEngine.getGraph(currentAdapter()));
   ipcMain.handle("vault:listTags", () => localEngine.listTags(currentAdapter()));
+  ipcMain.handle("vault:getOrCreateDailyNote", (_event, date) => localEngine.getOrCreateDailyNote(currentAdapter(), date));
+  ipcMain.handle("vault:listDailyNotes", (_event, limit) => localEngine.listDailyNotes(currentAdapter(), limit));
   ipcMain.handle("vault:getVaultPath", () => getVaultPath());
   ipcMain.handle("vault:addAttachment", async (_event, noteId) => {
     const result = await dialog.showOpenDialog({

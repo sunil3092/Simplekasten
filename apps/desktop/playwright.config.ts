@@ -8,7 +8,17 @@ export default defineConfig({
   // Outside apps/desktop: Next dev watches this folder, and writing screenshots
   // into it triggers a hot reload that races the test running next.
   outputDir: "../../test-results",
-  use: { baseURL: "http://localhost:3000" },
+  // Some sandboxes pre-install Chromium at a pinned revision outside
+  // Playwright's normal download flow, under a path this repo's Playwright
+  // version doesn't expect by default — set PLAYWRIGHT_CHROMIUM_EXECUTABLE
+  // to point at it there. Unset (the normal case, including CI), this is a
+  // no-op and Playwright resolves its own browser as usual.
+  use: {
+    baseURL: "http://localhost:3000",
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE }
+      : undefined,
+  },
   webServer: {
     command: "npm run dev:renderer",
     url: "http://localhost:3000",

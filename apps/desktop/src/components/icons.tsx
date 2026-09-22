@@ -45,3 +45,6 @@ export const LinkIcon = named("link");
 export const SettingsIcon = named("settings");
 export const TrashIcon = named("trash");
 export const PaperclipIcon = named("paperclip");
+export const CalendarIcon = named("calendar");
+export const ChevronLeftIcon = named("chevronLeft");
+export const ChevronRightIcon = named("chevronRight");

@@ -19,6 +19,7 @@ export const vault = {
   search: (query: string) => engine.searchNotes(fs, query),
   getGraph: () => engine.getGraph(fs),
   listTags: () => engine.listTags(fs),
+  getOrCreateDailyNote: (date: string) => engine.getOrCreateDailyNote(fs, date),
   createAttachment: (input: engine.CreateAttachmentInput) => engine.createAttachment(fs, input),
   listAttachments: (noteId: string) => engine.listAttachments(fs, noteId),
   deleteAttachment: (id: string) => engine.deleteAttachment(fs, id),

@@ -83,11 +83,27 @@ in detail.
 
 | Feature | Spec doc | local-engine | Desktop UI | Mobile UI | Tested | Shipped |
 |---|---|---|---|---|---|---|
-| Daily Notes | ✅ (rewritten for local-engine) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Daily Notes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-22 |
 | Templates | ⚠️ stale, needs rewrite | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Spaced repetition | ⬜ not written | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
+
+### Daily Notes — shipped 2026-09-22
+
+`getOrCreateDailyNote`/`listDailyNotes` in `packages/local-engine/src/vault.ts`,
+a `daily` note type (`packages/core`, `packages/themes`), a "Today" entry
+point plus prev/next-day navigation on both Desktop (with a sidebar
+"Journal" section) and Mobile, and a `Cmd/Ctrl+J` shortcut on desktop.
+115 unit tests + 15 desktop e2e tests green; mobile confirmed via typecheck
+and a visual smoke test (full on-device verification needs a real
+Android/iOS emulator, per this project's established testing convention —
+none available in this sandbox). See `docs/features/daily-notes.md` for the
+full spec this was built from.
+
+**Next up: Templates.** Its spec doc needs the same local-engine rewrite
+daily-notes.md got before implementation starts — follow that doc's
+"Where this left off" note.
 
 ## Sources
 

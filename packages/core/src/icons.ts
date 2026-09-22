@@ -37,6 +37,9 @@ export const ICONS = {
   pause: [path("M9 5.5v13M15 5.5v13")],
   trash: [path("M4.5 7h15M10 11v6M14 11v6"), path("M6 7l1 12.5a1.5 1.5 0 001.5 1.5h7a1.5 1.5 0 001.5-1.5L18 7M9 7V4.5A1.5 1.5 0 0110.5 3h3A1.5 1.5 0 0115 4.5V7")],
   paperclip: [path("M20 11.5l-7.8 7.8a5 5 0 01-7-7l8-8a3.3 3.3 0 014.7 4.7l-8 8a1.7 1.7 0 01-2.4-2.4l7.4-7.4")],
+  calendar: [rect(4, 5.5, 16, 15, 1.5), path("M4 10h16M8 3v4M16 3v4"), circle(12, 14.5, 1.4)],
+  chevronLeft: [path("M15 6l-6 6 6 6")],
+  chevronRight: [path("M9 6l6 6-6 6")],
 } satisfies Record<string, IconShape[]>;
 
 export type IconName = keyof typeof ICONS;

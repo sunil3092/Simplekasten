@@ -141,6 +141,7 @@ export async function getNoteById(fs: FileSystemAdapter, id: string): Promise<No
     type: note.type,
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
+    noteDate: note.noteDate,
     tagNames,
     attachments: await listAttachments(fs, id),
     backlinks: links

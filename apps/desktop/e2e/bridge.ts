@@ -8,10 +8,11 @@ import type { Page } from "@playwright/test";
  */
 export async function stubBridge(page: Page, settings: { theme: string; themeMode: "system" | "light" | "dark" }) {
   await page.addInitScript((s) => {
-    const notes = [
+    const notes: { id: string; zettelId: string; title: string; content: string; type: string; noteDate?: string }[] = [
       { id: "a", zettelId: "1", title: "Atomic Habits", content: "Small changes compound.", type: "fleeting" },
       { id: "b", zettelId: "2", title: "Systems", content: "See [[Atomic Habits]].", type: "permanent" },
     ];
+    let nextNote = 1;
     const stamp = "2026-09-21T00:00:00.000Z";
     // "Atomic Habits" starts with one photo and one voice note, as if they'd
     // been added on mobile. Files are served as data: URLs below.
@@ -56,6 +57,19 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
           edges: [{ source: "b", target: "a" }],
         }),
         listTags: async () => [],
+        getOrCreateDailyNote: async (date: string) => {
+          const existing = notes.find((n) => n.noteDate === date);
+          if (existing) return detail(existing.id);
+          const id = `daily${nextNote++}`;
+          notes.push({ id, zettelId: String(notes.length + 1), title: date, content: "", type: "daily", noteDate: date });
+          return detail(id);
+        },
+        listDailyNotes: async (limit = 30) =>
+          notes
+            .filter((n) => n.type === "daily")
+            .sort((a, b) => (b.noteDate ?? "").localeCompare(a.noteDate ?? ""))
+            .slice(0, limit)
+            .map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type, updatedAt: stamp })),
         getVaultPath: async () => "/fixture",
         chooseVaultFolder: async () => "/fixture",
         addAttachment: async (noteId: string) => {

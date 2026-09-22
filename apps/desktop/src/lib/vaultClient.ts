@@ -26,6 +26,8 @@ declare global {
         search: (query: string) => Promise<unknown>;
         getGraph: () => Promise<unknown>;
         listTags: () => Promise<unknown>;
+        getOrCreateDailyNote: (date: string) => Promise<unknown>;
+        listDailyNotes: (limit?: number) => Promise<unknown>;
         getVaultPath: () => Promise<string>;
         chooseVaultFolder: () => Promise<string>;
         addAttachment: (noteId: string) => Promise<unknown>;
@@ -49,6 +51,8 @@ export const vaultClient = {
   search: (query: string) => vault().search(query),
   getGraph: () => vault().getGraph(),
   listTags: () => vault().listTags(),
+  getOrCreateDailyNote: (date: string) => vault().getOrCreateDailyNote(date),
+  listDailyNotes: (limit?: number) => vault().listDailyNotes(limit),
   getVaultPath: () => vault().getVaultPath(),
   chooseVaultFolder: () => vault().chooseVaultFolder(),
   addAttachment: (noteId: string) => vault().addAttachment(noteId),

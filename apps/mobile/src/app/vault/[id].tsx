@@ -99,10 +99,34 @@ export default function NoteScreen() {
     ]);
   }
 
+  function shiftDate(date: string, days: number): string {
+    const [y, m, d] = date.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+  }
+
+  // Replaces rather than pushes: paging through days is a "scroll through
+  // the journal" gesture, not "drill into a link" — pushing would leave an
+  // ever-growing back stack of one entry per day visited.
+  async function openDailyOffset(days: number) {
+    if (!note?.noteDate) return;
+    await flushPending();
+    const target = await vault.getOrCreateDailyNote(shiftDate(note.noteDate, days));
+    router.replace(`/vault/${target.id}`);
+  }
+
   useEffect(() => {
     navigation.setOptions({
       title: title || COPY.titlePlaceholder,
-      headerRight: () => <IconButton icon="trash" label="Delete note" onPress={confirmDelete} />,
+      headerRight: () =>
+        note?.type === "daily" ? (
+          <View style={{ flexDirection: "row", gap: 4 }}>
+            <IconButton icon="chevronLeft" label="Previous day" onPress={() => openDailyOffset(-1)} />
+            <IconButton icon="chevronRight" label="Next day" onPress={() => openDailyOffset(1)} />
+            <IconButton icon="trash" label="Delete note" onPress={confirmDelete} />
+          </View>
+        ) : (
+          <IconButton icon="trash" label="Delete note" onPress={confirmDelete} />
+        ),
     });
   }); // re-bind every render so the delete handler sees the current title
 

@@ -77,6 +77,7 @@ export interface NoteDetail {
   attachments: Attachment[];
   backlinks: BacklinkItem[];
   contents: ContentsItem[];
+  noteDate: string | null;
 }
 
 export interface TagItem {

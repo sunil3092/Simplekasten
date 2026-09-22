@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld("simplekasten", {
     search: (query) => ipcRenderer.invoke("vault:search", query),
     getGraph: () => ipcRenderer.invoke("vault:getGraph"),
     listTags: () => ipcRenderer.invoke("vault:listTags"),
+    getOrCreateDailyNote: (date) => ipcRenderer.invoke("vault:getOrCreateDailyNote", date),
+    listDailyNotes: (limit) => ipcRenderer.invoke("vault:listDailyNotes", limit),
     getVaultPath: () => ipcRenderer.invoke("vault:getVaultPath"),
     chooseVaultFolder: () => ipcRenderer.invoke("vault:chooseVaultFolder"),
     addAttachment: (noteId) => ipcRenderer.invoke("vault:addAttachment", noteId),
