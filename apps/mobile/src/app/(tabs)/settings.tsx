@@ -3,6 +3,7 @@ import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-nativ
 import { RESERVED_THEME_IDS, type ModePreference } from "@simplekasten/themes";
 import { HardShadow } from "@/components/HardShadow";
 import { useTheme } from "@/components/ThemeProvider";
+import { SectionHeading } from "@/components/ui";
 
 const MODES: { value: ModePreference; label: string }[] = [
   { value: "system", label: "System" },
@@ -34,15 +35,16 @@ export default function SettingsScreen() {
   }
 
   const box = { borderWidth: shape.borderWidth, borderRadius: shape.radius, borderColor: colors.line };
-  const heading = { color: colors.inkFaint, fontSize: 12, letterSpacing: 1, marginBottom: 8, marginTop: 20 } as const;
 
   return (
-    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16 }}>
       {notice && (
         <Text style={{ color: colors.accent2, backgroundColor: colors.accent2Soft, padding: 10, borderRadius: shape.radius }}>{notice}</Text>
       )}
 
-      <Text style={heading}>THEME</Text>
+      <View style={{ marginTop: 20 }}>
+        <SectionHeading>Theme</SectionHeading>
+      </View>
       {themes.map((theme) => {
         const selected = activeId === theme.id;
         const builtIn = RESERVED_THEME_IDS.includes(theme.id);
@@ -88,7 +90,9 @@ export default function SettingsScreen() {
         );
       })}
 
-      <Text style={heading}>APPEARANCE</Text>
+      <View style={{ marginTop: 20 }}>
+        <SectionHeading>Appearance</SectionHeading>
+      </View>
       <View style={{ flexDirection: "row", gap: 8 }}>
         {MODES.map((m) => (
           <Pressable
@@ -110,7 +114,9 @@ export default function SettingsScreen() {
         ))}
       </View>
 
-      <Text style={heading}>INSTALL A THEME</Text>
+      <View style={{ marginTop: 20 }}>
+        <SectionHeading>Install a theme</SectionHeading>
+      </View>
       <View style={{ flexDirection: "row", gap: 8 }}>
         <Pressable onPress={handleFile} style={[box, { padding: 10, backgroundColor: colors.surface }]}>
           <Text style={{ color: colors.ink }}>Install theme…</Text>

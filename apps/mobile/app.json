@@ -46,13 +46,6 @@
         {
           "microphonePermission": "Simplekasten needs access to your microphone to record a voice note."
         }
-      ],
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Simplekasten needs access to your microphone to dictate a note.",
-          "speechRecognitionPermission": "Simplekasten needs speech recognition to turn what you say into note text."
-        }
       ]
     ],
     "experiments": {

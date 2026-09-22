@@ -1,15 +1,17 @@
+import type { IconName } from "@simplekasten/core";
 import { Tabs } from "expo-router";
-import { Text } from "react-native";
-import { useThemeColors } from "@/theme";
+import { Icon } from "@/components/Icon";
+import { useTheme } from "@/theme";
 
-const TAB_ICONS: Record<string, string> = {
-  index: "📝",
-  graph: "🕸",
-  settings: "⚙",
+// Same glyphs as desktop's sidebar: notes, graph view, settings.
+const TAB_ICONS: Record<string, IconName> = {
+  index: "fileText",
+  graph: "network",
+  settings: "settings",
 };
 
 export default function TabsLayout() {
-  const colors = useThemeColors();
+  const { colors, shape } = useTheme();
 
   return (
     <Tabs
@@ -17,10 +19,10 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.ink,
         headerShadowVisible: false,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
+        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line, borderTopWidth: shape.borderWidth },
         tabBarActiveTintColor: colors.accentInk,
         tabBarInactiveTintColor: colors.inkFaint,
-        tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>{TAB_ICONS[route.name]}</Text>,
+        tabBarIcon: ({ color }) => <Icon name={TAB_ICONS[route.name]} size={22} color={String(color)} />,
       })}
     >
       <Tabs.Screen name="index" options={{ title: "Simplekasten", tabBarLabel: "Vault" }} />

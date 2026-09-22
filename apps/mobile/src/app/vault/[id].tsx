@@ -1,58 +1,52 @@
+import { COPY } from "@simplekasten/core";
+import type { NoteDetail, NoteListItem } from "@simplekasten/local-engine";
+import { NOTE_TYPES, type NoteTypeInfo } from "@simplekasten/themes";
 import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder } from "expo-audio";
-import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import type { ExpoSpeechRecognitionModule as ExpoSpeechRecognitionModuleType, useSpeechRecognitionEvent as useSpeechRecognitionEventType } from "expo-speech-recognition";
-import type { NoteType } from "@simplekasten/core";
-import type { NoteDetail } from "@simplekasten/local-engine";
-import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View, type NativeSyntheticEvent, type TextInputSelectionChangeEventData } from "react-native";
 import { PhotoThumbnail } from "@/components/PhotoThumbnail";
+import { Button, Chip, EmptyHint, ErrorText, fontFamily, IconButton, NoteLink, SaveStatus, SectionHeading, TypeBadge, useDisplayText } from "@/components/ui";
 import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
+import { setLastNote } from "@/lib/lastNote";
 import { vault } from "@/lib/vault";
-import { useThemeColors } from "@/theme";
+import { useTheme } from "@/theme";
 
-// expo-speech-recognition's native module throws at import time when it
-// isn't linked (e.g. Expo Go) — a static import would crash every note
-// screen, not just dictation, so it's loaded defensively here instead.
-let ExpoSpeechRecognitionModule: typeof ExpoSpeechRecognitionModuleType | null = null;
-let useSpeechRecognitionEvent: typeof useSpeechRecognitionEventType = () => {};
-try {
-  const speech = require("expo-speech-recognition");
-  ExpoSpeechRecognitionModule = speech.ExpoSpeechRecognitionModule;
-  useSpeechRecognitionEvent = speech.useSpeechRecognitionEvent;
-} catch {
-  // dictation becomes a no-op; toggleDictation() surfaces this to the user.
-}
+type NoteType = NoteTypeInfo["value"];
 
-const TYPES: { value: NoteType; label: string }[] = [
-  { value: "fleeting", label: "Fleeting" },
-  { value: "literature", label: "Literature" },
-  { value: "permanent", label: "Permanent" },
-  { value: "structure", label: "Structure" },
-];
+// Mirrors desktop NoteEditor's wikiLinkCompletionSource: an open `[[` with no
+// closing bracket or alias yet, right before the cursor.
+const OPEN_LINK = /\[\[([^\]|]*)$/;
 
 export default function NoteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const colors = useThemeColors();
+  const { colors } = useTheme();
+  const displayText = useDisplayText();
   const router = useRouter();
   const navigation = useNavigation();
 
   const [note, setNote] = useState<NoteDetail | null>(null);
+  const [allNotes, setAllNotes] = useState<NoteListItem[]>([]);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [type, setType] = useState<NoteType>("fleeting");
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  // Only set right after a suggestion is applied, to move the cursor past the
+  // inserted title; otherwise the input owns its cursor (a fully controlled
+  // selection makes Android's cursor jump while typing).
+  const [forcedSelection, setForcedSelection] = useState<{ start: number; end: number } | undefined>(undefined);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [dictating, setDictating] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dictationBaseRef = useRef("");
+  const pendingRef = useRef<{ title: string; content: string; type: NoteType } | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
 
   useEffect(() => {
     // A deep link to a deleted note resolves to null — leave `note` null so
-    // the screen renders its empty state instead of crashing.
+    // the screen renders nothing instead of crashing.
     vault.getNoteById(id).then((detail) => {
       if (!detail) return;
       setNote(detail);
@@ -63,29 +57,54 @@ export default function NoteScreen() {
     });
   }, [id]);
 
-  useEffect(() => {
-    navigation.setOptions({ title: title || "Untitled" });
-  }, [navigation, title]);
+  // Coming back to this screen (from a linked note, or the graph) can find
+  // its links stale — a note it pointed at may have just been created — so
+  // derived fields and the title list are refetched on every focus. Title
+  // and content aren't, so an in-progress edit is never overwritten.
+  useFocusEffect(
+    useCallback(() => {
+      setLastNote(id);
+      vault.listNotes().then(setAllNotes).catch(() => {});
+      vault.getNoteById(id).then((fresh) => {
+        if (fresh) setNote(fresh);
+      });
+    }, [id]),
+  );
 
-  // Live partial and final transcripts both arrive as "result" events;
-  // dictationBaseRef holds whatever was already in the content field so a
-  // second dictation pass appends rather than replacing it.
-  useSpeechRecognitionEvent("result", (event) => {
-    const transcript = event.results[0]?.transcript ?? "";
-    const base = dictationBaseRef.current;
-    const next = base ? `${base} ${transcript}` : transcript;
-    setContent(next);
-    scheduleSave({ title, content: next, type });
-  });
-  useSpeechRecognitionEvent("end", () => setDictating(false));
-  // The module can fail asynchronously after start() already returned
-  // successfully (e.g. no network reaching the recognition service, or no
-  // real microphone) — surfacing the reason here is what turns that into a
-  // legible state instead of the dictate button silently flipping back off.
-  useSpeechRecognitionEvent("error", (event) => {
-    setDictating(false);
-    setAttachmentError(`Speech recognition stopped: ${event.message || event.error}`);
-  });
+  async function flushPending() {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    if (pending) await vault.updateNote({ id, ...pending });
+  }
+
+  // Leaving within the 600 ms debounce would otherwise drop the last edit.
+  useEffect(() => () => void flushPending(), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function confirmDelete() {
+    Alert.alert(COPY.deleteNoteTitle, COPY.deleteNoteBody(title), [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          if (timerRef.current) clearTimeout(timerRef.current);
+          pendingRef.current = null;
+          await vault.deleteNote(id);
+          setLastNote(null);
+          router.back();
+        },
+      },
+    ]);
+  }
+
+  useEffect(() => {
+    navigation.setOptions({
+      title: title || COPY.titlePlaceholder,
+      headerRight: () => <IconButton icon="trash" label="Delete note" onPress={confirmDelete} />,
+    });
+  }); // re-bind every render so the delete handler sees the current title
 
   async function refreshNote() {
     const fresh = await vault.getNoteById(id);
@@ -93,11 +112,15 @@ export default function NoteScreen() {
   }
 
   function scheduleSave(next: { title: string; content: string; type: NoteType }) {
+    pendingRef.current = next;
     setStatus("idle");
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
+      const pending = pendingRef.current;
+      pendingRef.current = null;
+      if (!pending) return;
       setStatus("saving");
-      await vault.updateNote({ id, ...next });
+      await vault.updateNote({ id, ...pending });
       await refreshNote();
       setStatus("saved");
     }, 600);
@@ -118,13 +141,52 @@ export default function NoteScreen() {
     scheduleSave({ title, content, type: value });
   }
 
+  // ---- [[ link suggestions ------------------------------------------------
+  const beforeCursor = content.slice(0, selection.start);
+  const openLink = selection.start === selection.end ? OPEN_LINK.exec(beforeCursor) : null;
+  const suggestions = openLink
+    ? allNotes
+        .filter((n) => n.id !== id && n.title.toLowerCase().includes(openLink[1].toLowerCase()))
+        .slice(0, 8)
+    : [];
+
+  function applySuggestion(suggestion: string) {
+    if (!openLink) return;
+    const from = selection.start - openLink[1].length;
+    const after = content.slice(selection.start);
+    const hasClosing = after.startsWith("]]");
+    const insert = hasClosing ? suggestion : `${suggestion}]]`;
+    const next = content.slice(0, from) + insert + after;
+    const cursor = from + insert.length + (hasClosing ? 2 : 0);
+    setContent(next);
+    setSelection({ start: cursor, end: cursor });
+    setForcedSelection({ start: cursor, end: cursor });
+    scheduleSave({ title, content: next, type });
+  }
+
+  // ---- Links ---------------------------------------------------------------
+  async function openLinkedTitle(linkTitle: string, noteId: string | null) {
+    await flushPending();
+    if (noteId) {
+      router.push(`/vault/${noteId}`);
+      return;
+    }
+    // Unresolved link: create the note it points at, same as desktop.
+    const created = await vault.createNote({ title: linkTitle, content: "", type: "fleeting" });
+    router.push(`/vault/${created.id}`);
+  }
+
+  async function filterByTag(name: string) {
+    await flushPending();
+    router.navigate({ pathname: "/", params: { tag: name } });
+  }
+
+  // ---- Attachments -----------------------------------------------------------
   async function pickAndUploadPhoto(source: "camera" | "library") {
     setAttachmentError(null);
     try {
       const permission =
-        source === "camera"
-          ? await ImagePicker.requestCameraPermissionsAsync()
-          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+        source === "camera" ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
         setAttachmentError("Permission was denied.");
         return;
@@ -189,163 +251,115 @@ export default function NoteScreen() {
     }
   }
 
-  async function toggleDictation() {
-    setAttachmentError(null);
-    if (!ExpoSpeechRecognitionModule) {
-      setAttachmentError("Speech recognition isn't available here.");
-      return;
-    }
-    if (dictating) {
-      ExpoSpeechRecognitionModule.stop();
-      return;
-    }
-    try {
-      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permission.granted) {
-        setAttachmentError("Speech recognition permission was denied.");
-        return;
-      }
-      dictationBaseRef.current = content;
-      setDictating(true);
-      ExpoSpeechRecognitionModule.start({ lang: "en-US", interimResults: true, continuous: true });
-    } catch {
-      setDictating(false);
-      setAttachmentError("Speech recognition isn't available here.");
-    }
-  }
-
   if (!note) return null;
 
   const photos = note.attachments.filter((a) => a.kind === "photo");
   const voiceNotes = note.attachments.filter((a) => a.kind === "voice");
+  const mono = fontFamily("mono");
 
   return (
-    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={styles.container}>
+    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
-        <View style={styles.typeRow}>
-          {TYPES.map((t) => (
-            <Pressable
-              key={t.value}
-              onPress={() => onTypeChange(t.value)}
-              style={[
-                styles.typePill,
-                {
-                  borderColor: type === t.value ? colors.accent : colors.line,
-                  backgroundColor: type === t.value ? colors.accentSoft : "transparent",
-                },
-              ]}
-            >
-              <Text style={{ fontSize: 10, color: type === t.value ? colors.accentInk : colors.inkFaint }}>
-                {t.label.toUpperCase()}
-              </Text>
-            </Pressable>
+        <View style={styles.typeRow} accessibilityRole="radiogroup">
+          {NOTE_TYPES.map((t) => (
+            <TypeBadge key={t.value} type={t.value} selected={type === t.value} onPress={() => onTypeChange(t.value)} />
           ))}
         </View>
-        <Text style={{ fontSize: 11, color: colors.inkFaint }}>{status === "saving" ? "Saving…" : "Saved"}</Text>
+      </View>
+      <View style={styles.metaRow}>
+        <Text style={{ fontFamily: mono, fontSize: 12, color: colors.inkFaint }}>{note.zettelId}</Text>
+        <SaveStatus status={status} />
       </View>
 
       <TextInput
         value={title}
         onChangeText={onTitleChange}
-        placeholder="Untitled"
+        placeholder={COPY.titlePlaceholder}
         placeholderTextColor={colors.inkFaint}
-        style={[styles.titleInput, { color: colors.ink }]}
+        style={[styles.titleInput, displayText]}
       />
 
-      <View style={styles.contentWrap}>
-        <TextInput
-          value={content}
-          onChangeText={onContentChange}
-          placeholder="Start writing… use [[Note Title]] to link."
-          placeholderTextColor={colors.inkFaint}
-          multiline
-          textAlignVertical="top"
-          style={[styles.contentInput, { color: colors.ink }]}
-        />
-        <Pressable
-          onPress={toggleDictation}
-          style={[
-            styles.micButton,
-            { borderColor: dictating ? colors.accent : colors.line, backgroundColor: dictating ? colors.accentSoft : colors.surface },
-          ]}
-        >
-          <Text style={{ fontSize: 14 }}>{dictating ? "⏹" : "🎤"}</Text>
-        </Pressable>
-      </View>
+      <TextInput
+        value={content}
+        onChangeText={onContentChange}
+        selection={forcedSelection}
+        onSelectionChange={(e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
+          setSelection(e.nativeEvent.selection);
+          setForcedSelection(undefined);
+        }}
+        placeholder={COPY.editorPlaceholder}
+        placeholderTextColor={colors.inkFaint}
+        multiline
+        textAlignVertical="top"
+        style={[styles.contentInput, { color: colors.ink }]}
+      />
 
-      <View style={styles.actionRow}>
-        {Platform.OS !== "web" && (
-          <Pressable onPress={() => pickAndUploadPhoto("camera")} disabled={uploadingPhoto} style={[styles.actionButton, { borderColor: colors.line }]}>
-            <Text style={{ color: colors.inkMuted, fontSize: 13 }}>📷 Camera</Text>
-          </Pressable>
-        )}
-        <Pressable onPress={() => pickAndUploadPhoto("library")} disabled={uploadingPhoto} style={[styles.actionButton, { borderColor: colors.line }]}>
-          <Text style={{ color: colors.inkMuted, fontSize: 13 }}>🖼 Photo</Text>
-        </Pressable>
-        <Pressable
-          onPress={toggleRecording}
-          style={[styles.actionButton, { borderColor: recording ? colors.accent2 : colors.line, backgroundColor: recording ? colors.accent2Soft : "transparent" }]}
-        >
-          <Text style={{ color: recording ? colors.accent2 : colors.inkMuted, fontSize: 13 }}>{recording ? "⏹ Stop" : "🎙 Voice note"}</Text>
-        </Pressable>
-      </View>
-      {attachmentError && <Text style={{ color: "#c0392b", fontSize: 12, marginTop: 6 }}>{attachmentError}</Text>}
-
-      {photos.length > 0 && (
-        <View style={styles.photoRow}>
-          {photos.map((a) => (
-            <PhotoThumbnail key={a.id} id={a.id} onRemove={() => removeAttachment(a.id)} />
+      {suggestions.length > 0 && (
+        <View style={styles.suggestions} accessibilityLabel="Link suggestions">
+          {suggestions.map((n) => (
+            <Chip key={n.id} label={n.title} onPress={() => applySuggestion(n.title)} />
           ))}
         </View>
       )}
-      {voiceNotes.length > 0 && (
-        <View style={styles.voiceList}>
-          {voiceNotes.map((a) => (
-            <VoiceNotePlayer key={a.id} id={a.id} onRemove={() => removeAttachment(a.id)} />
-          ))}
+
+      <View style={styles.actionRow}>
+        {Platform.OS !== "web" && <Button compact icon="camera" label="Camera" onPress={() => pickAndUploadPhoto("camera")} disabled={uploadingPhoto} />}
+        <Button compact icon="image" label="Photo" onPress={() => pickAndUploadPhoto("library")} disabled={uploadingPhoto} />
+        <Button compact variant={recording ? "danger" : "secondary"} icon={recording ? "stop" : "mic"} label={recording ? "Stop" : "Voice note"} onPress={toggleRecording} />
+      </View>
+      {attachmentError && <ErrorText>{attachmentError}</ErrorText>}
+
+      {note.attachments.length > 0 && (
+        <View style={styles.section}>
+          <SectionHeading icon="paperclip">{`${COPY.attachments} (${note.attachments.length})`}</SectionHeading>
+          {photos.length > 0 && (
+            <View style={styles.photoRow}>
+              {photos.map((a) => (
+                <PhotoThumbnail key={a.id} id={a.id} onRemove={() => removeAttachment(a.id)} />
+              ))}
+            </View>
+          )}
+          {voiceNotes.length > 0 && (
+            <View style={styles.voiceList}>
+              {voiceNotes.map((a) => (
+                <VoiceNotePlayer key={a.id} id={a.id} onRemove={() => removeAttachment(a.id)} />
+              ))}
+            </View>
+          )}
         </View>
       )}
 
       {note.tagNames.length > 0 && (
         <View style={styles.tagRow}>
           {note.tagNames.map((name) => (
-            <View key={name} style={[styles.tagChip, { borderColor: colors.line }]}>
-              <Text style={{ fontSize: 11, color: colors.inkMuted }}>#{name}</Text>
-            </View>
+            <Chip key={name} label={`#${name}`} onPress={() => filterByTag(name)} />
           ))}
         </View>
       )}
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.inkFaint }]}>
-          {type === "structure" ? "CONTENTS" : "LINKS"} ({note.contents.length})
-        </Text>
+        <SectionHeading icon={type === "structure" ? "layers" : "network"}>{`${type === "structure" ? "Contents" : "Links"} (${note.contents.length})`}</SectionHeading>
         {note.contents.length === 0 ? (
-          <Text style={{ color: colors.inkFaint, fontSize: 13 }}>Link to notes with [[wiki-links]].</Text>
+          <EmptyHint>{COPY.noLinks}</EmptyHint>
         ) : (
           note.contents.map((item, i) => (
-            <Pressable
+            <NoteLink
               key={item.noteId ?? `${item.title}-${i}`}
-              disabled={!item.noteId}
-              onPress={() => item.noteId && router.push(`/vault/${item.noteId}`)}
-              style={[styles.linkRow, { borderColor: colors.line, borderStyle: item.resolved ? "solid" : "dashed" }]}
-            >
-              <Text style={{ color: item.resolved ? colors.ink : colors.inkFaint, fontSize: 14 }}>{item.title}</Text>
-            </Pressable>
+              zettelId={item.zettelId}
+              title={item.title}
+              unresolved={!item.resolved}
+              onPress={() => openLinkedTitle(item.title, item.noteId)}
+            />
           ))
         )}
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: colors.inkFaint }]}>LINKED MENTIONS ({note.backlinks.length})</Text>
+        <SectionHeading icon="link">{`${COPY.linkedMentions} (${note.backlinks.length})`}</SectionHeading>
         {note.backlinks.length === 0 ? (
-          <Text style={{ color: colors.inkFaint, fontSize: 13 }}>Nothing links here yet.</Text>
+          <EmptyHint>{COPY.noBacklinks}</EmptyHint>
         ) : (
-          note.backlinks.map((b) => (
-            <Pressable key={b.noteId} onPress={() => router.push(`/vault/${b.noteId}`)} style={[styles.linkRow, { borderColor: colors.line }]}>
-              <Text style={{ color: colors.ink, fontSize: 14 }}>{b.title}</Text>
-            </Pressable>
-          ))
+          note.backlinks.map((b) => <NoteLink key={b.noteId} zettelId={b.zettelId} title={b.title} onPress={() => openLinkedTitle(b.title, b.noteId)} />)
         )}
       </View>
     </ScrollView>
@@ -354,30 +368,15 @@ export default function NoteScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 48 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  headerRow: { marginBottom: 10 },
+  metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
   typeRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", flexShrink: 1 },
-  typePill: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 6, paddingVertical: 3 },
-  titleInput: { fontSize: 26, fontWeight: "700", marginBottom: 12, padding: 0 },
-  contentWrap: { position: "relative" },
-  contentInput: { fontSize: 16, lineHeight: 24, minHeight: 200, padding: 0, paddingRight: 36 },
-  micButton: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  titleInput: { fontSize: 26, marginBottom: 12, padding: 0 },
+  contentInput: { fontSize: 16, lineHeight: 24, minHeight: 200, padding: 0 },
+  suggestions: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },
   actionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 16 },
-  actionButton: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
-  photoRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14 },
-  voiceList: { gap: 8, marginTop: 14 },
-  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 16 },
-  tagChip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  photoRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 10 },
+  voiceList: { gap: 8 },
+  tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 20 },
   section: { marginTop: 24 },
-  sectionTitle: { fontSize: 11, fontFamily: "monospace", letterSpacing: 0.5, marginBottom: 8 },
-  linkRow: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
 });

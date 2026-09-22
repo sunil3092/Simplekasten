@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { COPY } from "@simplekasten/core";
+import { Image, Pressable, StyleSheet, View } from "react-native";
+import { Icon } from "@/components/Icon";
 import { vault } from "@/lib/vault";
-import { useThemeColors } from "@/theme";
+import { useTheme } from "@/theme";
 
 interface PhotoThumbnailProps {
   id: string;
@@ -9,7 +11,8 @@ interface PhotoThumbnailProps {
 }
 
 export function PhotoThumbnail({ id, onRemove }: PhotoThumbnailProps) {
-  const colors = useThemeColors();
+  const { colors, shape } = useTheme();
+  const frame = { borderWidth: shape.borderWidth, borderColor: colors.line, borderRadius: shape.radius };
   const [uri, setUri] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,12 +33,18 @@ export function PhotoThumbnail({ id, onRemove }: PhotoThumbnailProps) {
   return (
     <View style={styles.wrap}>
       {uri ? (
-        <Image source={{ uri }} style={styles.image} />
+        <Image source={{ uri }} style={[styles.image, frame]} />
       ) : (
-        <View style={[styles.image, styles.loading, { backgroundColor: colors.surface2 }]} />
+        <View style={[styles.image, frame, { backgroundColor: colors.surface2 }]} />
       )}
-      <Pressable onPress={onRemove} style={[styles.remove, { backgroundColor: colors.surface }]}>
-        <Text style={{ fontSize: 12, color: colors.inkMuted }}>×</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={COPY.deleteAttachment}
+        hitSlop={6}
+        onPress={onRemove}
+        style={[styles.remove, { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: shape.borderWidth, borderRadius: Math.min(shape.radius, 12) }]}
+      >
+        <Icon name="trash" size={13} color={colors.danger} />
       </Pressable>
     </View>
   );
@@ -43,16 +52,6 @@ export function PhotoThumbnail({ id, onRemove }: PhotoThumbnailProps) {
 
 const styles = StyleSheet.create({
   wrap: { position: "relative" },
-  image: { width: 84, height: 84, borderRadius: 8 },
-  loading: {},
-  remove: {
-    position: "absolute",
-    top: -6,
-    right: -6,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  image: { width: 96, height: 96 },
+  remove: { position: "absolute", top: 4, right: 4, width: 26, height: 26, alignItems: "center", justifyContent: "center" },
 });

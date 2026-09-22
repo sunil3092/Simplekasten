@@ -13,7 +13,7 @@ function ThemedStack() {
         headerStyle: { backgroundColor: colors.surface },
         headerTintColor: colors.ink,
         headerShadowVisible: false,
-        contentStyle: { backgroundColor: colors.surface },
+        contentStyle: { backgroundColor: colors.bg },
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
