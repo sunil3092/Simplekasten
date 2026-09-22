@@ -1,136 +1,144 @@
 # Feature: Daily Notes / Journal
 
-**Status:** spec complete, implementation next.
+**Status:** rewritten 2026-09-22 for the local-engine architecture (the app
+moved from a Postgres+tRPC backend to a local-first file vault after this
+spec's first draft — see `docs/ROADMAP.md`'s architecture note). Ready to
+implement.
 **Why:** every modern PKM app (Roam, Logseq, Obsidian, Tana) opens to a
 "today" page by default — it's the low-friction capture surface for fleeting
-thoughts before they're refiled into permanent notes. VaultVista currently
+thoughts before they're refiled into permanent notes. Simplekasten currently
 has no such entry point; creating a note always means typing a title first.
-This is the single highest-value gap found in the competitive research
-(`docs/ROADMAP.md`).
 
-## Data model
+## Data model (`packages/local-engine`)
 
-Reuse the existing `Note` table rather than a parallel model — a daily note
-*is* a note, just one the system creates automatically and indexes by
-calendar date. Two additions:
+A daily note *is* a `VaultNote` — same markdown file, same frontmatter
+format — with two additions:
 
-```prisma
-enum NoteType {
-  fleeting
-  literature
-  permanent
-  structure
-  daily        // new
-}
-
-model Note {
-  // ...existing fields unchanged...
-  noteDate DateTime? @db.Date   // new — set only when type == daily; the
-                                 // calendar day (UTC midnight) this note
-                                 // represents. NULL for every other note.
-
-  @@unique([kbId, noteDate])     // new — Postgres treats each NULL as
-                                 // distinct, so this only prevents two
-                                 // daily notes landing on the same date
-                                 // within one vault; ordinary notes
-                                 // (noteDate = NULL) are unaffected.
-}
+`packages/core/src/schemas.ts`:
+```ts
+export const noteTypeSchema = z.enum(["fleeting", "literature", "permanent", "structure", "daily"]);
 ```
 
-Migration must be hand-written (per this repo's established pattern — see
-`packages/db/prisma/migrations/20260908160345_add_search_vector/`) because
-the `searchVector` generated column means `prisma migrate dev`'s diff engine
-can't be trusted to auto-generate a clean migration; write it, then apply
-with `prisma migrate deploy`.
+`packages/local-engine/src/types.ts` — `VaultNote` gains:
+```ts
+noteDate: string | null; // "YYYY-MM-DD", set only when type === "daily"; the calendar day this note represents
+```
 
-`zettelId` is still assigned via the normal `nextZettelId(kbId)` sequence —
-daily notes are full participants in the Zettelkasten numbering, not a
-separate namespace. `title` defaults to a human date string ("September 22,
-2026"); `content` starts empty (templates, once built, will pre-fill it —
-see `docs/features/templates.md`).
+`packages/local-engine/src/note-file.ts` — `parseNoteFile`/`serializeNoteFile`
+read/write `noteDate` from/to frontmatter exactly like `deletedAt` (omit the
+key entirely when null, so ordinary notes' frontmatter is unchanged).
 
-## API (`apps/api/src/routers/note.ts`)
+`packages/themes/src/noteTypes.ts` — `NOTE_TYPES` gains a `daily` entry
+(badge colours: reuse `accent`/`accentSoft`/`accentInk` like `permanent`,
+since a daily note is a first-class note, not a lesser one — pick something
+visually distinct in practice, e.g. `accent2` family, when implementing).
 
-Two new procedures:
+## `packages/local-engine/src/vault.ts` — two new functions
 
 ```ts
-// Get-or-create semantics in one round trip — the client always calls this
-// rather than checking existence first, so opening "today" is a single
-// request on both web and mobile.
-dailyNote: protectedProcedure
-  .input(z.object({ kbId: z.string(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }))
-  .mutation(...)
+// Get-or-create by calendar date. The engine has no server round trip to
+// save, so "find, then create if missing" is just two in-process calls —
+// no separate mutation-vs-query split like the old tRPC design had.
+export async function getOrCreateDailyNote(fs: FileSystemAdapter, date: string): Promise<VaultNote> {
+  const notes = (await loadAllNotes(fs)).filter((n) => !n.deletedAt);
+  const existing = notes.find((n) => n.noteDate === date);
+  if (existing) return existing;
 
-// Recent daily notes for a "Journal" sidebar section (mirrors how
-// mapsOfContent is already derived client-side from note.list — but this
-// needs its own query since regular note.list excludes type-based sections
-// by design and a journal wants date-descending order specifically).
-listDaily: protectedProcedure
-  .input(z.object({ kbId: z.string(), limit: z.number().min(1).max(100).default(30) }))
-  .query(...)
+  const now = new Date().toISOString();
+  const note: VaultNote = {
+    id: generateId(),
+    zettelId: nextZettelId(notes),
+    title: formatHumanDate(date), // "September 22, 2026"
+    content: "",
+    type: "daily",
+    noteDate: date,
+    createdAt: now,
+    updatedAt: now,
+    deletedAt: null,
+    attachmentIds: [],
+  };
+  await fs.ensureDir(NOTES_DIR);
+  await fs.writeFile(noteFilePath(note.id), serializeNoteFile(note));
+  return note;
+}
+
+// For the Journal sidebar section — most recent daily notes, newest first.
+export async function listDailyNotes(fs: FileSystemAdapter, limit = 30): Promise<NoteListItem[]> {
+  const notes = (await loadAllNotes(fs)).filter((n) => !n.deletedAt && n.type === "daily");
+  return notes
+    .sort((a, b) => (b.noteDate ?? "").localeCompare(a.noteDate ?? ""))
+    .slice(0, limit)
+    .map(({ id, zettelId, title, type, updatedAt }) => ({ id, zettelId, title, type, updatedAt }));
+}
 ```
 
-`date` is passed by the client (today's date in the *client's* local
-timezone, formatted `YYYY-MM-DD`) rather than computed server-side — the
-server has no reliable notion of the user's timezone, and "today" is
-inherently a client-local concept. Both web and mobile compute it the same
-way: `new Date().toLocaleDateString("en-CA")` (gives `YYYY-MM-DD` in local
-time; `en-CA` is a locale-format trick, not a hardcoded region).
+`date` is always supplied by the caller (client-local `YYYY-MM-DD`), never
+computed inside the engine — the engine has no notion of the user's
+timezone, and "today" is inherently a client-local concept. Both apps
+compute it the same way: `new Date().toLocaleDateString("en-CA")` (a locale
+trick that happens to format as `YYYY-MM-DD` in local time, not a hardcoded
+region).
 
-`packages/core/src/schemas.ts`'s `noteTypeSchema` gains `"daily"`.
+No uniqueness constraint to enforce at the storage layer beyond the
+find-before-create in `getOrCreateDailyNote` itself — consistent with
+`generateId`'s existing comment ("good enough for a single local writer,
+there's nothing else to collide with").
 
-## Web UI (`apps/web`)
+## Desktop UI (`apps/desktop`, Next.js renderer inside Electron)
 
-- Sidebar: a "Today" button (calendar icon) above "+ New note", using the
-  same `Button`/icon primitives from the recent redesign
-  (`components/ui.tsx`, `components/icons.tsx` — add a `CalendarIcon`).
-  Calls `dailyNote.mutate({kbId, date: todayLocal()})` and opens the result
-  exactly like `openNote` does.
-- New "Journal" section in the sidebar (below Maps of Content, above the
-  regular notes list), populated from `listDaily`, showing each entry's date
-  label; clicking opens that day's note. Mirrors the existing
-  `mapsOfContent` section's markup/pattern in `page.tsx`.
-- Note editor header: daily notes get a distinct badge like the existing
-  `structure` dashed-border treatment, plus Prev/Next-day arrow buttons
-  (navigate by calling `dailyNote.mutate` with `date ± 1 day`, creating that
-  day's note on demand if it doesn't exist yet — matching Roam/Logseq's
-  "scroll to any day" behavior).
-- Keyboard shortcut: reuse the `Cmd/Ctrl+K` pattern's key-handling
-  `useEffect` to also bind a dedicated "today" shortcut (e.g. `Cmd/Ctrl+J`,
-  unclaimed in the current app).
+- `src/lib/vaultClient.ts` gains `getOrCreateDailyNote(date)` and
+  `listDailyNotes(limit)`, wired the same way every other vault call is
+  (IPC to the main process, which holds the Node `FileSystemAdapter`).
+- Sidebar (`src/app/page.tsx`): a "Today" button (new `calendar` icon in
+  `packages/core/src/icons.ts` → `src/components/icons.tsx`) above "New
+  note", using the existing `Button` primitive from `ui.tsx`. Calls
+  `getOrCreateDailyNote(todayLocal())` and opens the result like any other
+  note.
+- New "Journal" sidebar section (below Maps of Content), populated from
+  `listDailyNotes`, mirroring the existing Maps-of-Content section's
+  markup/pattern.
+- Note header: daily notes show a `daily` type badge (from `NOTE_TYPES`,
+  automatic once that entry exists) plus Prev/Next-day chevron buttons that
+  call `getOrCreateDailyNote(date ± 1 day)` — lets a user scroll through
+  their journal like Roam/Logseq, creating empty days on demand.
+- Keyboard shortcut: extend the existing `Cmd/Ctrl+K` key-handling effect
+  with `Cmd/Ctrl+J` for "open today" (unclaimed in the current app).
 
 ## Mobile UI (`apps/mobile`)
 
-- Vault list screen (`src/app/vault/index.tsx`): a "Today" pill button in
-  the header row, next to the existing "+ New note" affordance — same
-  get-or-create call, then `router.push`'s to the note detail screen like
-  creating any other note does today.
-- Note detail screen (`src/app/vault/[id].tsx`): when `note.type ===
-  "daily"`, show Prev/Next-day chevron buttons in the header row (mirrors
-  web); tapping calls the same `dailyNote` mutation with an adjusted date.
-- No separate "Journal" list screen for v1 — mobile's screen real estate
-  favors keeping this to the single Today entry point plus prev/next
-  navigation from within a daily note; a full journal browser can follow
-  once the pattern proves useful (same reasoning Roam/Logseq mobile clients
-  apply — the journal list is a desktop-sidebar affordance).
+- `src/lib/vault.ts` gains the same two calls, backed by the
+  `expo-file-system` adapter.
+- Vault tab header: a "Today" pill next to "New note" — same
+  get-or-create-then-navigate pattern used for creating any note today.
+- Note screen: when `note.type === "daily"`, show Prev/Next-day chevrons in
+  the header row (mirrors desktop); tapping calls the same function with an
+  adjusted date.
+- No separate Journal list screen for v1 — mobile's screen real estate
+  favors the single Today entry point plus prev/next navigation from within
+  a daily note. A full journal browser can follow once the pattern proves
+  useful.
 
 ## Testing plan
 
-- `packages/core`: unit test the updated `noteTypeSchema` accepts `"daily"`.
-- `apps/api`: integration test `dailyNote` — first call creates, second call
-  with the same date returns the same note (no duplicate), a different date
-  creates a second note, cross-user access is rejected (matches the existing
-  integration-test conventions in `note.integration.test.ts`).
-- `apps/web`: one new Playwright e2e spec (`daily-notes.spec.ts`) — clicking
-  "Today" opens a note dated today; clicking it again doesn't create a
-  duplicate; Next-day navigation creates tomorrow's note.
-- Manual: visually verify web sidebar Journal section and mobile Today
-  button via the dev-server + Playwright screenshot pattern already
-  established in this project.
+- `packages/core`: unit test `noteTypeSchema` accepts `"daily"`.
+- `packages/local-engine`: unit tests for `getOrCreateDailyNote` (first call
+  creates, second call with the same date returns the same note — no
+  duplicate; a different date creates a second note) and `listDailyNotes`
+  (date-descending order, respects `limit`, excludes non-daily and deleted
+  notes) — same style as the existing `vault.test.ts`.
+- `apps/desktop`: extend `e2e/bridge.ts`'s stub with the two new calls; add
+  a spec exercising "Today" creates/reopens a note, Next-day creates
+  tomorrow's, both types render the `daily` badge from the shared palette
+  (matching the existing palette-conformance spec's intent).
+- `apps/mobile`: `tsc` typecheck, then manual verification through Expo
+  (per this repo's established pattern — no iOS/Android simulator in this
+  sandbox, so Expo's web target or a description of the manual walkthrough
+  stands in when a real device/emulator isn't available).
 
-## Open questions (resolved defaults, revisit if wrong)
+## Where this left off
 
-- **Timezone**: client-local, per above — no per-user timezone setting
-  exists yet, so "today" always means the device's local calendar day.
-- **Template pre-fill**: deferred to the templates feature; daily notes
-  start empty until that lands.
+Not started as of 2026-09-22 (spec rewrite only). Next concrete step:
+`packages/local-engine/src/types.ts` — add `noteDate` to `VaultNote`, then
+`note-file.ts` frontmatter round-trip, then `vault.ts`'s two new functions
+and their unit tests, in that order — the rest (desktop UI, mobile UI)
+depends on this layer existing and typechecking first.

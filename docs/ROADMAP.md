@@ -3,22 +3,44 @@
 Researched 2026-09-22 against Obsidian, Logseq, Roam Research, RemNote, Tana,
 Heptabase, Reflect, Capacities, Notion, Evernote. Sources at the bottom.
 
+**2026-09-22 architecture note:** while this doc's research was underway, a
+parallel effort (`docs/superpowers/specs/2026-09-17-shared-vault-library-design.md`
+and its follow-ons) moved the app from "every client talks to an Express +
+tRPC API backed by Postgres" to **local-first**: Desktop (now an Electron
+app, `apps/web` merged into it) and Mobile each read/write a vault of plain
+markdown files (YAML frontmatter + body, one file per note) on the device's
+own filesystem through `packages/local-engine`, no server or login required.
+`apps/api` + `packages/db` (Postgres/JWT auth) stay in the repo dormant, as
+the future home of an *opt-in* cross-device sync feature — not deleted, not
+live. The app was also renamed **Simplekasten**. This resolves gap #12
+below (it's done, not deferred) and adds a shipped feature this doc's
+original pass missed: **installable themes** (`packages/themes` — parse,
+resolve, and hot-swap community theme files; ships with Classic and
+Memphis). The gap table below is corrected accordingly; feature specs below
+it now target the local-engine architecture.
+
 **Purpose of this doc:** persistent, resumable plan. If a session runs out of
 budget mid-feature, update the status table below and leave the in-progress
 feature's spec doc (`docs/features/<slug>.md`) with a "Where this left off"
 note — the next session starts by reading this file.
 
-## What VaultVista already has
+## What Simplekasten already has
 
-Atomic notes with Luhmann-style zettel IDs · bidirectional `[[wiki-links]]` +
-backlinks panel · note types (fleeting/literature/permanent/structure) ·
-full-text search (Postgres tsvector) + Cmd/Ctrl+K quick switcher · auto-parsed
-`#hashtags` + tag filter · graph view (local neighborhood + whole vault) ·
-CodeMirror 6 editor with link autocomplete · Maps of Content (structure notes
-as index pages) · vault export to markdown · dark mode · multi-vault
-switching · JWT auth w/ refresh tokens · mobile app (Expo: auth, notes, tags,
-photo attachments, voice notes, speech-to-text dictation) · a redesigned,
-modern UI (web).
+Local-first vault of plain markdown files (YAML frontmatter + body, no
+server/login required) shared by Desktop (Electron) and Mobile (Expo)
+through `packages/local-engine` · atomic notes with zettel IDs ·
+bidirectional `[[wiki-links]]` + backlinks panel · note types
+(fleeting/literature/permanent/structure) with shared badge/graph colours
+(`packages/themes`) · substring search + create-from-search on both
+platforms · auto-parsed `#hashtags` + tag filter · graph view (local
+neighborhood + whole vault, pan/pinch-zoom on mobile) · CodeMirror 6 editor
+(desktop) / native `[[` suggestions (mobile) · Maps of Content (structure
+notes as index pages) · installable/hot-swappable themes (Classic, Memphis,
+plus user-supplied theme files) · photo + voice-note attachments on both
+platforms (desktop: file picker; mobile: camera/library/recording) · delete
+note with confirmation, both platforms · dark mode · a shared UI/copy/icon
+layer (`packages/core`) keeping desktop and mobile in visual and
+behavioural parity.
 
 ## Gap analysis
 
@@ -34,36 +56,38 @@ modern UI (web).
 | 8 | **Version history / diffing** | Notion, Obsidian Sync, Roam | Medium — already a nice-to-have in the plan | Medium |
 | 9 | **AI features** (related-notes suggestions, auto-tag, chat-over-vault) | Reflect, Tana, Notion AI, Capacities | Medium — real differentiator now, but needs an LLM API budget/key decision from the user first | Medium (once an API key exists) |
 | 10 | **Command palette** (beyond note search — run actions: new daily note, toggle theme, export, etc.) | Obsidian, Notion, Linear | Medium — cheap, compounds nicely once daily notes/templates exist | Small |
-| 11 | **Collaboration / shared vaults** | Roam (real-time), Notion | Low priority for a personal Zettelkasten tool; already deferred in the plan | Very large |
-| 12 | **Local-first / offline sync** | Obsidian, Logseq | Low priority right now — would mean rearchitecting storage; current cloud-Postgres model is a deliberate, documented tradeoff | Very large |
+| 11 | **Cross-device sync** (opt-in, on top of the now-local vault) | Obsidian Sync, iCloud/Dropbox-synced vaults | Medium — the dormant `apps/api`/`packages/db` are explicitly reserved for this; real product decision (which sync transport?) needed before speccing | Large |
+| 12 | ~~Local-first / offline sync~~ | Obsidian, Logseq | **Done** — see architecture note above | — |
+| 13 | **Real-time collaboration** (multiple people, one vault) | Roam, Notion | Low priority for a personal Zettelkasten tool | Very large |
 
 ## Decision: what to build now
 
-Picking the top of the value/effort curve — features that fit the existing
-document-based `Note` model without a rewrite, and that compound with each
-other (daily notes want templates; templates want a command palette; a
-review queue wants nothing else new):
+Picking the top of the value/effort curve — features that fit the local
+file-based vault model (`packages/local-engine`) without a rewrite, and
+that compound with each other (daily notes want templates; templates want a
+command palette; a review queue wants nothing else new):
 
-1. **Daily Notes / Journal** — build first, spec at `docs/features/daily-notes.md`
-2. **Note templates** — build second (daily notes become far more useful once they can auto-fill from a template), spec at `docs/features/templates.md`
-3. **Spaced repetition / review queue** — build third, spec at `docs/features/spaced-repetition.md`
+1. **Daily Notes / Journal** — build first, spec at `docs/features/daily-notes.md` (rewritten 2026-09-22 for the local-engine architecture)
+2. **Note templates** — build second (daily notes become far more useful once they can auto-fill from a template), spec at `docs/features/templates.md` (**stale** — still describes the old Postgres/tRPC design; needs a rewrite against `local-engine` before implementation, same shape as the daily-notes.md rewrite)
+3. **Spaced repetition / review queue** — build third, needs its own spec doc against `local-engine` (not yet written)
 
-Canvas, web clipper, PDF import, block transclusion, AI features,
-collaboration, and offline sync are documented above as deliberately
-deferred — each is a multi-session project in its own right and needs an
-explicit go-ahead (an LLM API key for AI features; a decision on browser
-extension distribution for the clipper; a data-model decision for block
-references) before it's worth speccing in detail.
+Canvas, web clipper, PDF import, block transclusion, AI features, sync, and
+real-time collaboration are documented above as deliberately deferred —
+each is a multi-session project in its own right and needs an explicit
+go-ahead (an LLM API key for AI features; a decision on browser extension
+distribution for the clipper; a data-model decision for block references; a
+sync-transport decision for cross-device sync) before it's worth speccing
+in detail.
 
 ## Status
 
-| Feature | Spec doc | Schema+API | Web UI | Mobile UI | Tested | Shipped |
+| Feature | Spec doc | local-engine | Desktop UI | Mobile UI | Tested | Shipped |
 |---|---|---|---|---|---|---|
-| Daily Notes | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Templates | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Spaced repetition | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Daily Notes | ✅ (rewritten for local-engine) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Templates | ⚠️ stale, needs rewrite | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Spaced repetition | ⬜ not written | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
-*(Update this table as work lands. This is the single source of truth for "where did we leave off.")*
+*(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
 
 ## Sources
 

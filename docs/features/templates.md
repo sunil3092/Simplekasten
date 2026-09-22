@@ -1,6 +1,15 @@
 # Feature: Note Templates
 
-**Status:** spec complete, implementation queued after Daily Notes.
+> **⚠️ STALE — 2026-09-22.** Written against the original Postgres/tRPC
+> backend. The app has since moved to a local-first file vault
+> (`packages/local-engine`) with no server; see `docs/ROADMAP.md`'s
+> architecture note and `docs/features/daily-notes.md` for what the rewrite
+> looks like (a `Template` file type in the vault's file format instead of
+> a Prisma model + tRPC router; `local-engine` functions instead of API
+> procedures). Rewrite this doc the same way before implementing — do not
+> build against what's described below as-is.
+
+**Status:** spec complete (for the old architecture only), implementation queued after Daily Notes and a rewrite.
 **Why:** Roam, Obsidian, and Notion all treat templates as a core primitive —
 a reusable starting structure (a literature-note skeleton with Source/
 Claims/My-take headings, a daily-note skeleton with a Tasks/Log split, etc.)
