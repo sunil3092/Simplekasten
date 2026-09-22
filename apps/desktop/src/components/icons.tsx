@@ -41,6 +41,7 @@ export const XIcon = named("x");
 export const FileTextIcon = named("fileText");
 export const LayersIcon = named("layers");
 export const ChevronDownIcon = named("chevronDown");
+export const CheckIcon = named("check");
 export const LinkIcon = named("link");
 export const SettingsIcon = named("settings");
 export const TrashIcon = named("trash");

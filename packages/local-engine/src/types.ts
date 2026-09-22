@@ -31,6 +31,8 @@ export interface VaultNote {
   updatedAt: string;
   deletedAt: string | null;
   attachmentIds: string[];
+  /** Tags assigned from a tag picker (frontmatter `tags`), normalised and sorted. Optional on disk. */
+  tags: string[];
 }
 
 export interface Attachment {
@@ -71,7 +73,10 @@ export interface NoteDetail {
   type: NoteType;
   createdAt: string;
   updatedAt: string;
+  /** Every tag on the note: assigned `tags` plus #hashtags in the content. */
   tagNames: string[];
+  /** Just the assigned (frontmatter) tags — the ones a tag picker can remove. */
+  assignedTags: string[];
   attachments: Attachment[];
   backlinks: BacklinkItem[];
   contents: ContentsItem[];
@@ -118,6 +123,8 @@ export interface UpdateNoteInput {
   title?: string;
   content?: string;
   type?: NoteType;
+  /** Replaces the note's assigned tags. Omit to leave them unchanged. */
+  tags?: string[];
 }
 
 export interface LinkRef {

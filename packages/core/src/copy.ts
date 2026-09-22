@@ -20,5 +20,12 @@ export const COPY = {
   deleteNoteBody: (title: string) =>
     `“${title || "Untitled"}” will disappear from your notes, search and graph. Links to it will show as unresolved. The file stays on disk, marked deleted.`,
   deleteAttachment: "Remove attachment",
+  tags: "Tags",
+  tagSearchPlaceholder: "Find or create a tag…",
+  createTag: (name: string) => `Create #${name}`,
+  noTagsYet: "No tags yet — type a name to create one.",
+  tagFromText: "in text",
+  tagFromTextHint: "Comes from a #hashtag in the note — edit the text to remove it.",
+  invalidTag: "Tags start with a letter and use only letters, digits, _, / or -.",
   noteCount: (count: number, tag: string | null) => `${count} note${count === 1 ? "" : "s"}${tag ? ` · #${tag}` : ""}`,
 } as const;

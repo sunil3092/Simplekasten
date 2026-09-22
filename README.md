@@ -117,6 +117,10 @@ The design is in [docs/superpowers/specs/2026-09-19-installable-themes-design.md
 
 Link notes with `[[Note Title]]` (or `[[Note Title|alias]]`). Links resolve by title, case-insensitively, and the target's **Linked mentions** panel lists every note that points at it. Note titles can't contain `[[` or `]]` — they're stripped on save, because a title like `Foo [[Bar]]` could never be linked to.
 
+## 🏷️ Tags
+
+Tags are optional. Write `#tag` anywhere in a note, or use the **Tags** dropdown in the note header (a sheet on mobile) to assign existing tags or create new ones without touching the text. Assigned tags are stored in the note's frontmatter as `tags:`, and only once a note has at least one. A note's tags are both kinds together: filtering, counts and the tag chips treat them the same. A tag that comes from a `#hashtag` shows as locked in the dropdown ("in text"), since removing it means editing the note. Tag names follow the hashtag rule: they start with a letter and use only letters, digits, `_`, `/` or `-`.
+
 ## ✅ Testing & checks
 
 ```bash

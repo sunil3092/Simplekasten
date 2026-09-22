@@ -25,6 +25,7 @@ export function parseNoteFile(raw: string, id: string): VaultNote {
     updatedAt: frontmatter.updatedAt != null ? String(frontmatter.updatedAt) : now,
     deletedAt: frontmatter.deletedAt != null ? String(frontmatter.deletedAt) : null,
     attachmentIds: Array.isArray(frontmatter.attachmentIds) ? frontmatter.attachmentIds.map(String) : [],
+    tags: Array.isArray(frontmatter.tags) ? frontmatter.tags.map(String) : [],
   };
 }
 
@@ -39,6 +40,8 @@ export function serializeNoteFile(note: VaultNote): string {
   };
   if (note.deletedAt) frontmatter.deletedAt = note.deletedAt;
   if (note.attachmentIds.length > 0) frontmatter.attachmentIds = note.attachmentIds;
+  // Tags are optional — only written once a note actually has some.
+  if (note.tags.length > 0) frontmatter.tags = note.tags;
 
   return `---\n${yaml.dump(frontmatter)}---\n${note.content}`;
 }

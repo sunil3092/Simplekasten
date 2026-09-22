@@ -20,6 +20,7 @@ import {
 } from "../components/icons";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
+import { TagPicker } from "../components/TagPicker";
 import { SettingsModal } from "../components/SettingsModal";
 import { Button, Chip, ConfirmDialog, IconButton, Kbd, NoteLink, SaveStatusIndicator, SectionHeading } from "../components/ui";
 import { badgeClasses, NOTE_TYPES, type NoteType } from "../lib/noteTypes";
@@ -40,6 +41,7 @@ interface NoteDetail {
   content: string;
   type: NoteType;
   tagNames: string[];
+  assignedTags: string[];
   attachments: AttachmentItem[];
   backlinks: { noteId: string; title: string; zettelId: string }[];
   contents: { noteId: string | null; title: string; zettelId: string | null; resolved: boolean }[];
@@ -186,7 +188,7 @@ function Vault() {
     const fresh = (await vaultClient.getNoteById(payload.id)) as NoteDetail;
     setSelected((current) =>
       current && current.id === payload.id
-        ? { ...current, backlinks: fresh.backlinks, tagNames: fresh.tagNames, contents: fresh.contents, attachments: fresh.attachments }
+        ? { ...current, backlinks: fresh.backlinks, tagNames: fresh.tagNames, assignedTags: fresh.assignedTags, contents: fresh.contents, attachments: fresh.attachments }
         : current,
     );
   }
@@ -220,6 +222,22 @@ function Vault() {
     refreshTags();
     if (remaining.length > 0) await openNote(remaining[0].id);
     else setSelected(null);
+  }
+
+  async function updateTags(assignedTags: string[]) {
+    if (!selected) return;
+    const id = selected.id;
+    // Optimistic, so the checkbox flips at once; the engine's answer (which
+    // merges in #hashtags) replaces it right after.
+    setSelected((current) => (current && current.id === id ? { ...current, assignedTags } : current));
+    await flushPending();
+    setSaveStatus("saving");
+    await vaultClient.updateNote({ id, tags: assignedTags });
+    setSaveStatus("saved");
+    const fresh = (await vaultClient.getNoteById(id)) as NoteDetail;
+    setSelected((current) => (current && current.id === id ? { ...current, tagNames: fresh.tagNames, assignedTags: fresh.assignedTags } : current));
+    refreshTags();
+    refreshNotes(activeTag);
   }
 
   async function refreshAttachments(id: string) {
@@ -427,6 +445,7 @@ function Vault() {
                   </select>
                   <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 opacity-60" />
                 </div>
+                <TagPicker vaultTags={tags} assigned={selected.assignedTags} onNote={selected.tagNames} onChange={updateTags} />
                 <span className="font-mono text-xs text-ink-faint">{selected.zettelId}</span>
                 <div className="flex flex-wrap items-center gap-1">
                   {selected.tagNames.map((name) => (

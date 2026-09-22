@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractHashtags, extractWikiLinkTitles } from "./links";
+import { extractHashtags, extractWikiLinkTitles, normalizeTagName } from "./links";
 
 describe("extractWikiLinkTitles", () => {
   it("pulls a single [[Title]] reference", () => {
@@ -62,5 +62,18 @@ describe("extractHashtags", () => {
 
   it("returns an empty array when there are no hashtags", () => {
     expect(extractHashtags("Nothing tagged here.")).toEqual([]);
+  });
+});
+
+describe("normalizeTagName", () => {
+  it("lowercases and drops a leading #", () => {
+    expect(normalizeTagName("#Method")).toBe("method");
+    expect(normalizeTagName("  zettel/idea-2 ")).toBe("zettel/idea-2");
+  });
+
+  it("rejects names a #hashtag couldn't express", () => {
+    for (const bad of ["", "#", "2fast", "two words", "tag!", "##x"]) {
+      expect(normalizeTagName(bad), bad).toBeNull();
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { extractHashtags, extractWikiLinkTitles } from "@simplekasten/core";
+import { extractHashtags, extractWikiLinkTitles, normalizeTagName } from "@simplekasten/core";
 import { parseNoteFile, serializeNoteFile } from "./note-file";
 import type {
   Attachment,
@@ -65,11 +65,11 @@ function computeLinks(notes: VaultNote[]): LinkRef[] {
   return links;
 }
 
-/** tag name (lowercase) -> ids of notes containing that #hashtag. */
+/** tag name (lowercase) -> ids of notes with that tag, assigned or as a #hashtag. */
 function computeTags(notes: VaultNote[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();
   for (const note of notes) {
-    for (const name of extractHashtags(note.content)) {
+    for (const name of [...note.tags, ...extractHashtags(note.content)]) {
       if (!map.has(name)) map.set(name, new Set());
       map.get(name)!.add(note.id);
     }
@@ -91,6 +91,16 @@ function nextZettelId(notes: VaultNote[]): string {
 // never be linked to. Strip the brackets so every title stays linkable.
 function sanitizeTitle(title: string): string {
   return title.replace(/\[\[|\]\]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeTags(tags: string[]): string[] {
+  const names = new Set<string>();
+  for (const raw of tags) {
+    const name = normalizeTagName(raw);
+    if (!name) throw new Error(`Invalid tag "${raw}" — tags start with a letter and use only letters, digits, _, / or -`);
+    names.add(name);
+  }
+  return [...names].sort();
 }
 
 export async function listNotes(fs: FileSystemAdapter, tag?: string): Promise<NoteListItem[]> {
@@ -129,6 +139,7 @@ export async function getNoteById(fs: FileSystemAdapter, id: string): Promise<No
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     tagNames,
+    assignedTags: note.tags,
     attachments: await listAttachments(fs, id),
     backlinks: links
       .filter((l) => l.targetNoteId === id && l.resolved)
@@ -163,6 +174,7 @@ export async function createNote(fs: FileSystemAdapter, input: CreateNoteInput):
     updatedAt: now,
     deletedAt: null,
     attachmentIds: [],
+    tags: [],
   };
 
   await fs.ensureDir(NOTES_DIR);
@@ -180,6 +192,7 @@ export async function updateNote(fs: FileSystemAdapter, input: UpdateNoteInput):
     title: input.title !== undefined ? sanitizeTitle(input.title) : existing.title,
     content: input.content ?? existing.content,
     type: input.type ?? existing.type,
+    tags: input.tags !== undefined ? normalizeTags(input.tags) : existing.tags,
     updatedAt: new Date().toISOString(),
   };
 

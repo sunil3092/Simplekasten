@@ -120,6 +120,54 @@ describe("vault engine", () => {
   });
 });
 
+describe("assigned tags", () => {
+  it("are optional: a note without them writes no tags key", async () => {
+    const fs = createMemoryFs();
+    const note = await createNote(fs, { title: "Plain", content: "" });
+    expect(await fs.readFile(`notes/${note.id}.md`)).not.toContain("tags:");
+    expect((await getNoteById(fs, note.id))?.assignedTags).toEqual([]);
+  });
+
+  it("are stored in frontmatter and merged with #hashtags everywhere", async () => {
+    const fs = createMemoryFs();
+    const a = await createNote(fs, { title: "A", content: "Body with #method" });
+    const b = await createNote(fs, { title: "B", content: "" });
+
+    await updateNote(fs, { id: a.id, tags: ["Zettel", "#method"] });
+    await updateNote(fs, { id: b.id, tags: ["zettel"] });
+    expect(await fs.readFile(`notes/${a.id}.md`)).toMatch(/tags:\n\s+- method\n\s+- zettel/);
+
+    const detail = await getNoteById(fs, a.id);
+    expect(detail?.assignedTags).toEqual(["method", "zettel"]);
+    expect(detail?.tagNames).toEqual(["method", "zettel"]);
+
+    // A tag present both ways counts the note once.
+    const tags = await listTags(fs);
+    expect(tags.map((t) => [t.name, t.noteCount])).toEqual([
+      ["method", 1],
+      ["zettel", 2],
+    ]);
+    expect((await listNotes(fs, "zettel")).map((n) => n.id).sort()).toEqual([a.id, b.id].sort());
+  });
+
+  it("removing every tag drops the key, and content edits keep assigned tags", async () => {
+    const fs = createMemoryFs();
+    const note = await createNote(fs, { title: "T", content: "" });
+    await updateNote(fs, { id: note.id, tags: ["keep"] });
+    await updateNote(fs, { id: note.id, content: "edited" });
+    expect((await getNoteById(fs, note.id))?.assignedTags).toEqual(["keep"]);
+
+    await updateNote(fs, { id: note.id, tags: [] });
+    expect(await fs.readFile(`notes/${note.id}.md`)).not.toContain("tags:");
+  });
+
+  it("rejects a tag name a #hashtag couldn't express", async () => {
+    const fs = createMemoryFs();
+    const note = await createNote(fs, { title: "T", content: "" });
+    await expect(updateNote(fs, { id: note.id, tags: ["two words"] })).rejects.toThrow(/Invalid tag/);
+  });
+});
+
 describe("attachments", () => {
   it("creates an attachment, links it to the note, and lists it back", async () => {
     const fs = createMemoryFs();

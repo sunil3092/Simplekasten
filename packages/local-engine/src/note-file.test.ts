@@ -14,6 +14,7 @@ describe("note-file frontmatter round-trip", () => {
       updatedAt: "2026-01-02T00:00:00.000Z",
       deletedAt: null,
       attachmentIds: [],
+      tags: [],
     };
 
     const raw = serializeNoteFile(note);
@@ -33,6 +34,7 @@ describe("note-file frontmatter round-trip", () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
       deletedAt: "2026-01-03T00:00:00.000Z",
       attachmentIds: [],
+      tags: [],
     };
 
     const parsed = parseNoteFile(serializeNoteFile(note), note.id);
@@ -50,6 +52,7 @@ describe("note-file frontmatter round-trip", () => {
       updatedAt: "2026-01-01T00:00:00.000Z",
       deletedAt: null,
       attachmentIds: ["a1", "a2"],
+      tags: [],
     };
 
     const raw = serializeNoteFile(withAttachments);
@@ -64,5 +67,22 @@ describe("note-file frontmatter round-trip", () => {
 
   it("throws when a file has no frontmatter block", () => {
     expect(() => parseNoteFile("just plain markdown, no frontmatter", "id1")).toThrow();
+  });
+
+  it("round-trips assigned tags, omitting the key when there are none", () => {
+    const note: VaultNote = {
+      id: "t1",
+      zettelId: "3",
+      title: "Tagged",
+      type: "permanent",
+      content: "",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      deletedAt: null,
+      attachmentIds: [],
+      tags: ["method", "zettel"],
+    };
+    expect(parseNoteFile(serializeNoteFile(note), note.id)).toEqual(note);
+    expect(serializeNoteFile({ ...note, tags: [] })).not.toContain("tags:");
   });
 });

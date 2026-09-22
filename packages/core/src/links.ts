@@ -26,3 +26,15 @@ export function extractHashtags(content: string): string[] {
   }
   return [...seen];
 }
+
+const TAG_NAME_PATTERN = /^[a-z][\w/-]*$/;
+
+/**
+ * Normalises a tag typed into a tag picker to the form a #hashtag would
+ * produce (trimmed, no leading `#`, lowercase), or returns null if a hashtag
+ * couldn't express it — so assigned tags and #hashtags stay one namespace.
+ */
+export function normalizeTagName(input: string): string | null {
+  const name = input.trim().replace(/^#/, "").toLowerCase();
+  return TAG_NAME_PATTERN.test(name) ? name : null;
+}

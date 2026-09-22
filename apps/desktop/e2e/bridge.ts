@@ -9,9 +9,12 @@ import type { Page } from "@playwright/test";
 export async function stubBridge(page: Page, settings: { theme: string; themeMode: "system" | "light" | "dark" }) {
   await page.addInitScript((s) => {
     const notes = [
-      { id: "a", zettelId: "1", title: "Atomic Habits", content: "Small changes compound.", type: "fleeting" },
-      { id: "b", zettelId: "2", title: "Systems", content: "See [[Atomic Habits]].", type: "permanent" },
+      { id: "a", zettelId: "1", title: "Atomic Habits", content: "Small changes compound. #habits", type: "fleeting", tags: [] as string[] },
+      { id: "b", zettelId: "2", title: "Systems", content: "See [[Atomic Habits]].", type: "permanent", tags: ["method"] },
     ];
+    // Mirrors the engine: a note's tags are its assigned tags plus #hashtags.
+    const tagsOf = (n: (typeof notes)[number]) =>
+      [...new Set([...n.tags, ...Array.from(n.content.matchAll(/(?<![#\w])#([a-zA-Z][\w/-]*)/g), (m) => m[1].toLowerCase())])].sort();
     const stamp = "2026-09-21T00:00:00.000Z";
     // "Atomic Habits" starts with one photo and one voice note, as if they'd
     // been added on mobile. Files are served as data: URLs below.
@@ -29,7 +32,7 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
       const contents =
         id === "b" ? [{ noteId: "a", title: "Atomic Habits", zettelId: "1", resolved: true }] : [];
       const own = attachments.filter((a) => a.noteId === id);
-      return { ...n, createdAt: stamp, updatedAt: stamp, tagNames: [], attachments: own, backlinks, contents };
+      return { ...n, createdAt: stamp, updatedAt: stamp, tagNames: tagsOf(n), assignedTags: n.tags, attachments: own, backlinks, contents };
     };
     (window as unknown as { simplekasten: unknown }).simplekasten = {
       settings: { get: async () => s, set: async () => {} },
@@ -40,10 +43,15 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
         remove: async () => {},
       },
       vault: {
-        listNotes: async () => notes.map(({ content: _c, ...rest }) => ({ ...rest, updatedAt: stamp })),
+        listNotes: async (tag?: string) =>
+          notes.filter((n) => !tag || tagsOf(n).includes(tag)).map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type, updatedAt: stamp })),
         getNoteById: async (id: string) => detail(id),
         createNote: async () => detail("a"),
-        updateNote: async (input: { id: string }) => detail(input.id),
+        updateNote: async (input: { id: string; tags?: string[] }) => {
+          const n = notes.find((x) => x.id === input.id)!;
+          if (input.tags) n.tags = [...input.tags].sort();
+          return detail(input.id);
+        },
         deleteNote: async (id: string) => {
           notes.splice(
             notes.findIndex((n) => n.id === id),
@@ -55,7 +63,11 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
           nodes: notes.map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type })),
           edges: [{ source: "b", target: "a" }],
         }),
-        listTags: async () => [],
+        listTags: async () => {
+          const counts = new Map<string, number>();
+          for (const n of notes) for (const t of tagsOf(n)) counts.set(t, (counts.get(t) ?? 0) + 1);
+          return [...counts].map(([name, noteCount]) => ({ id: name, name, noteCount }));
+        },
         getVaultPath: async () => "/fixture",
         chooseVaultFolder: async () => "/fixture",
         addAttachment: async (noteId: string) => {

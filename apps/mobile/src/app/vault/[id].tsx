@@ -1,12 +1,14 @@
 import { COPY } from "@simplekasten/core";
-import type { NoteDetail, NoteListItem } from "@simplekasten/local-engine";
+import type { NoteDetail, NoteListItem, TagItem } from "@simplekasten/local-engine";
 import { NOTE_TYPES, type NoteTypeInfo } from "@simplekasten/themes";
 import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder } from "expo-audio";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View, type NativeSyntheticEvent, type TextInputSelectionChangeEventData } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeSyntheticEvent, type TextInputSelectionChangeEventData } from "react-native";
+import { Icon } from "@/components/Icon";
 import { PhotoThumbnail } from "@/components/PhotoThumbnail";
+import { TagSheet } from "@/components/TagSheet";
 import { Button, Chip, EmptyHint, ErrorText, fontFamily, IconButton, NoteLink, SaveStatus, SectionHeading, TypeBadge, useDisplayText } from "@/components/ui";
 import { VoiceNotePlayer } from "@/components/VoiceNotePlayer";
 import { setLastNote } from "@/lib/lastNote";
@@ -21,13 +23,15 @@ const OPEN_LINK = /\[\[([^\]|]*)$/;
 
 export default function NoteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { colors } = useTheme();
+  const { colors, shape } = useTheme();
   const displayText = useDisplayText();
   const router = useRouter();
   const navigation = useNavigation();
 
   const [note, setNote] = useState<NoteDetail | null>(null);
   const [allNotes, setAllNotes] = useState<NoteListItem[]>([]);
+  const [vaultTags, setVaultTags] = useState<TagItem[]>([]);
+  const [tagSheetOpen, setTagSheetOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [type, setType] = useState<NoteType>("fleeting");
@@ -65,6 +69,7 @@ export default function NoteScreen() {
     useCallback(() => {
       setLastNote(id);
       vault.listNotes().then(setAllNotes).catch(() => {});
+      vault.listTags().then(setVaultTags).catch(() => {});
       vault.getNoteById(id).then((fresh) => {
         if (fresh) setNote(fresh);
       });
@@ -162,6 +167,19 @@ export default function NoteScreen() {
     setSelection({ start: cursor, end: cursor });
     setForcedSelection({ start: cursor, end: cursor });
     scheduleSave({ title, content: next, type });
+  }
+
+  // ---- Tags ----------------------------------------------------------------
+  async function updateTags(assignedTags: string[]) {
+    // Optimistic, so the checkbox flips at once; the engine's answer (which
+    // merges in #hashtags) replaces it right after.
+    setNote((current) => (current ? { ...current, assignedTags } : current));
+    await flushPending();
+    setStatus("saving");
+    await vault.updateNote({ id, tags: assignedTags });
+    await refreshNote();
+    setStatus("saved");
+    vault.listTags().then(setVaultTags).catch(() => {});
   }
 
   // ---- Links ---------------------------------------------------------------
@@ -267,7 +285,22 @@ export default function NoteScreen() {
         </View>
       </View>
       <View style={styles.metaRow}>
-        <Text style={{ fontFamily: mono, fontSize: 12, color: colors.inkFaint }}>{note.zettelId}</Text>
+        <View style={styles.metaLeft}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${COPY.tags}${note.tagNames.length ? ` (${note.tagNames.length})` : ""}`}
+            onPress={() => setTagSheetOpen(true)}
+            style={[styles.tagTrigger, { borderWidth: shape.borderWidth, borderRadius: Math.min(shape.radius, 6), borderColor: colors.line, backgroundColor: colors.surface2 }]}
+          >
+            <Icon name="hash" size={11} color={colors.inkMuted} />
+            <Text style={{ fontFamily: mono, fontSize: 10, letterSpacing: 0.5, color: colors.inkMuted }}>
+              {COPY.tags.toUpperCase()}
+              {note.tagNames.length > 0 ? ` ${note.tagNames.length}` : ""}
+            </Text>
+            <Icon name="chevronDown" size={11} color={colors.inkFaint} />
+          </Pressable>
+          <Text style={{ fontFamily: mono, fontSize: 12, color: colors.inkFaint }}>{note.zettelId}</Text>
+        </View>
         <SaveStatus status={status} />
       </View>
 
@@ -362,6 +395,14 @@ export default function NoteScreen() {
           note.backlinks.map((b) => <NoteLink key={b.noteId} zettelId={b.zettelId} title={b.title} onPress={() => openLinkedTitle(b.title, b.noteId)} />)
         )}
       </View>
+      <TagSheet
+        visible={tagSheetOpen}
+        vaultTags={vaultTags}
+        assigned={note.assignedTags}
+        onNote={note.tagNames}
+        onChange={updateTags}
+        onClose={() => setTagSheetOpen(false)}
+      />
     </ScrollView>
   );
 }
@@ -370,7 +411,9 @@ const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 48 },
   headerRow: { marginBottom: 10 },
   metaRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
+  metaLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   typeRow: { flexDirection: "row", gap: 6, flexWrap: "wrap", flexShrink: 1 },
+  tagTrigger: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 7, paddingVertical: 4 },
   titleInput: { fontSize: 26, marginBottom: 12, padding: 0 },
   contentInput: { fontSize: 16, lineHeight: 24, minHeight: 200, padding: 0 },
   suggestions: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 8 },

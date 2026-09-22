@@ -22,6 +22,7 @@ export const ICONS = {
   fileText: [path("M7 3h7l4 4v14a1 1 0 01-1 1H7a1 1 0 01-1-1V4a1 1 0 011-1z"), path("M14 3v4h4M9 13h6M9 17h6")],
   layers: [path("M12 3l8 4.5-8 4.5-8-4.5L12 3z"), path("M4 12l8 4.5 8-4.5M4 16.5L12 21l8-4.5")],
   chevronDown: [path("M6 9l6 6 6-6")],
+  check: [path("M5 12.5l4.5 4.5L19 7.5")],
   link: [path("M9.5 14.5l5-5"), path("M11 6.5l1.4-1.4a3.5 3.5 0 015 5L16 11.5M13 17.5L11.6 18.9a3.5 3.5 0 01-5-5L8 12.5")],
   settings: [
     circle(12, 12, 3),
