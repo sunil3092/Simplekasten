@@ -54,6 +54,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "icons/**/*",
       "out/**/*"
     ],
     "directories": {

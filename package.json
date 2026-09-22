@@ -13,6 +13,10 @@
     "dev:mobile": "npm run start -w @simplekasten/mobile",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "build:icons": "node scripts/build-icons.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.4"
   }
 }

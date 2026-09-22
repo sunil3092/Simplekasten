@@ -131,6 +131,10 @@ npm run test:e2e -w @simplekasten/desktop  # 🎭 Playwright browser tests (desk
 
 The Playwright suite (`apps/desktop/e2e`) runs the real renderer against a stubbed Electron bridge — no Electron process or real vault needed. It checks Memphis in light and dark, that it is the default (including a JavaScript-off first paint), that every colour painted on screen comes from the palette, and that Classic still works. First run: `npx playwright install chromium` inside `apps/desktop`. Screenshots and traces go to `test-results/` (gitignored).
 
+## 🖼️ App icon
+
+The icon (two linked slips from the slip-box, on Memphis purple) is drawn once as SVG in `assets/icon/`, with a simplified version for 32px and below and a monochrome outline for Android themed icons. `npm run build:icons` renders every platform's file from those: desktop `icon.ico`, `icon.icns` and `icon.png`, and the mobile app icon, Android adaptive layers, splash and favicon. The outputs are committed, so re-run it only when the artwork changes.
+
 ## 📦 Build
 
 ```bash

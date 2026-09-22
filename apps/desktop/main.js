@@ -171,6 +171,10 @@ function createWindow() {
     minWidth: 860,
     minHeight: 560,
     title: "Simplekasten",
+    // Packaged builds get their icon from electron-builder (icons/icon.ico,
+    // .icns); this covers `npm run dev` and Linux, where the window icon is
+    // otherwise Electron's own.
+    icon: path.join(__dirname, "icons", process.platform === "win32" ? "icon.ico" : "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
