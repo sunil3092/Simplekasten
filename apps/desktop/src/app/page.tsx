@@ -1,6 +1,7 @@
 "use client";
 
 import { COPY } from "@simplekasten/core";
+import type { ReviewRating } from "@simplekasten/local-engine";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Attachments, type AttachmentItem } from "../components/Attachments";
 import { GraphView } from "../components/GraphView";
@@ -17,10 +18,12 @@ import {
   NetworkIcon,
   PaperclipIcon,
   PlusIcon,
+  RepeatIcon,
   SearchIcon,
   SettingsIcon,
   TrashIcon,
 } from "../components/icons";
+import { ReviewSession } from "../components/ReviewSession";
 import { TemplatesModal } from "../components/TemplatesModal";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
@@ -44,6 +47,7 @@ interface NoteDetail {
   content: string;
   type: NoteType;
   noteDate: string | null;
+  reviewDue: string | null;
   tagNames: string[];
   attachments: AttachmentItem[];
   backlinks: { noteId: string; title: string; zettelId: string }[];
@@ -96,6 +100,13 @@ function Vault() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const [dueCount, setDueCount] = useState(0);
+  // Non-null while a review session is open; holds the due notes fetched at
+  // session start so rating through the queue doesn't reshuffle mid-session
+  // if a note's due date happens to land on today from elsewhere.
+  const [reviewQueue, setReviewQueue] = useState<NoteListItem[] | null>(null);
+  const [reviewIndex, setReviewIndex] = useState(0);
+  const [reviewNote, setReviewNote] = useState<NoteDetail | null>(null);
   // NoteEditor is uncontrolled by design (see its own comment) — it only
   // reads initialValue on mount, so an external content change made outside
   // typing (applying a template) needs a remount to become visible. Bumped
@@ -155,11 +166,16 @@ function Vault() {
     setTemplates((await vaultClient.listTemplates()) as Template[]);
   }
 
+  async function refreshDueCount() {
+    setDueCount(((await vaultClient.listDueForReview(todayLocal())) as NoteListItem[]).length);
+  }
+
   useEffect(() => {
     refreshNotes(activeTag);
     refreshTags();
     refreshDailyNotes();
     refreshTemplates();
+    refreshDueCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -251,6 +267,36 @@ function Vault() {
     const updated = (await vaultClient.applyTemplate({ noteId: selected.id, templateId })) as NoteDetail;
     setSelected(updated);
     setEditorNonce((n) => n + 1);
+  }
+
+  async function toggleReviewQueue() {
+    if (!selected) return;
+    if (selected.reviewDue) await vaultClient.removeFromReviewQueue(selected.id);
+    else await vaultClient.addToReviewQueue(selected.id, todayLocal());
+    setSelected((await vaultClient.getNoteById(selected.id)) as NoteDetail);
+    refreshDueCount();
+  }
+
+  async function openReview() {
+    const due = (await vaultClient.listDueForReview(todayLocal())) as NoteListItem[];
+    setReviewQueue(due);
+    setReviewIndex(0);
+    setReviewNote(due.length > 0 ? ((await vaultClient.getNoteById(due[0].id)) as NoteDetail) : null);
+  }
+
+  function closeReview() {
+    setReviewQueue(null);
+    setReviewNote(null);
+  }
+
+  async function rateReviewNote(rating: ReviewRating) {
+    if (!reviewQueue || !reviewNote) return;
+    await vaultClient.submitReview({ noteId: reviewNote.id, rating, today: todayLocal() });
+    const nextIndex = reviewIndex + 1;
+    setReviewIndex(nextIndex);
+    setReviewNote(nextIndex < reviewQueue.length ? ((await vaultClient.getNoteById(reviewQueue[nextIndex].id)) as NoteDetail) : null);
+    refreshDueCount();
+    if (selected && selected.id === reviewNote.id) setSelected((await vaultClient.getNoteById(selected.id)) as NoteDetail);
   }
 
   async function flushPending() {
@@ -440,6 +486,19 @@ function Vault() {
               <Kbd>⌘J</Kbd>
             </span>
           </Button>
+          <Button className="w-full justify-start" onClick={openReview}>
+            <span className="flex w-full items-center justify-between">
+              <span className="flex items-center gap-2">
+                <RepeatIcon />
+                Review
+              </span>
+              {dueCount > 0 && (
+                <span data-testid="review-due-count" className="font-mono text-[10px] text-accent-ink">
+                  {dueCount}
+                </span>
+              )}
+            </span>
+          </Button>
           <Button className="w-full justify-start" onClick={openGraph}>
             <NetworkIcon />
             Graph view
@@ -607,10 +666,17 @@ function Vault() {
                     </span>
                   )}
                   <IconButton
+                    aria-label={selected.reviewDue ? "Remove from review queue" : "Add to review queue"}
+                    title={selected.reviewDue ? "Remove from review queue" : "Add to review queue"}
+                    onClick={toggleReviewQueue}
+                    className={`${templates.length > 0 ? "" : "ml-2"} ${selected.reviewDue ? "text-accent-ink" : ""}`}
+                  >
+                    <RepeatIcon />
+                  </IconButton>
+                  <IconButton
                     aria-label="Attach a photo or audio file"
                     title="Attach a photo or audio file"
                     onClick={addAttachment}
-                    className={templates.length > 0 ? "" : "ml-2"}
                   >
                     <PaperclipIcon />
                   </IconButton>
@@ -726,6 +792,16 @@ function Vault() {
           confirmLabel="Delete"
           onConfirm={deleteSelected}
           onCancel={() => setConfirmingDelete(false)}
+        />
+      )}
+
+      {reviewQueue && (
+        <ReviewSession
+          note={reviewNote}
+          current={Math.min(reviewIndex + 1, reviewQueue.length)}
+          total={reviewQueue.length}
+          onRate={rateReviewNote}
+          onClose={closeReview}
         />
       )}
 

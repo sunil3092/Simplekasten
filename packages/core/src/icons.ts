@@ -40,6 +40,8 @@ export const ICONS = {
   calendar: [rect(4, 5.5, 16, 15, 1.5), path("M4 10h16M8 3v4M16 3v4"), circle(12, 14.5, 1.4)],
   chevronLeft: [path("M15 6l-6 6 6 6")],
   chevronRight: [path("M9 6l6 6-6 6")],
+  repeat: [path("M17 2l4 4-4 4"), path("M3 11V9a4 4 0 014-4h14"), path("M7 22l-4-4 4-4"), path("M21 13v2a4 4 0 01-4 4H3")],
+  check: [path("M20 6L9 17l-5-5")],
 } satisfies Record<string, IconShape[]>;
 
 export type IconName = keyof typeof ICONS;

@@ -104,6 +104,10 @@ function registerIpcHandlers() {
   ipcMain.handle("vault:deleteTemplate", (_event, id) => localEngine.deleteTemplate(currentAdapter(), id));
   ipcMain.handle("vault:setDefaultForDailyNote", (_event, id) => localEngine.setDefaultForDailyNote(currentAdapter(), id));
   ipcMain.handle("vault:applyTemplate", (_event, input) => localEngine.applyTemplate(currentAdapter(), input));
+  ipcMain.handle("vault:addToReviewQueue", (_event, noteId, today) => localEngine.addToReviewQueue(currentAdapter(), noteId, today));
+  ipcMain.handle("vault:removeFromReviewQueue", (_event, noteId) => localEngine.removeFromReviewQueue(currentAdapter(), noteId));
+  ipcMain.handle("vault:listDueForReview", (_event, date) => localEngine.listDueForReview(currentAdapter(), date));
+  ipcMain.handle("vault:submitReview", (_event, input) => localEngine.submitReview(currentAdapter(), input));
   ipcMain.handle("vault:getVaultPath", () => getVaultPath());
   ipcMain.handle("vault:addAttachment", async (_event, noteId) => {
     const result = await dialog.showOpenDialog({

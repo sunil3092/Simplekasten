@@ -48,3 +48,5 @@ export const PaperclipIcon = named("paperclip");
 export const CalendarIcon = named("calendar");
 export const ChevronLeftIcon = named("chevronLeft");
 export const ChevronRightIcon = named("chevronRight");
+export const RepeatIcon = named("repeat");
+export const CheckIcon = named("check");
