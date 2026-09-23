@@ -1,4 +1,4 @@
-import { COPY } from "@simplekasten/core";
+import { COPY, type IconName } from "@simplekasten/core";
 import type { NoteListItem, SearchResultItem, TagItem } from "@simplekasten/local-engine";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -30,7 +30,9 @@ function Snippet({ text }: { text: string }) {
   );
 }
 
-type Row = { id: string; zettelId: string; title: string; snippet?: string };
+type NoteRow = { kind: "note"; id: string; zettelId: string; title: string; snippet?: string };
+type CommandRow = { kind: "command"; id: string; icon: IconName; label: string; description: string; run: () => void };
+type Row = NoteRow | CommandRow;
 
 export default function VaultScreen() {
   const { colors, shape } = useTheme();
@@ -79,10 +81,14 @@ export default function VaultScreen() {
     }, [activeTag, load]),
   );
 
+  // Typing ">" switches this same search box from "find a note" to "run a
+  // command" — same mode-switch convention desktop's QuickSwitcher uses.
+  const commandMode = query.trim().startsWith(">");
+
   // Same debounce and stale-response guard as desktop's QuickSwitcher.
   useEffect(() => {
     const trimmed = query.trim();
-    if (!trimmed) {
+    if (!trimmed || commandMode) {
       setResults(null);
       return;
     }
@@ -93,7 +99,7 @@ export default function VaultScreen() {
       });
     }, 150);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, commandMode]);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -131,8 +137,30 @@ export default function VaultScreen() {
 
   const trimmed = query.trim();
   const searching = trimmed.length > 0;
-  const rows: Row[] = searching ? (results ?? []) : notes;
-  const exactMatch = rows.some((n) => n.title.toLowerCase() === trimmed.toLowerCase());
+
+  // Every command here already has a handler above — this only makes it
+  // reachable by typing ">" into the same search box, mirroring desktop's
+  // QuickSwitcher. Templates and vault-location commands aren't included:
+  // mobile doesn't author templates and has one fixed vault location.
+  const commands: CommandRow[] = [
+    { kind: "command", id: "new-note", icon: "plus", label: "New note", description: "Create a new fleeting note", run: () => createNote() },
+    { kind: "command", id: "today", icon: "calendar", label: "Today", description: "Open or create today's daily note", run: openToday },
+    { kind: "command", id: "review", icon: "repeat", label: "Review", description: "Start a spaced-repetition review session", run: () => { setQuery(""); router.push("/review"); } },
+    { kind: "command", id: "graph", icon: "network", label: "Graph view", description: "Visualize how notes link together", run: () => { setQuery(""); router.push("/graph"); } },
+    { kind: "command", id: "settings", icon: "settings", label: "Settings", description: "Theme and appearance settings", run: () => { setQuery(""); router.push("/settings"); } },
+  ];
+  const commandQuery = commandMode ? trimmed.slice(1).trim().toLowerCase() : "";
+  const matchingCommands = commandMode ? commands.filter((c) => c.label.toLowerCase().includes(commandQuery)) : [];
+
+  const noteRows: NoteRow[] = (searching ? (results ?? []) : notes).map((n) => ({
+    kind: "note",
+    id: n.id,
+    zettelId: n.zettelId,
+    title: n.title,
+    snippet: "snippet" in n ? n.snippet : undefined,
+  }));
+  const rows: Row[] = commandMode ? matchingCommands : noteRows;
+  const exactMatch = !commandMode && noteRows.some((n) => n.title.toLowerCase() === trimmed.toLowerCase());
   // Structure notes are Maps of Content — surfaced as a standing section, as
   // on desktop, so an index note doesn't get lost once it scrolls away.
   const mapsOfContent = useMemo(() => notes.filter((n) => n.type === "structure"), [notes]);
@@ -148,7 +176,9 @@ export default function VaultScreen() {
           placeholderTextColor={colors.inkFaint}
           returnKeyType="go"
           onSubmitEditing={() => {
-            if (rows[0]) router.push(`/vault/${rows[0].id}`);
+            const first = rows[0];
+            if (first?.kind === "command") first.run();
+            else if (first?.kind === "note") router.push(`/vault/${first.id}`);
             else if (trimmed && !exactMatch) createNote(trimmed);
           }}
           style={[styles.searchInput, { color: colors.ink }]}
@@ -222,34 +252,55 @@ export default function VaultScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={header}
         ListEmptyComponent={
-          searching ? (
+          commandMode ? (
+            <Text style={[styles.empty, { color: colors.inkFaint }]}>No matching commands.</Text>
+          ) : searching ? (
             results === null ? <Text style={[styles.empty, { color: colors.inkFaint }]}>{COPY.searching}</Text> : null
           ) : (
             <Text style={[styles.empty, { color: colors.inkFaint }]}>{COPY.emptyVault}</Text>
           )
         }
         ListFooterComponent={
-          searching && results !== null && !exactMatch ? (
+          !commandMode && searching && results !== null && !exactMatch ? (
             <Pressable onPress={() => createNote(trimmed)} style={styles.createRow} accessibilityRole="button">
               <Icon name="plus" color={colors.accent2} />
               <Text style={{ color: colors.accent2, fontSize: 15 }}>{COPY.createNote(trimmed)}</Text>
             </Pressable>
           ) : null
         }
-        renderItem={({ item }) => (
-          <Pressable
-            onPress={() => router.push(`/vault/${item.id}`)}
-            style={({ pressed }) => [styles.noteRow, { borderColor: colors.lineSoft, backgroundColor: pressed ? colors.surface2 : "transparent" }]}
-          >
-            <View style={styles.noteLine}>
-              <Text style={[styles.zettelId, { color: colors.inkFaint }]}>{item.zettelId}</Text>
-              <Text style={[styles.noteTitle, { color: colors.ink }]} numberOfLines={1}>
-                {item.title}
-              </Text>
-            </View>
-            {item.snippet && <Snippet text={item.snippet} />}
-          </Pressable>
-        )}
+        renderItem={({ item }) =>
+          item.kind === "command" ? (
+            <Pressable
+              onPress={item.run}
+              style={({ pressed }) => [styles.noteRow, { borderColor: colors.lineSoft, backgroundColor: pressed ? colors.surface2 : "transparent" }]}
+            >
+              <View style={styles.commandRow}>
+                <Icon name={item.icon} size={18} color={colors.inkFaint} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.noteTitle, { color: colors.ink }]} numberOfLines={1}>
+                    {item.label}
+                  </Text>
+                  <Text numberOfLines={1} style={{ fontSize: 12, color: colors.inkFaint, marginTop: 2 }}>
+                    {item.description}
+                  </Text>
+                </View>
+              </View>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => router.push(`/vault/${item.id}`)}
+              style={({ pressed }) => [styles.noteRow, { borderColor: colors.lineSoft, backgroundColor: pressed ? colors.surface2 : "transparent" }]}
+            >
+              <View style={styles.noteLine}>
+                <Text style={[styles.zettelId, { color: colors.inkFaint }]}>{item.zettelId}</Text>
+                <Text style={[styles.noteTitle, { color: colors.ink }]} numberOfLines={1}>
+                  {item.title}
+                </Text>
+              </View>
+              {item.snippet && <Snippet text={item.snippet} />}
+            </Pressable>
+          )
+        }
       />
     </View>
   );
@@ -269,6 +320,7 @@ const styles = StyleSheet.create({
   count: { fontFamily: MONO, fontSize: 10, letterSpacing: 0.8 },
   noteRow: { paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   noteLine: { flexDirection: "row", alignItems: "baseline", gap: 8 },
+  commandRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   zettelId: { fontSize: 11, fontFamily: MONO, minWidth: 24 },
   noteTitle: { fontSize: 16, flex: 1 },
   createRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 14, paddingHorizontal: 4 },
