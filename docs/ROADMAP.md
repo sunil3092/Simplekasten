@@ -55,7 +55,7 @@ behavioural parity.
 | 7 | **Block-level references/transclusion** | Roam (best-in-class), Logseq, Tana | Medium — powerful but a fundamental data-model change (block-based vs. document-based notes); high risk to bolt onto the current whole-document `Note` model | Very large |
 | 8 | **Version history / diffing** | Notion, Obsidian Sync, Roam | Medium — already a nice-to-have in the plan | Medium |
 | 9 | **AI features** (related-notes suggestions, auto-tag, chat-over-vault) | Reflect, Tana, Notion AI, Capacities | Medium — real differentiator now, but needs an LLM API budget/key decision from the user first | Medium (once an API key exists) |
-| 10 | **Command palette** (beyond note search — run actions: new daily note, toggle theme, export, etc.) | Obsidian, Notion, Linear | Medium — cheap, compounds nicely once daily notes/templates exist | Small |
+| 10 | ~~Command palette~~ | Obsidian, Notion, Linear | **Done** — see below | — |
 | 11 | **Cross-device sync** (opt-in, on top of the now-local vault) | Obsidian Sync, iCloud/Dropbox-synced vaults | Medium — the dormant `apps/api`/`packages/db` are explicitly reserved for this; real product decision (which sync transport?) needed before speccing | Large |
 | 12 | ~~Local-first / offline sync~~ | Obsidian, Logseq | **Done** — see architecture note above | — |
 | 13 | **Real-time collaboration** (multiple people, one vault) | Roam, Notion | Low priority for a personal Zettelkasten tool | Very large |
@@ -70,11 +70,10 @@ command palette; a review queue wants nothing else new):
 1. **Daily Notes / Journal** — ✅ shipped 2026-09-22, spec at `docs/features/daily-notes.md`
 2. **Note templates** — ✅ shipped 2026-09-23, spec at `docs/features/templates.md`
 3. **Spaced repetition / review queue** — ✅ shipped 2026-09-23, spec at `docs/features/spaced-repetition.md`
+4. **Command palette** — ✅ shipped 2026-09-23, spec at `docs/features/command-palette.md`
 
-All three are done. Next in line, per the gap analysis below: **#10
-Command palette** — cheap (Small effort) and compounds with everything
-just built (surfacing "new daily note," "insert template," "start review
-session" as palette actions, not just note search).
+All four are done — everything picked out in this section at the start of
+this build-out is now shipped.
 
 Canvas, web clipper, PDF import, block transclusion, AI features, sync, and
 real-time collaboration are documented above as deliberately deferred —
@@ -82,7 +81,9 @@ each is a multi-session project in its own right and needs an explicit
 go-ahead (an LLM API key for AI features; a decision on browser extension
 distribution for the clipper; a data-model decision for block references; a
 sync-transport decision for cross-device sync) before it's worth speccing
-in detail.
+in detail. Of the remaining gap-analysis rows, **#8 Version history /
+diffing** is the next-cheapest (Medium effort, no external decision
+needed) if this build-out continues.
 
 ## Status
 
@@ -91,8 +92,34 @@ in detail.
 | Daily Notes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-22 |
 | Templates | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Spaced repetition | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
+| Command palette | ✅ | n/a (UI-only) | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
+
+### Command Palette — shipped 2026-09-23
+
+No new engine capability — every command it exposes already had a handler.
+Typing `>` as the first character in the existing note-search surface
+(desktop's Cmd/Ctrl+K `QuickSwitcher`, mobile's inline vault-tab search)
+switches it from "find a note" to "run a command," the same mode-switch
+convention VS Code and Obsidian's own command palettes use. Desktop gets
+all 8 commands (New note, Today, Review, Templates, Graph view, Settings,
+Choose vault folder, Show vault location); mobile gets the 5 that apply
+there (no Templates authoring or vault-location commands, matching those
+features' existing desktop-only scope).
+
+This is the last of the four features picked out in "Decision: what to
+build now" above — Daily Notes, Templates, Spaced Repetition, and Command
+Palette are all shipped as of this entry. 150 unit tests + 24 desktop e2e
+tests green; mobile confirmed via typecheck and a visual smoke test (same
+platform-limit caveat every prior mobile UI here has: Expo's web target
+can't exercise real vault writes). See `docs/features/command-palette.md`
+for the full spec and shipped-state notes.
+
+**Next up, if this build-out continues:** per the gap analysis, **#8
+Version history / diffing** is the next-cheapest item with no external
+decision blocking it (unlike AI features, the web clipper, or sync, which
+all need a product/infra decision from the user first). No spec exists yet.
 
 ### Spaced Repetition — shipped 2026-09-23
 

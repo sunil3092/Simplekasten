@@ -1,6 +1,6 @@
 # Feature: Command Palette
 
-**Status:** spec complete, ready to implement.
+**Status:** shipped 2026-09-23.
 **Why:** gap analysis item #10 — "cheap, compounds nicely once daily
 notes/templates exist." Search-to-find-a-note (`Cmd/Ctrl+K` on desktop,
 the inline search box on mobile) already exists; this adds
@@ -90,7 +90,30 @@ hardcoded list).
 
 ## Where this left off
 
-Not started as of 2026-09-23 (spec only). Next concrete step: add the
-`commands` prop and `>`-prefix branch to
-`apps/desktop/src/components/QuickSwitcher.tsx`, verify against its
-existing unit test file, then wire the `commands` array into `page.tsx`.
+Shipped 2026-09-23, implemented exactly as specced:
+
+- **Desktop**: `QuickSwitcher.tsx` gained the `commands` prop and the
+  `>`-prefix branch (mode-switch happens on the `trimmed.startsWith(">")`
+  check, filtering by label substring after the `>`). `page.tsx` wires up
+  all 8 commands from the table above using its existing handlers — no new
+  handler needed anywhere. Its Modal gained a `label="Quick switcher"` (it
+  had none before) so e2e specs could scope assertions to the panel rather
+  than the whole page. `QuickSwitcher.test.tsx` gained a `describe("command
+  mode")` block (4 new tests: mode switch, label filtering, run-and-close,
+  and returning to note search on backspace); `command-palette.e2e.ts`
+  covers mode switching, running "Today" and "Graph view" end-to-end, and
+  the no-match empty state. 24 desktop e2e specs total, all green.
+- **Mobile**: the vault tab's existing inline search got the identical
+  `>`-prefix branch, with a `Row = NoteRow | CommandRow` discriminated
+  union feeding one `FlatList`. 5 of the 8 commands apply on mobile (New
+  note, Today, Review, Graph view, Settings) — Templates and the two
+  vault-location commands are correctly left out, matching those features'
+  existing desktop-only scope. Verified via `tsc` (clean) and a visual
+  smoke test through Expo's web target (screenshot confirms the command
+  list renders correctly with icons and descriptions); real interaction
+  needs a device/emulator, same limitation every other mobile feature here
+  has documented.
+
+Full-suite final check: 150 unit tests (desktop 32, core 19, local-engine
+67, themes 32) + 24 desktop e2e tests, all green; `tsc --noEmit` clean
+across all five workspaces.
