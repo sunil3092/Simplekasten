@@ -85,7 +85,7 @@ in detail.
 |---|---|---|---|---|---|---|
 | Daily Notes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-22 |
 | Templates | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
-| Spaced repetition | ⬜ not written | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Spaced repetition | ✅ (2026-09-23) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
 
