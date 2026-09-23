@@ -1,120 +1,155 @@
 # Feature: Note Templates
 
-> **⚠️ STALE — 2026-09-22.** Written against the original Postgres/tRPC
-> backend. The app has since moved to a local-first file vault
-> (`packages/local-engine`) with no server; see `docs/ROADMAP.md`'s
-> architecture note and `docs/features/daily-notes.md` for what the rewrite
-> looks like (a `Template` file type in the vault's file format instead of
-> a Prisma model + tRPC router; `local-engine` functions instead of API
-> procedures). Rewrite this doc the same way before implementing — do not
-> build against what's described below as-is.
-
-**Status:** spec complete (for the old architecture only), implementation queued after Daily Notes and a rewrite.
+**Status:** rewritten 2026-09-23 for the local-engine architecture. Ready to implement.
 **Why:** Roam, Obsidian, and Notion all treat templates as a core primitive —
 a reusable starting structure (a literature-note skeleton with Source/
 Claims/My-take headings, a daily-note skeleton with a Tasks/Log split, etc.)
-inserted with one action. Pairs directly with Daily Notes: an empty journal
-page is much less useful than one that opens with your daily structure
-already in place.
+inserted with one action. Pairs directly with Daily Notes (shipped — see
+`docs/features/daily-notes.md`): an empty journal page is much less useful
+than one that opens with your daily structure already in place.
 
-## Data model
+## Data model (`packages/local-engine`)
 
-New `Template` model, scoped to a knowledge base (templates are per-vault,
-like tags — a research vault and a work vault likely want different ones):
+Templates are files, the same storage shape as notes and attachments: a new
+`templates/` directory alongside `notes/` and `attachments/`, one file per
+template, frontmatter + body:
 
-```prisma
-model Template {
-  id        String   @id @default(cuid())
-  kbId      String
-  knowledgeBase KnowledgeBase @relation(fields: [kbId], references: [id], onDelete: Cascade)
-  name      String
-  content   String            // markdown body, may contain placeholder tokens (below)
-  isDefaultForDailyNote Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+```
+templates/<id>.md
+---
+id: abc123
+name: Daily Log
+isDefaultForDailyNote: true
+createdAt: 2026-09-23T00:00:00.000Z
+updatedAt: 2026-09-23T00:00:00.000Z
+---
+## Tasks
 
-  @@unique([kbId, name])
-  @@map("templates")
+## Log
+
+Written on {{date}} at {{time}}.
+```
+
+`packages/local-engine/src/types.ts` gains:
+```ts
+export interface Template {
+  id: string;
+  name: string;
+  content: string; // may contain {{date}}, {{time}}, {{title}} tokens, expanded at apply time
+  isDefaultForDailyNote: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 
-`@@unique([kbId, isDefaultForDailyNote])` is tempting but wrong — Postgres
-partial unique indexes aren't expressible directly in Prisma's schema DSL;
-enforce "only one default daily template" in the `template.setDefaultForDailyNote`
-procedure instead (unset any existing default in the same transaction before
-setting the new one), same transactional-invariant style already used
-elsewhere in this codebase (e.g. `switchKb` clearing state before setting it).
-
-**Placeholder tokens**, expanded at insertion time (not stored expanded):
-- `{{date}}` → today's date, human-formatted
-- `{{time}}` → current time
-- `{{title}}` → the note's current title (useful in a template applied to an
-  existing note, not just new ones)
-
-Kept deliberately small — no scripting/templating language, just the
-tokens an actual daily-note/literature-note skeleton needs. Expand the set
-later only if a concrete workflow needs it.
-
-## API (`apps/api/src/routers/template.ts`, new)
-
+`packages/local-engine/src/template-file.ts` (new, mirrors `note-file.ts`
+exactly — same frontmatter regex, same js-yaml round-trip):
 ```ts
-list:   protectedProcedure.input({kbId}).query        // all templates in a vault
-create: protectedProcedure.input({kbId, name, content}).mutation
-update: protectedProcedure.input({id, name?, content?}).mutation
-delete: protectedProcedure.input({id}).mutation
-setDefaultForDailyNote: protectedProcedure.input({id}).mutation
-  // unsets any other default in the same kb, sets this one
+export function parseTemplateFile(raw: string, id: string): Template
+export function serializeTemplateFile(template: Template): string
 ```
 
-`note.dailyNote` (from the Daily Notes feature) changes: when creating a new
-daily note, look up the kb's default-for-daily-note template (if any) and
-use its token-expanded content as the new note's initial `content`, instead
-of an empty string.
+**Placeholder tokens**, expanded when a template is applied (never stored
+expanded, so editing a template later affects only future uses):
+- `{{date}}` → today's date, human-formatted (reuses `formatHumanDate` from
+  `vault.ts`, already built for Daily Notes)
+- `{{time}}` → current time, locale-formatted
+- `{{title}}` → the target note's current title (useful applying a template
+  to an existing note, not just a fresh one)
 
-A generic `note.applyTemplate` mutation (`{noteId, templateId}`) lets a user
-insert a template into *any* note, not just a fresh daily note — appends the
-expanded content to the end of the note's current body (simplest, safest
-default; "replace" would risk destroying existing text).
+Kept deliberately small — no scripting/templating language, just the tokens
+an actual daily-note/literature-note skeleton needs.
 
-## Web UI (`apps/web`)
+**Single-default invariant**: at most one template has
+`isDefaultForDailyNote: true`. Enforced in `setDefaultForDailyNote` itself
+(unset any other template carrying the flag, in the same call, before
+setting the new one) — there's no transaction to reach for in a
+file-per-record store, so "read all, write the ones that changed" is the
+whole mechanism, same spirit as `deleteAttachment` rewriting the note that
+referenced it.
 
-- New Settings-ish surface: simplest fit is a "Templates" item in the vault
-  switcher dropdown (next to the existing "Export vault…" entry), opening a
-  small modal — list of templates with rename/edit/delete, a "New template"
-  form (name + a `NoteEditor` instance reused for the content field, since
-  it's already a markdown editor component), and a "Use for daily notes"
-  toggle mapped to `setDefaultForDailyNote`.
-- Note editor header: a "Insert template" button (next to the type select)
-  opening a small dropdown of template names; selecting one calls
-  `note.applyTemplate` and refreshes the open note.
+## `packages/local-engine/src/vault.ts` — new functions
+
+```ts
+export async function listTemplates(fs: FileSystemAdapter): Promise<Template[]>
+export async function createTemplate(fs: FileSystemAdapter, input: { name: string; content: string }): Promise<Template>
+export async function updateTemplate(fs: FileSystemAdapter, input: { id: string; name?: string; content?: string }): Promise<Template>
+export async function deleteTemplate(fs: FileSystemAdapter, id: string): Promise<void>
+export async function setDefaultForDailyNote(fs: FileSystemAdapter, id: string): Promise<Template>
+
+// Expands {{date}}/{{time}}/{{title}} and appends to the target note's
+// current content — append, not replace, so applying a template never
+// destroys existing text. Returns the updated note via getNoteById so
+// callers can refresh in one round trip.
+export async function applyTemplate(fs: FileSystemAdapter, input: { noteId: string; templateId: string }): Promise<NoteDetail>
+```
+
+`getOrCreateDailyNote` (shipped in Daily Notes) changes by one line: instead
+of always creating with `content: ""`, look up
+`listTemplates(fs).find(t => t.isDefaultForDailyNote)` and use its
+expanded content when present.
+
+## Desktop UI (`apps/desktop`)
+
+- IPC (`main.js`/`preload.js`/`vaultClient.ts`) gains the five calls above,
+  same pass-through pattern as every other vault operation.
+- Vault switcher area: a "Templates…" entry (next to "Choose vault folder…")
+  opening a modal — list of templates with rename/delete, a "New template"
+  form (name input + a `NoteEditor` instance reused for the content field,
+  since it's already the markdown editor component this app uses), and a
+  "Use for daily notes" toggle per template mapped to
+  `setDefaultForDailyNote`. Follows the same modal pattern `SettingsModal`
+  already establishes in this codebase.
+- Note header: an "Insert template" `IconButton` (next to the attach-file
+  button) opens a small dropdown of template names; selecting one calls
+  `applyTemplate` then refreshes the open note the same way
+  `refreshAttachments` does after an attachment change.
 
 ## Mobile UI (`apps/mobile`)
 
-- Templates are authored on web/desktop in v1 — mobile is a *consumer* of
-  templates, not an editor for them, matching how most PKM apps treat
-  template management as a desktop-first task (Obsidian, Notion, Roam all
-  put template *editing* behind a settings/desktop surface, while template
-  *use* is available everywhere).
-- Note detail screen: a "+" icon next to the title (or a small toolbar
-  button near the mic icon added earlier) opens an action sheet listing
-  template names, calling `note.applyTemplate` on selection.
-- Daily notes created from the mobile "Today" button still get the default
-  template pre-filled automatically server-side — no mobile-specific work
-  needed for that path, since `dailyNote`'s template expansion happens in
-  the API regardless of caller.
+- Templates are authored on desktop in v1 — mobile is a *consumer*, not an
+  editor, matching how Obsidian/Notion/Roam all put template *editing*
+  behind a desktop-first surface while template *use* is available
+  everywhere.
+- Note screen: an icon button in the header (next to delete) opens an
+  action sheet (`Alert.alert`-style options, matching how `confirmDelete`
+  already presents a native choice) listing template names; picking one
+  calls `vault.applyTemplate` and refreshes the note.
+- Daily notes created from the mobile "Today" button automatically pick up
+  the default template — no mobile-specific work needed, since
+  `getOrCreateDailyNote`'s template lookup happens inside the shared engine
+  regardless of which platform's adapter calls it.
 
 ## Testing plan
 
-- `apps/api`: integration tests for template CRUD, `setDefaultForDailyNote`'s
-  single-default invariant, `applyTemplate`'s append behavior and token
-  expansion, and that a `dailyNote` call picks up the default template.
-- `apps/web`: component/e2e coverage for the templates modal and the
-  editor's "Insert template" action.
+- `packages/local-engine`: unit tests for template CRUD, the single-default
+  invariant (setting a second default unsets the first), `applyTemplate`'s
+  token expansion and append-not-replace behavior, and that
+  `getOrCreateDailyNote` picks up a default template when one exists and
+  falls back to empty content when none does — same style as
+  `vault.test.ts`'s existing daily-notes describe block.
+- `apps/desktop`: extend `e2e/bridge.ts`'s stub with the five calls; add a
+  spec covering create/rename/delete a template, set-and-unset default, and
+  applying a template to a note.
+- `apps/mobile`: `tsc` typecheck, then a visual smoke test through Expo's
+  web target for the UI layer (full behavior verification goes through the
+  shared engine's own test suite, same reasoning as Daily Notes' mobile
+  verification).
 
-## Open questions
+## Where this left off
+
+Not started as of 2026-09-23 (spec rewrite only). Next concrete step:
+`packages/local-engine/src/types.ts` — add the `Template` interface, then
+`template-file.ts`'s parse/serialize pair (copy `note-file.ts`'s structure),
+then `vault.ts`'s five new functions plus the one-line change to
+`getOrCreateDailyNote`, then their unit tests — in that order, matching
+exactly how Daily Notes was built (see that feature's commit history:
+vault-engine layer first, fully tested, before any UI).
+
+## Open questions (resolved defaults, revisit if wrong)
 
 - **Per-type default templates** (a default for literature notes too, not
-  just daily notes) — natural extension once this ships; not in v1 scope,
-  the schema's `isDefaultForDailyNote` boolean would need to become a
-  `defaultForType: NoteType?` field instead. Flagging now so the v1 schema
-  choice is understood as provisional, not because v1 needs to solve it.
+  just daily notes) — natural extension once this ships; not in v1 scope.
+  `isDefaultForDailyNote: boolean` would become `defaultForType: NoteType |
+  null` if this is wanted later. Flagging now so the v1 field choice is
+  understood as provisional.
