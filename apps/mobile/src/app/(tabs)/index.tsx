@@ -44,6 +44,7 @@ export default function VaultScreen() {
   const [results, setResults] = useState<SearchResultItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [dueCount, setDueCount] = useState(0);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -56,9 +57,14 @@ export default function VaultScreen() {
   }, [params.tag, router]);
 
   const load = useCallback(async (tag?: string | null) => {
-    const [noteList, tagList] = await Promise.all([vault.listNotes(tag ?? undefined), vault.listTags()]);
+    const [noteList, tagList, due] = await Promise.all([
+      vault.listNotes(tag ?? undefined),
+      vault.listTags(),
+      vault.listDueForReview(new Date().toLocaleDateString("en-CA")),
+    ]);
     setNotes(noteList);
     setTags(tagList);
+    setDueCount(due.length);
   }, []);
 
   // A plain effect only fires on mount/dep-change, not when navigating back
@@ -159,6 +165,12 @@ export default function VaultScreen() {
         <>
           <View style={styles.actionRow}>
             <Button icon="calendar" label="Today" onPress={openToday} disabled={creating} style={styles.actionButton} />
+            <Button
+              icon="repeat"
+              label={dueCount > 0 ? `Review · ${dueCount}` : "Review"}
+              onPress={() => router.push("/review")}
+              style={styles.actionButton}
+            />
             <Button variant="primary" icon="plus" label={COPY.newNote} onPress={() => createNote()} disabled={creating} style={styles.actionButton} />
           </View>
 

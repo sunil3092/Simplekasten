@@ -127,6 +127,17 @@ export default function NoteScreen() {
     return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
   }
 
+  function todayLocal(): string {
+    return new Date().toLocaleDateString("en-CA");
+  }
+
+  async function toggleReviewQueue() {
+    if (!note) return;
+    if (note.reviewDue) await vault.removeFromReviewQueue(note.id);
+    else await vault.addToReviewQueue(note.id, todayLocal());
+    await refreshNote();
+  }
+
   // Replaces rather than pushes: paging through days is a "scroll through
   // the journal" gesture, not "drill into a link" — pushing would leave an
   // ever-growing back stack of one entry per day visited.
@@ -149,6 +160,12 @@ export default function NoteScreen() {
             </>
           )}
           {templates.length > 0 && <IconButton icon="fileText" label="Insert template" onPress={applyTemplateSheet} />}
+          <IconButton
+            icon="repeat"
+            label={note?.reviewDue ? "Remove from review queue" : "Add to review queue"}
+            color={note?.reviewDue ? colors.accentInk : undefined}
+            onPress={toggleReviewQueue}
+          />
           <IconButton icon="trash" label="Delete note" onPress={confirmDelete} />
         </View>
       ),
