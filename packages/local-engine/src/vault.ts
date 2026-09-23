@@ -1,8 +1,10 @@
 import { extractHashtags, extractWikiLinkTitles } from "@simplekasten/core";
 import { parseNoteFile, serializeNoteFile } from "./note-file";
+import { parseTemplateFile, serializeTemplateFile } from "./template-file";
 import type {
   Attachment,
   CreateNoteInput,
+  CreateTemplateInput,
   FileSystemAdapter,
   GraphData,
   LinkRef,
@@ -10,11 +12,14 @@ import type {
   NoteListItem,
   SearchResultItem,
   TagItem,
+  Template,
   UpdateNoteInput,
+  UpdateTemplateInput,
   VaultNote,
 } from "./types";
 
 const NOTES_DIR = "notes";
+const TEMPLATES_DIR = "templates";
 
 // Sentinel characters wrapped around matches in a search snippet.
 // QuickSwitcher's Snippet component splits on these to highlight them without
@@ -220,12 +225,14 @@ export async function getOrCreateDailyNote(fs: FileSystemAdapter, date: string):
   const existing = notes.find((n) => n.noteDate === date);
   if (existing) return existing;
 
+  const title = formatHumanDate(date);
+  const defaultTemplate = (await loadAllTemplates(fs)).find((t) => t.isDefaultForDailyNote);
   const now = new Date().toISOString();
   const note: VaultNote = {
     id: generateId(),
     zettelId: nextZettelId(notes),
-    title: formatHumanDate(date),
-    content: "",
+    title,
+    content: defaultTemplate ? expandTemplateTokens(defaultTemplate.content, { title }) : "",
     type: "daily",
     noteDate: date,
     createdAt: now,
@@ -248,6 +255,114 @@ export async function listDailyNotes(fs: FileSystemAdapter, limit = 30): Promise
     .sort((a, b) => (b.noteDate ?? "").localeCompare(a.noteDate ?? ""))
     .slice(0, limit)
     .map(({ id, zettelId, title, type, updatedAt }) => ({ id, zettelId, title, type, updatedAt }));
+}
+
+function templateFilePath(id: string): string {
+  return `${TEMPLATES_DIR}/${id}.md`;
+}
+
+async function loadAllTemplates(fs: FileSystemAdapter): Promise<Template[]> {
+  await fs.ensureDir(TEMPLATES_DIR);
+  const files = await fs.listFiles(TEMPLATES_DIR);
+  const templates: Template[] = [];
+  for (const file of files) {
+    if (!file.endsWith(".md")) continue;
+    const id = file.slice(0, -3);
+    const raw = await fs.readFile(templateFilePath(id));
+    templates.push(parseTemplateFile(raw, id));
+  }
+  return templates;
+}
+
+// Expanded at apply time, never stored expanded, so editing a template
+// later only affects future uses of it.
+function expandTemplateTokens(content: string, ctx: { title: string }): string {
+  const now = new Date();
+  return content
+    .replaceAll("{{date}}", now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }))
+    .replaceAll("{{time}}", now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))
+    .replaceAll("{{title}}", ctx.title);
+}
+
+export async function listTemplates(fs: FileSystemAdapter): Promise<Template[]> {
+  const templates = await loadAllTemplates(fs);
+  return templates.slice().sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function createTemplate(fs: FileSystemAdapter, input: CreateTemplateInput): Promise<Template> {
+  const now = new Date().toISOString();
+  const template: Template = {
+    id: generateId(),
+    name: input.name,
+    content: input.content,
+    isDefaultForDailyNote: false,
+    createdAt: now,
+    updatedAt: now,
+  };
+  await fs.ensureDir(TEMPLATES_DIR);
+  await fs.writeFile(templateFilePath(template.id), serializeTemplateFile(template));
+  return template;
+}
+
+export async function updateTemplate(fs: FileSystemAdapter, input: UpdateTemplateInput): Promise<Template> {
+  const templates = await loadAllTemplates(fs);
+  const existing = templates.find((t) => t.id === input.id);
+  if (!existing) throw new Error(`Template "${input.id}" not found`);
+
+  const updated: Template = {
+    ...existing,
+    name: input.name ?? existing.name,
+    content: input.content ?? existing.content,
+    updatedAt: new Date().toISOString(),
+  };
+  await fs.writeFile(templateFilePath(updated.id), serializeTemplateFile(updated));
+  return updated;
+}
+
+export async function deleteTemplate(fs: FileSystemAdapter, id: string): Promise<void> {
+  const templates = await loadAllTemplates(fs);
+  if (!templates.some((t) => t.id === id)) throw new Error(`Template "${id}" not found`);
+  await fs.deleteFile(templateFilePath(id));
+}
+
+// At most one template carries isDefaultForDailyNote — there's no
+// transaction to reach for in a file-per-record store, so "read all, write
+// the ones that changed" (the previous default, if any, and the new one)
+// is the whole mechanism.
+export async function setDefaultForDailyNote(fs: FileSystemAdapter, id: string): Promise<Template> {
+  const templates = await loadAllTemplates(fs);
+  const target = templates.find((t) => t.id === id);
+  if (!target) throw new Error(`Template "${id}" not found`);
+
+  const previousDefault = templates.find((t) => t.isDefaultForDailyNote && t.id !== id);
+  if (previousDefault) {
+    const cleared = { ...previousDefault, isDefaultForDailyNote: false };
+    await fs.writeFile(templateFilePath(cleared.id), serializeTemplateFile(cleared));
+  }
+
+  const updated = { ...target, isDefaultForDailyNote: true, updatedAt: new Date().toISOString() };
+  await fs.writeFile(templateFilePath(updated.id), serializeTemplateFile(updated));
+  return updated;
+}
+
+// Appends the template's expanded content to the note's current body —
+// append, not replace, so applying a template never destroys existing text.
+export async function applyTemplate(fs: FileSystemAdapter, input: { noteId: string; templateId: string }): Promise<NoteDetail> {
+  const templates = await loadAllTemplates(fs);
+  const template = templates.find((t) => t.id === input.templateId);
+  if (!template) throw new Error(`Template "${input.templateId}" not found`);
+
+  const notes = await loadAllNotes(fs);
+  const note = notes.find((n) => n.id === input.noteId && !n.deletedAt);
+  if (!note) throw new Error(`Note "${input.noteId}" not found`);
+
+  const expanded = expandTemplateTokens(template.content, { title: note.title });
+  const separator = note.content.length > 0 ? "\n\n" : "";
+  await updateNote(fs, { id: note.id, content: `${note.content}${separator}${expanded}` });
+
+  const detail = await getNoteById(fs, note.id);
+  if (!detail) throw new Error(`Note "${input.noteId}" not found`);
+  return detail;
 }
 
 export async function listTags(fs: FileSystemAdapter): Promise<TagItem[]> {

@@ -129,3 +129,24 @@ export interface LinkRef {
   targetTitle: string;
   resolved: boolean;
 }
+
+export interface Template {
+  id: string;
+  name: string;
+  /** May contain {{date}}, {{time}}, {{title}} tokens, expanded at apply time. */
+  content: string;
+  isDefaultForDailyNote: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateInput {
+  name: string;
+  content: string;
+}
+
+export interface UpdateTemplateInput {
+  id: string;
+  name?: string;
+  content?: string;
+}
