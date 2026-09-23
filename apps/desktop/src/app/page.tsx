@@ -21,6 +21,7 @@ import {
   SettingsIcon,
   TrashIcon,
 } from "../components/icons";
+import { TemplatesModal } from "../components/TemplatesModal";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
 import { SettingsModal } from "../components/SettingsModal";
@@ -63,6 +64,12 @@ interface SearchResultItem {
   zettelId: string;
   snippet: string;
 }
+interface Template {
+  id: string;
+  name: string;
+  content: string;
+  isDefaultForDailyNote: boolean;
+}
 
 export default function Home() {
   return <Vault />;
@@ -86,6 +93,15 @@ function Vault() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  // NoteEditor is uncontrolled by design (see its own comment) — it only
+  // reads initialValue on mount, so an external content change made outside
+  // typing (applying a template) needs a remount to become visible. Bumped
+  // only there, never on normal edits, which stay uncontrolled for cursor
+  // stability.
+  const [editorNonce, setEditorNonce] = useState(0);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const { notice: themeNotice } = useTheme();
@@ -135,10 +151,15 @@ function Vault() {
     setDailyNotes((await vaultClient.listDailyNotes()) as NoteListItem[]);
   }
 
+  async function refreshTemplates() {
+    setTemplates((await vaultClient.listTemplates()) as Template[]);
+  }
+
   useEffect(() => {
     refreshNotes(activeTag);
     refreshTags();
     refreshDailyNotes();
+    refreshTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -201,6 +222,35 @@ function Vault() {
     setSaveStatus("saved");
     refreshNotes(activeTag);
     refreshDailyNotes();
+  }
+
+  async function createTemplate(input: { name: string; content: string }) {
+    await vaultClient.createTemplate(input);
+    await refreshTemplates();
+  }
+
+  async function updateTemplateEntry(input: { id: string; name?: string; content?: string }) {
+    await vaultClient.updateTemplate(input);
+    await refreshTemplates();
+  }
+
+  async function deleteTemplateEntry(id: string) {
+    await vaultClient.deleteTemplate(id);
+    await refreshTemplates();
+  }
+
+  async function setDefaultTemplate(id: string) {
+    await vaultClient.setDefaultForDailyNote(id);
+    await refreshTemplates();
+  }
+
+  async function applyTemplate(templateId: string) {
+    if (!selected) return;
+    setTemplateMenuOpen(false);
+    await flushPending();
+    const updated = (await vaultClient.applyTemplate({ noteId: selected.id, templateId })) as NoteDetail;
+    setSelected(updated);
+    setEditorNonce((n) => n + 1);
   }
 
   async function flushPending() {
@@ -356,6 +406,10 @@ function Vault() {
             <Button variant="ghost" size="sm" className="w-full justify-start" onClick={showVault}>
               <DownloadIcon />
               Show vault location
+            </Button>
+            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setTemplatesOpen(true)}>
+              <FileTextIcon />
+              Templates…
             </Button>
           </div>
         </div>
@@ -529,7 +583,35 @@ function Vault() {
                 </div>
                 <span className="ml-auto flex items-center gap-1">
                   <SaveStatusIndicator status={saveStatus} />
-                  <IconButton aria-label="Attach a photo or audio file" title="Attach a photo or audio file" onClick={addAttachment} className="ml-2">
+                  {templates.length > 0 && (
+                    <span className="relative ml-2">
+                      <IconButton aria-label="Insert template" title="Insert template" onClick={() => setTemplateMenuOpen((o) => !o)}>
+                        <FileTextIcon />
+                      </IconButton>
+                      {templateMenuOpen && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setTemplateMenuOpen(false)} />
+                          <div className="absolute top-full right-0 z-20 mt-1.5 w-52 rounded-xl border-(length:--border-w) border-line bg-surface p-1.5 shadow-lg">
+                            {templates.map((t) => (
+                              <button
+                                key={t.id}
+                                onClick={() => applyTemplate(t.id)}
+                                className="block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-2"
+                              >
+                                {t.name}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </span>
+                  )}
+                  <IconButton
+                    aria-label="Attach a photo or audio file"
+                    title="Attach a photo or audio file"
+                    onClick={addAttachment}
+                    className={templates.length > 0 ? "" : "ml-2"}
+                  >
                     <PaperclipIcon />
                   </IconButton>
                   <IconButton aria-label="Delete note" title="Delete note" onClick={() => setConfirmingDelete(true)} className="hover:text-danger">
@@ -547,7 +629,7 @@ function Vault() {
               />
 
               <NoteEditor
-                key={selected.id}
+                key={`${selected.id}:${editorNonce}`}
                 initialValue={selected.content}
                 onChange={updateContent}
                 onNavigateLink={navigateToTitle}
@@ -625,6 +707,17 @@ function Vault() {
       )}
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+
+      {templatesOpen && (
+        <TemplatesModal
+          templates={templates}
+          onClose={() => setTemplatesOpen(false)}
+          onCreate={createTemplate}
+          onUpdate={updateTemplateEntry}
+          onDelete={deleteTemplateEntry}
+          onSetDefaultForDailyNote={setDefaultTemplate}
+        />
+      )}
 
       {confirmingDelete && selected && (
         <ConfirmDialog

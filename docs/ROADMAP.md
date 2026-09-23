@@ -84,10 +84,40 @@ in detail.
 | Feature | Spec doc | local-engine | Desktop UI | Mobile UI | Tested | Shipped |
 |---|---|---|---|---|---|---|
 | Daily Notes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-22 |
-| Templates | ✅ (rewritten 2026-09-23) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Templates | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Spaced repetition | ⬜ not written | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
+
+### Templates — shipped 2026-09-23
+
+Templates are files (`templates/<id>.md`, frontmatter + body) with
+`{{date}}`/`{{time}}`/`{{title}}` tokens expanded on use. Six new
+local-engine functions; a desktop-only authoring surface (a Templates
+modal off the sidebar, an "Insert template" dropdown in the note header);
+mobile applies templates via an action sheet but doesn't author them,
+matching how Obsidian/Notion/Roam treat template editing as desktop-first.
+`getOrCreateDailyNote` now pre-fills new daily notes from the
+default-for-daily-note template, if one is set.
+
+Caught a real pre-existing-pattern bug while wiring this up: desktop's
+`NoteEditor` is uncontrolled by design (mounts once, ignores prop changes
+after that) — applying a template updated React state but the CodeMirror
+view never reflected it. Fixed by keying the editor on
+`${selected.id}:${editorNonce}` and bumping `editorNonce` only when a
+template is applied, so ordinary typing still doesn't fight the editor for
+cursor position.
+
+126 unit tests total (47 in local-engine) + 18 desktop e2e tests, all
+green; mobile confirmed via typecheck and a visual smoke test (same
+platform limits as Daily Notes — Expo's web target can't exercise real
+vault writes, so full interaction needs a real emulator, none available
+in this sandbox). See `docs/features/templates.md` for the full spec.
+
+**Next up: Spaced Repetition.** No spec exists yet — write one against the
+local-engine architecture (schema likely a `reviewState` per permanent
+note: last-reviewed date, an ease factor, a due date, something in the
+SM-2 family) before implementing, same process as the last two features.
 
 ### Daily Notes — shipped 2026-09-22
 

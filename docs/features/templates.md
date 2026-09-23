@@ -136,15 +136,15 @@ expanded content when present.
   shared engine's own test suite, same reasoning as Daily Notes' mobile
   verification).
 
-## Where this left off
+## Status: shipped 2026-09-23
 
-Not started as of 2026-09-23 (spec rewrite only). Next concrete step:
-`packages/local-engine/src/types.ts` — add the `Template` interface, then
-`template-file.ts`'s parse/serialize pair (copy `note-file.ts`'s structure),
-then `vault.ts`'s five new functions plus the one-line change to
-`getOrCreateDailyNote`, then their unit tests — in that order, matching
-exactly how Daily Notes was built (see that feature's commit history:
-vault-engine layer first, fully tested, before any UI).
+Implemented as specced above, with `applyTemplate` ending up in `vault.ts`
+as a sixth function (not five — the spec's own function list already named
+it, this just corrects the earlier count in this note). See
+`docs/ROADMAP.md`'s status table for verification details (126 unit tests,
+18 desktop e2e tests, mobile typecheck + visual smoke test), and its
+Templates entry for the one real bug this surfaced (desktop's `NoteEditor`
+needing a remount key bump to reflect an externally-applied template).
 
 ## Open questions (resolved defaults, revisit if wrong)
 

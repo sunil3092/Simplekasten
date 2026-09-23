@@ -43,6 +43,7 @@ export default function NoteScreen() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingRef = useRef<{ title: string; content: string; type: NoteType } | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [templates, setTemplates] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     // A deep link to a deleted note resolves to null — leave `note` null so
@@ -55,7 +56,29 @@ export default function NoteScreen() {
       setType(detail.type);
       setStatus("saved");
     });
+    vault.listTemplates().then(setTemplates).catch(() => {});
   }, [id]);
+
+  // Templates are authored on desktop — mobile is a consumer, so an action
+  // sheet of names is enough; no editor is needed here.
+  function applyTemplateSheet() {
+    if (templates.length === 0) return;
+    Alert.alert(
+      "Insert template",
+      undefined,
+      [
+        ...templates.map((t) => ({
+          text: t.name,
+          onPress: async () => {
+            const updated = await vault.applyTemplate({ noteId: id, templateId: t.id });
+            setNote(updated);
+            setContent(updated.content);
+          },
+        })),
+        { text: "Cancel", style: "cancel" as const },
+      ],
+    );
+  }
 
   // Coming back to this screen (from a linked note, or the graph) can find
   // its links stale — a note it pointed at may have just been created — so
@@ -117,16 +140,18 @@ export default function NoteScreen() {
   useEffect(() => {
     navigation.setOptions({
       title: title || COPY.titlePlaceholder,
-      headerRight: () =>
-        note?.type === "daily" ? (
-          <View style={{ flexDirection: "row", gap: 4 }}>
-            <IconButton icon="chevronLeft" label="Previous day" onPress={() => openDailyOffset(-1)} />
-            <IconButton icon="chevronRight" label="Next day" onPress={() => openDailyOffset(1)} />
-            <IconButton icon="trash" label="Delete note" onPress={confirmDelete} />
-          </View>
-        ) : (
+      headerRight: () => (
+        <View style={{ flexDirection: "row", gap: 4 }}>
+          {note?.type === "daily" && (
+            <>
+              <IconButton icon="chevronLeft" label="Previous day" onPress={() => openDailyOffset(-1)} />
+              <IconButton icon="chevronRight" label="Next day" onPress={() => openDailyOffset(1)} />
+            </>
+          )}
+          {templates.length > 0 && <IconButton icon="fileText" label="Insert template" onPress={applyTemplateSheet} />}
           <IconButton icon="trash" label="Delete note" onPress={confirmDelete} />
-        ),
+        </View>
+      ),
     });
   }); // re-bind every render so the delete handler sees the current title
 

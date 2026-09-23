@@ -13,6 +13,8 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
       { id: "b", zettelId: "2", title: "Systems", content: "See [[Atomic Habits]].", type: "permanent" },
     ];
     let nextNote = 1;
+    const templates: { id: string; name: string; content: string; isDefaultForDailyNote: boolean }[] = [];
+    let nextTemplate = 1;
     const stamp = "2026-09-21T00:00:00.000Z";
     // "Atomic Habits" starts with one photo and one voice note, as if they'd
     // been added on mobile. Files are served as data: URLs below.
@@ -81,6 +83,33 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
           attachments = attachments.filter((a) => a.id !== id);
         },
         attachmentUrl: (id: string) => (attachments.find((a) => a.id === id)?.kind === "voice" ? silence : photo),
+        listTemplates: async () => templates.slice().sort((a, b) => a.name.localeCompare(b.name)),
+        createTemplate: async (input: { name: string; content: string }) => {
+          const t = { id: `tpl${nextTemplate++}`, name: input.name, content: input.content, isDefaultForDailyNote: false };
+          templates.push(t);
+          return t;
+        },
+        updateTemplate: async (input: { id: string; name?: string; content?: string }) => {
+          const t = templates.find((x) => x.id === input.id)!;
+          if (input.name !== undefined) t.name = input.name;
+          if (input.content !== undefined) t.content = input.content;
+          return t;
+        },
+        deleteTemplate: async (id: string) => {
+          const idx = templates.findIndex((t) => t.id === id);
+          if (idx !== -1) templates.splice(idx, 1);
+        },
+        setDefaultForDailyNote: async (id: string) => {
+          for (const t of templates) t.isDefaultForDailyNote = t.id === id;
+          return templates.find((t) => t.id === id)!;
+        },
+        applyTemplate: async (input: { noteId: string; templateId: string }) => {
+          const note = notes.find((n) => n.id === input.noteId)!;
+          const template = templates.find((t) => t.id === input.templateId)!;
+          const expanded = template.content.replaceAll("{{title}}", note.title);
+          note.content = note.content ? `${note.content}\n\n${expanded}` : expanded;
+          return detail(note.id);
+        },
       },
     };
   }, settings);
