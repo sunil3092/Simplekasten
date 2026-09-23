@@ -67,9 +67,14 @@ file-based vault model (`packages/local-engine`) without a rewrite, and
 that compound with each other (daily notes want templates; templates want a
 command palette; a review queue wants nothing else new):
 
-1. **Daily Notes / Journal** — build first, spec at `docs/features/daily-notes.md` (rewritten 2026-09-22 for the local-engine architecture)
-2. **Note templates** — build second (daily notes become far more useful once they can auto-fill from a template), spec at `docs/features/templates.md` (**stale** — still describes the old Postgres/tRPC design; needs a rewrite against `local-engine` before implementation, same shape as the daily-notes.md rewrite)
-3. **Spaced repetition / review queue** — build third, needs its own spec doc against `local-engine` (not yet written)
+1. **Daily Notes / Journal** — ✅ shipped 2026-09-22, spec at `docs/features/daily-notes.md`
+2. **Note templates** — ✅ shipped 2026-09-23, spec at `docs/features/templates.md`
+3. **Spaced repetition / review queue** — ✅ shipped 2026-09-23, spec at `docs/features/spaced-repetition.md`
+
+All three are done. Next in line, per the gap analysis below: **#10
+Command palette** — cheap (Small effort) and compounds with everything
+just built (surfacing "new daily note," "insert template," "start review
+session" as palette actions, not just note search).
 
 Canvas, web clipper, PDF import, block transclusion, AI features, sync, and
 real-time collaboration are documented above as deliberately deferred —
@@ -85,9 +90,45 @@ in detail.
 |---|---|---|---|---|---|---|
 | Daily Notes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-22 |
 | Templates | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
-| Spaced repetition | ✅ (2026-09-23) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Spaced repetition | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
+
+### Spaced Repetition — shipped 2026-09-23
+
+A simplified SM-2 algorithm (`packages/local-engine/src/srs.ts`, four
+ratings: again/hard/good/easy instead of SM-2's 0-5 score) drives a review
+queue stored as four flat frontmatter fields on any note (`reviewDue`,
+`reviewEase`, `reviewInterval`, `reviewReps`), omitted as a group when a
+note isn't queued — same "omit when not applicable" convention `noteDate`
+and `attachmentIds` already follow. Any note can join the queue, not just
+`permanent` notes — restricting by type would be arbitrary since the queue
+is opt-in per note either way.
+
+Both apps get: a "Review" entry point with a due-count badge next to
+"Today", a full-screen (desktop) or pushed (mobile) review session
+presenting one due note at a time read-only with the four rating buttons
+and an "all caught up" end state, and a per-note header toggle to
+add/remove it from the queue.
+
+One deviation from the spec's original function signatures:
+`addToReviewQueue(fs, noteId, today)` takes `today` as a parameter rather
+than computing it — consistent with the client-local-date convention Daily
+Notes established (the engine has no timezone concept).
+
+146 unit tests total (67 in local-engine, up from 47) + 20 desktop e2e
+tests, all green; mobile confirmed via typecheck and the same visual-smoke
+process as Daily Notes and Templates (Expo's web target can't exercise
+real vault writes). See `docs/features/spaced-repetition.md` for the full
+spec and shipped-state notes.
+
+**All three planned features (Daily Notes, Templates, Spaced Repetition)
+are now shipped.** Next up per the gap analysis: **Command palette** (#10)
+is the cheapest remaining win and compounds with what's already
+built — a `Cmd/Ctrl+K`-adjacent action list (new daily note, toggle theme,
+open templates, jump into a review session, export) rather than only note
+search. No spec doc exists yet; write one against both apps' existing
+QuickSwitcher-equivalents before implementing.
 
 ### Templates — shipped 2026-09-23
 
@@ -114,10 +155,8 @@ platform limits as Daily Notes — Expo's web target can't exercise real
 vault writes, so full interaction needs a real emulator, none available
 in this sandbox). See `docs/features/templates.md` for the full spec.
 
-**Next up: Spaced Repetition.** No spec exists yet — write one against the
-local-engine architecture (schema likely a `reviewState` per permanent
-note: last-reviewed date, an ease factor, a due date, something in the
-SM-2 family) before implementing, same process as the last two features.
+**Next up (as of this writing): Spaced Repetition** — since shipped
+2026-09-23; see that section above for what it turned into.
 
 ### Daily Notes — shipped 2026-09-22
 
