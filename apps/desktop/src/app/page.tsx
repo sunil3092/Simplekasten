@@ -26,7 +26,7 @@ import {
 import { ReviewSession } from "../components/ReviewSession";
 import { TemplatesModal } from "../components/TemplatesModal";
 import { NoteEditor } from "../components/NoteEditor";
-import { QuickSwitcher } from "../components/QuickSwitcher";
+import { QuickSwitcher, type CommandItem } from "../components/QuickSwitcher";
 import { SettingsModal } from "../components/SettingsModal";
 import { Button, Chip, ConfirmDialog, IconButton, Kbd, NoteLink, SaveStatusIndicator, SectionHeading } from "../components/ui";
 import { badgeClasses, NOTE_TYPES, type NoteType } from "../lib/noteTypes";
@@ -440,6 +440,21 @@ function Vault() {
     await save({ id: next.id, title: next.title, content: next.content, type: next.type });
   }
 
+  // Every command here already exists as a handler above — this only makes
+  // it reachable by typing ">" into the same Cmd/Ctrl+K switcher. Recomputed
+  // each render (not memoized) so its closures never go stale, same as the
+  // inline handlers already passed to QuickSwitcher below.
+  const commands: CommandItem[] = [
+    { id: "new-note", icon: "plus", label: "New note", description: "Create a new fleeting note", run: () => createNote() },
+    { id: "today", icon: "calendar", label: "Today", description: "Open or create today's daily note", run: () => openDaily(todayLocal()) },
+    { id: "review", icon: "repeat", label: "Review", description: "Start a spaced-repetition review session", run: openReview },
+    { id: "templates", icon: "fileText", label: "Templates…", description: "Manage note templates", run: () => setTemplatesOpen(true) },
+    { id: "graph", icon: "network", label: "Graph view", description: "Visualize how notes link together", run: openGraph },
+    { id: "settings", icon: "settings", label: "Settings", description: "Theme and appearance settings", run: () => setSettingsOpen(true) },
+    { id: "choose-vault", icon: "download", label: "Choose vault folder…", description: "Switch to a different vault", run: chooseFolder },
+    { id: "show-vault", icon: "download", label: "Show vault location", description: "Reveal the vault's folder on disk", run: showVault },
+  ];
+
   return (
     <div className="flex h-screen bg-bg">
       <aside className="flex w-64 flex-none flex-col border-r-(length:--border-w) border-line bg-surface px-3.5 py-4">
@@ -769,6 +784,7 @@ function Vault() {
             createNote(title);
           }}
           onClose={() => setSwitcherOpen(false)}
+          commands={commands}
         />
       )}
 
