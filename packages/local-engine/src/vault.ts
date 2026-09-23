@@ -1,5 +1,6 @@
 import { extractHashtags, extractWikiLinkTitles } from "@simplekasten/core";
 import { parseNoteFile, serializeNoteFile } from "./note-file";
+import { addDays, nextReviewState, type ReviewRating } from "./srs";
 import { parseTemplateFile, serializeTemplateFile } from "./template-file";
 import type {
   Attachment,
@@ -147,6 +148,10 @@ export async function getNoteById(fs: FileSystemAdapter, id: string): Promise<No
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     noteDate: note.noteDate,
+    reviewDue: note.reviewDue,
+    reviewEase: note.reviewEase,
+    reviewInterval: note.reviewInterval,
+    reviewReps: note.reviewReps,
     tagNames,
     attachments: await listAttachments(fs, id),
     backlinks: links
@@ -183,6 +188,10 @@ export async function createNote(fs: FileSystemAdapter, input: CreateNoteInput):
     deletedAt: null,
     attachmentIds: [],
     noteDate: null,
+    reviewDue: null,
+    reviewEase: 2.5,
+    reviewInterval: 0,
+    reviewReps: 0,
   };
 
   await fs.ensureDir(NOTES_DIR);
@@ -239,6 +248,10 @@ export async function getOrCreateDailyNote(fs: FileSystemAdapter, date: string):
     updatedAt: now,
     deletedAt: null,
     attachmentIds: [],
+    reviewDue: null,
+    reviewEase: 2.5,
+    reviewInterval: 0,
+    reviewReps: 0,
   };
 
   await fs.ensureDir(NOTES_DIR);
@@ -558,4 +571,61 @@ export async function getAttachmentFilePath(fs: FileSystemAdapter, id: string): 
   const attachment = manifest[id];
   if (!attachment) throw new Error(`Attachment "${id}" not found`);
   return fs.resolvePath(`${ATTACHMENTS_DIR}/${attachmentFilename(attachment)}`);
+}
+
+// Any note can be added to the review queue — restricting by type (e.g.
+// permanent-only) would be arbitrary, since the queue is opt-in per note
+// either way. Due immediately (today) so a freshly-added note shows up in
+// the very next review session rather than waiting.
+export async function addToReviewQueue(fs: FileSystemAdapter, noteId: string, today: string): Promise<VaultNote> {
+  const notes = await loadAllNotes(fs);
+  const note = notes.find((n) => n.id === noteId && !n.deletedAt);
+  if (!note) throw new Error(`Note "${noteId}" not found`);
+
+  const updated: VaultNote = { ...note, reviewDue: today, reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 };
+  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  return updated;
+}
+
+// Resets to the "never reviewed" defaults — re-adding later starts fresh,
+// not from wherever progress left off. Simplest correct behavior for v1.
+export async function removeFromReviewQueue(fs: FileSystemAdapter, noteId: string): Promise<VaultNote> {
+  const notes = await loadAllNotes(fs);
+  const note = notes.find((n) => n.id === noteId && !n.deletedAt);
+  if (!note) throw new Error(`Note "${noteId}" not found`);
+
+  const updated: VaultNote = { ...note, reviewDue: null, reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 };
+  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  return updated;
+}
+
+export async function listDueForReview(fs: FileSystemAdapter, date: string): Promise<NoteListItem[]> {
+  const notes = (await loadAllNotes(fs)).filter((n) => !n.deletedAt && n.reviewDue !== null && n.reviewDue <= date);
+  return notes
+    .slice()
+    .sort((a, b) => (a.reviewDue as string).localeCompare(b.reviewDue as string))
+    .map(({ id, zettelId, title, type, updatedAt }) => ({ id, zettelId, title, type, updatedAt }));
+}
+
+export interface SubmitReviewInput {
+  noteId: string;
+  rating: ReviewRating;
+  today: string;
+}
+
+export async function submitReview(fs: FileSystemAdapter, input: SubmitReviewInput): Promise<VaultNote> {
+  const notes = await loadAllNotes(fs);
+  const note = notes.find((n) => n.id === input.noteId && !n.deletedAt);
+  if (!note) throw new Error(`Note "${input.noteId}" not found`);
+
+  const next = nextReviewState({ ease: note.reviewEase, interval: note.reviewInterval, reps: note.reviewReps }, input.rating);
+  const updated: VaultNote = {
+    ...note,
+    reviewEase: next.ease,
+    reviewInterval: next.interval,
+    reviewReps: next.reps,
+    reviewDue: addDays(input.today, next.interval),
+  };
+  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  return updated;
 }

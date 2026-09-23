@@ -21,6 +21,10 @@ import {
   listTemplates,
   setDefaultForDailyNote,
   updateTemplate,
+  addToReviewQueue,
+  listDueForReview,
+  removeFromReviewQueue,
+  submitReview,
 } from "./vault";
 
 describe("vault engine", () => {
@@ -377,6 +381,75 @@ describe("attachments", () => {
 
       const daily = await getOrCreateDailyNote(fs, "2026-09-23");
       expect(daily.content).toBe("");
+    });
+  });
+
+  describe("review queue", () => {
+    it("adds a note to the queue due immediately, with fresh SM-2 defaults", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "" });
+
+      const updated = await addToReviewQueue(fs, note.id, "2026-09-23");
+      expect(updated.reviewDue).toBe("2026-09-23");
+      expect(updated.reviewEase).toBe(2.5);
+      expect(updated.reviewInterval).toBe(0);
+      expect(updated.reviewReps).toBe(0);
+    });
+
+    it("throws adding a note that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(addToReviewQueue(fs, "nope", "2026-09-23")).rejects.toThrow(/not found/);
+    });
+
+    it("removes a note from the queue, resetting to the never-reviewed defaults", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "" });
+      await addToReviewQueue(fs, note.id, "2026-09-23");
+      await submitReview(fs, { noteId: note.id, rating: "good", today: "2026-09-23" });
+
+      const removed = await removeFromReviewQueue(fs, note.id);
+      expect(removed).toMatchObject({ reviewDue: null, reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 });
+    });
+
+    it("lists only notes due on or before the given date, oldest-due-first, excluding notes not in the queue", async () => {
+      const fs = createMemoryFs();
+      await createNote(fs, { title: "Not in queue", content: "" });
+      const dueToday = await createNote(fs, { title: "Due today", content: "" });
+      const overdue = await createNote(fs, { title: "Overdue", content: "" });
+      const dueTomorrow = await createNote(fs, { title: "Due tomorrow", content: "" });
+
+      await addToReviewQueue(fs, dueToday.id, "2026-09-23");
+      await addToReviewQueue(fs, overdue.id, "2026-09-20");
+      await addToReviewQueue(fs, dueTomorrow.id, "2026-09-24");
+
+      const due = await listDueForReview(fs, "2026-09-23");
+      expect(due.map((n) => n.id)).toEqual([overdue.id, dueToday.id]);
+    });
+
+    it("excludes a deleted note from the due list even if it was in the queue", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Gone", content: "" });
+      await addToReviewQueue(fs, note.id, "2026-09-23");
+      await deleteNote(fs, note.id);
+
+      expect(await listDueForReview(fs, "2026-09-23")).toEqual([]);
+    });
+
+    it("submitReview advances ease/interval/reps via the SM-2 algorithm and sets the next due date", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "" });
+      await addToReviewQueue(fs, note.id, "2026-09-23");
+
+      const first = await submitReview(fs, { noteId: note.id, rating: "good", today: "2026-09-23" });
+      expect(first).toMatchObject({ reviewEase: 2.5, reviewInterval: 1, reviewReps: 1, reviewDue: "2026-09-24" });
+
+      const second = await submitReview(fs, { noteId: note.id, rating: "good", today: "2026-09-24" });
+      expect(second).toMatchObject({ reviewEase: 2.5, reviewInterval: 6, reviewReps: 2, reviewDue: "2026-09-30" });
+    });
+
+    it("throws submitting a review for a note that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(submitReview(fs, { noteId: "nope", rating: "good", today: "2026-09-23" })).rejects.toThrow(/not found/);
     });
   });
 });

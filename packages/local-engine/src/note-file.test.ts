@@ -15,6 +15,10 @@ describe("note-file frontmatter round-trip", () => {
       deletedAt: null,
       attachmentIds: [],
       noteDate: null,
+      reviewDue: null,
+      reviewEase: 2.5,
+      reviewInterval: 0,
+      reviewReps: 0,
     };
 
     const raw = serializeNoteFile(note);
@@ -35,6 +39,10 @@ describe("note-file frontmatter round-trip", () => {
       deletedAt: "2026-01-03T00:00:00.000Z",
       attachmentIds: [],
       noteDate: null,
+      reviewDue: null,
+      reviewEase: 2.5,
+      reviewInterval: 0,
+      reviewReps: 0,
     };
 
     const parsed = parseNoteFile(serializeNoteFile(note), note.id);
@@ -53,6 +61,10 @@ describe("note-file frontmatter round-trip", () => {
       deletedAt: null,
       attachmentIds: ["a1", "a2"],
       noteDate: null,
+      reviewDue: null,
+      reviewEase: 2.5,
+      reviewInterval: 0,
+      reviewReps: 0,
     };
 
     const raw = serializeNoteFile(withAttachments);
@@ -77,6 +89,10 @@ describe("note-file frontmatter round-trip", () => {
       deletedAt: null,
       attachmentIds: [],
       noteDate: "2026-09-22",
+      reviewDue: null,
+      reviewEase: 2.5,
+      reviewInterval: 0,
+      reviewReps: 0,
     };
 
     const raw = serializeNoteFile(daily);
@@ -87,6 +103,44 @@ describe("note-file frontmatter round-trip", () => {
     const rawOrdinary = serializeNoteFile(ordinary);
     expect(rawOrdinary).not.toContain("noteDate");
     expect(parseNoteFile(rawOrdinary, ordinary.id)).toEqual(ordinary);
+  });
+
+  it("round-trips review-queue fields as a group, omitting all four when not in the queue", () => {
+    const inQueue: VaultNote = {
+      id: "rev1",
+      zettelId: "5",
+      title: "Atomicity",
+      type: "permanent",
+      content: "body",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      deletedAt: null,
+      attachmentIds: [],
+      noteDate: null,
+      reviewDue: "2026-09-30",
+      reviewEase: 2.65,
+      reviewInterval: 6,
+      reviewReps: 2,
+    };
+
+    const raw = serializeNoteFile(inQueue);
+    expect(raw).toContain("reviewDue");
+    expect(parseNoteFile(raw, inQueue.id)).toEqual(inQueue);
+
+    const notInQueue: VaultNote = { ...inQueue, id: "rev2", reviewDue: null };
+    const rawNotInQueue = serializeNoteFile(notInQueue);
+    expect(rawNotInQueue).not.toContain("reviewDue");
+    expect(rawNotInQueue).not.toContain("reviewEase");
+    expect(rawNotInQueue).not.toContain("reviewInterval");
+    expect(rawNotInQueue).not.toContain("reviewReps");
+    // Parsing back a file with no review fields at all falls back to the
+    // "never reviewed" defaults, not whatever notInQueue happened to carry.
+    expect(parseNoteFile(rawNotInQueue, notInQueue.id)).toEqual({
+      ...notInQueue,
+      reviewEase: 2.5,
+      reviewInterval: 0,
+      reviewReps: 0,
+    });
   });
 
   it("throws when a file has no frontmatter block", () => {
