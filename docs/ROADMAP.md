@@ -49,7 +49,7 @@ behavioural parity.
 | 1 | **Daily Notes / Journal** | Roam, Logseq, Obsidian, Tana — the primary capture surface in nearly every modern PKM app | Very high — fleeting-note capture currently has no "just open the app and write" entry point | Small |
 | 2 | **Note templates** | Roam, Obsidian, Notion, RemNote | High — daily notes and literature notes benefit enormously from a starting structure | Small–Medium |
 | 3 | **Spaced repetition / review queue** | Obsidian (most-installed plugin category), RemNote (native), Anki-adjacent | High — already called out as a nice-to-have in `DEVELOPMENT_PLAN.md`; is the actual point of a slip-box (resurfacing permanent notes) | Medium |
-| 4 | **Visual canvas / whiteboard** | Heptabase (signature feature), Obsidian Canvas, Tana | Medium-high — spatial arrangement complements but doesn't replace graph view | Large |
+| 4 | ~~Visual canvas / whiteboard~~ | Heptabase (signature feature), Obsidian Canvas, Tana | **Done** — see below | — |
 | 5 | **Web clipper** | Evernote, Notion, Obsidian (via plugin) | Medium — big value for literature notes, but needs a browser extension, a new surface this monorepo doesn't have | Large |
 | 6 | **PDF import + annotation** | Obsidian, Notion, Evernote | Medium — literature-note workflow staple | Large |
 | 7 | **Block-level references/transclusion** | Roam (best-in-class), Logseq, Tana | Medium — powerful but a fundamental data-model change (block-based vs. document-based notes); high risk to bolt onto the current whole-document `Note` model | Very large |
@@ -72,19 +72,24 @@ command palette; a review queue wants nothing else new):
 3. **Spaced repetition / review queue** — ✅ shipped 2026-09-23, spec at `docs/features/spaced-repetition.md`
 4. **Command palette** — ✅ shipped 2026-09-23, spec at `docs/features/command-palette.md`
 5. **Version history / diffing** — ✅ shipped 2026-09-25, spec at `docs/features/version-history.md`
+6. **Visual canvas / whiteboard** — ✅ shipped 2026-09-25, spec at `docs/features/canvas.md`
 
-All five are done — everything picked out in this section at the start of
-this build-out is now shipped.
+All six are done. Canvas was the last item that fit the local file-based
+vault model without a rewrite or an external decision — picked over the
+web clipper (needs a whole new browser-extension surface) and block
+transclusion (risks the core note data model) for that reason.
 
-Every remaining gap-analysis row is either Large/Very-large effort (Canvas,
-web clipper, PDF import, block transclusion, real-time collaboration) or
+Every remaining gap-analysis row is either Large/Very-large effort (web
+clipper, PDF import, block transclusion, real-time collaboration) or
 explicitly needs a product/infra decision from the user before it's worth
 speccing in detail (an LLM API budget/key for AI features; a sync-transport
 decision for cross-device sync, which the dormant `apps/api`/`packages/db`
-are reserved for). There is no more "cheap, no-decision-needed" item left
-in the backlog — the next step is either picking one of these up as a
-deliberate multi-session project, or getting the user's steer on which
-external decision to make first.
+are reserved for). Of the decision-free remaining items, **PDF import +
+annotation** is the least risky to the existing data model (attachments
+already exist as a concept; a PDF is just a richer attachment type with
+per-page annotation data alongside it) if this build-out continues — the
+web clipper and block transclusion both carry structural risk the others
+don't.
 
 ## Status
 
@@ -95,8 +100,35 @@ external decision to make first.
 | Spaced repetition | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Command palette | ✅ | n/a (UI-only) | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Version history | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-25 |
+| Canvas | ✅ | ✅ | ✅ | ✅ (view-only) | ✅ | ✅ 2026-09-25 |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
+
+### Canvas — shipped 2026-09-25
+
+A corkboard, not a diagramming tool: freely positioned, resizable note
+cards (reference an existing note) and text cards (freeform scratch
+text), no connecting lines in v1. Stored as plain JSON
+(`canvases/<id>.json`) rather than a note file, since a canvas's content
+is structured card data, not markdown — same "non-markdown vault data is
+just a JSON file" convention `packages/themes` already used for installed
+themes. Desktop authors (a hand-rolled pannable/zoomable surface with
+drag/resize/create); mobile views (pan/pinch-zoom, tap a note card to
+open it, no editing) — the same authoring-vs-consuming split Templates
+established.
+
+183 unit tests total (100 in local-engine, up from 87) + 30 desktop e2e
+tests, all green; mobile confirmed via typecheck and a visual smoke test.
+See `docs/features/canvas.md` for the full spec and shipped-state notes.
+
+**This is the sixth and last feature that fit the local-first vault
+without a rewrite or an external decision.** Everything left in the gap
+analysis is either Large-effort with real structural risk (web clipper
+needs a new browser-extension surface; block transclusion risks the core
+note data model) or needs a product decision from the user first (an LLM
+API key for AI features; a sync-transport choice for cross-device sync).
+**PDF import + annotation** is the next-least-risky candidate if this
+continues, since attachments already exist as a concept to extend.
 
 ### Version History — shipped 2026-09-25
 

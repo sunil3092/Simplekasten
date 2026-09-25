@@ -1,6 +1,6 @@
 # Feature: Visual Canvas / Whiteboard
 
-**Status:** spec complete, ready to implement.
+**Status:** shipped 2026-09-25.
 **Why:** gap analysis item #4. Heptabase's signature feature, and Obsidian
 and Tana both ship one — spatial arrangement of notes complements graph
 view (which lays notes out by an algorithm) with a place the user
@@ -162,8 +162,41 @@ speculatively now.
 
 ## Where this left off
 
-Not started as of 2026-09-25 (spec only). Next concrete step:
-`packages/local-engine/src/canvas-file.ts`'s parse/serialize and its
-round-trip tests, then `canvas.ts`'s CRUD functions with `vault.test.ts`-style
-coverage, before either UI touches it — same "engine and its tests first"
-order every prior feature here followed.
+Shipped 2026-09-25, implemented close to spec with one structural
+deviation:
+
+- **local-engine**: `canvas-file.ts` (JSON parse/serialize, 5 round-trip
+  tests) and the CRUD functions — deviation from the spec's sketch: the
+  domain types (`CanvasData`/`CanvasCard`/`CanvasListItem`/
+  `CreateCanvasInput`/`UpdateCanvasInput`) live in `types.ts` (matching
+  where `Template`'s type already lives) rather than in `canvas-file.ts`,
+  and the CRUD functions themselves live in the single `vault.ts` module
+  rather than a separate `canvas.ts` — that's the actual codebase
+  convention every other entity (templates, attachments, review queue,
+  history) already follows, despite the spec's original sketch suggesting
+  a split file. 8 new tests cover create/list-ordering/get/wholesale-card-
+  replacement/partial-update/delete/not-found.
+- **Desktop**: `CanvasView.tsx` — a full-screen, hand-rolled pannable/
+  zoomable corkboard (mouse-event pan/zoom, drag-by-header cards, a
+  corner resize handle), a sidebar "Canvases" section, and "New canvas…"
+  using `window.prompt` for the title (same pragmatic native-dialog
+  precedent `showVaultLocation` already set, rather than building a modal
+  just for one text field). No connecting lines, per the v1 scope
+  decision. `canvas.e2e.ts` covers create/add-both-card-kinds/persist-on-
+  reopen/open-note-from-card/remove-card. 30 desktop e2e specs total, all
+  green. A screenshot confirmed drag actually repositions a card visually,
+  not just in the data.
+- **Mobile**: view-only exactly as specced — `listCanvases`/`getCanvas`
+  only (no create/update), a "Canvases" command palette entry, a list
+  screen, and `canvas/[id].tsx` reusing `(tabs)/graph.tsx`'s hand-rolled
+  pan/pinch-zoom `PanResponder` code, adapted from circular node hit-
+  testing to rectangular card hit-testing. Verified via `tsc` (clean) and
+  a visual smoke test — the command entry and the (empty, since canvases
+  live in an `expo-file-system` write mobile's web target can't perform)
+  list screen both render correctly, the list screen's own `.catch()`
+  degrading gracefully instead of crashing like some earlier mobile
+  screens (`review.tsx`) do on this platform limitation.
+
+Full-suite final check: 183 unit tests (desktop 32, core 19, local-engine
+100, themes 32) + 30 desktop e2e tests, all green; `tsc --noEmit` clean
+across all five workspaces.
