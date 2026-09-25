@@ -28,6 +28,11 @@ import {
   listNoteVersions,
   getNoteVersion,
   restoreNoteVersion,
+  listCanvases,
+  createCanvas,
+  getCanvas,
+  updateCanvas,
+  deleteCanvas,
 } from "./vault";
 
 describe("vault engine", () => {
@@ -571,6 +576,69 @@ describe("attachments", () => {
     it("throws restoring a version for a note that doesn't exist", async () => {
       const fs = createMemoryFs();
       await expect(restoreNoteVersion(fs, "nope", "v1")).rejects.toThrow(/not found/);
+    });
+  });
+
+  describe("canvas", () => {
+    it("creates a canvas with no cards", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Project layout" });
+      expect(canvas).toMatchObject({ title: "Project layout", cards: [] });
+    });
+
+    it("lists canvases newest-updated-first", async () => {
+      const fs = createMemoryFs();
+      const a = await createCanvas(fs, { title: "A" });
+      const b = await createCanvas(fs, { title: "B" });
+      await updateCanvas(fs, { id: a.id, title: "A (touched)" });
+
+      const list = await listCanvases(fs);
+      expect(list.map((c) => c.id)).toEqual([a.id, b.id]);
+    });
+
+    it("gets a canvas by id", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Project layout" });
+      expect(await getCanvas(fs, canvas.id)).toEqual(canvas);
+    });
+
+    it("replaces cards wholesale on update", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Project layout" });
+      const cards = [
+        { id: "card1", kind: "note" as const, noteId: "n1", x: 0, y: 0, width: 200, height: 120 },
+        { id: "card2", kind: "text" as const, text: "Scratch thought", x: 250, y: 0, width: 180, height: 100 },
+      ];
+
+      const updated = await updateCanvas(fs, { id: canvas.id, cards });
+      expect(updated.cards).toEqual(cards);
+
+      const reloaded = await getCanvas(fs, canvas.id);
+      expect(reloaded.cards).toEqual(cards);
+    });
+
+    it("updates only the given fields, leaving others untouched", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Original" });
+      const renamed = await updateCanvas(fs, { id: canvas.id, title: "Renamed" });
+      expect(renamed).toMatchObject({ title: "Renamed", cards: [] });
+    });
+
+    it("deletes a canvas", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Temporary" });
+      await deleteCanvas(fs, canvas.id);
+      expect(await listCanvases(fs)).toEqual([]);
+    });
+
+    it("throws deleting a canvas that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(deleteCanvas(fs, "nope")).rejects.toThrow(/not found/);
+    });
+
+    it("throws getting a canvas that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(getCanvas(fs, "nope")).rejects.toThrow();
     });
   });
 });

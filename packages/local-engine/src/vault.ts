@@ -1,10 +1,14 @@
 import { extractHashtags, extractWikiLinkTitles } from "@simplekasten/core";
+import { parseCanvasFile, serializeCanvasFile } from "./canvas-file";
 import { parseHistorySnapshot, serializeHistorySnapshot, type HistorySnapshot } from "./history-file";
 import { parseNoteFile, serializeNoteFile } from "./note-file";
 import { addDays, nextReviewState, type ReviewRating } from "./srs";
 import { parseTemplateFile, serializeTemplateFile } from "./template-file";
 import type {
   Attachment,
+  CanvasData,
+  CanvasListItem,
+  CreateCanvasInput,
   CreateNoteInput,
   CreateTemplateInput,
   FileSystemAdapter,
@@ -15,6 +19,7 @@ import type {
   SearchResultItem,
   TagItem,
   Template,
+  UpdateCanvasInput,
   UpdateNoteInput,
   UpdateTemplateInput,
   VaultNote,
@@ -22,6 +27,7 @@ import type {
 
 const NOTES_DIR = "notes";
 const TEMPLATES_DIR = "templates";
+const CANVASES_DIR = "canvases";
 const HISTORY_DIR = ".history";
 // One snapshot per this many milliseconds of active editing, not one per
 // autosave tick — see version-history.md's "Scope decision" for why.
@@ -705,4 +711,63 @@ export async function restoreNoteVersion(fs: FileSystemAdapter, noteId: string, 
   const updated: VaultNote = { ...existing, title: target.title, content: target.content, updatedAt: new Date().toISOString() };
   await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
   return updated;
+}
+
+function canvasFilePath(id: string): string {
+  return `${CANVASES_DIR}/${id}.json`;
+}
+
+async function loadAllCanvases(fs: FileSystemAdapter): Promise<CanvasData[]> {
+  await fs.ensureDir(CANVASES_DIR);
+  const files = await fs.listFiles(CANVASES_DIR);
+  const canvases: CanvasData[] = [];
+  for (const file of files) {
+    if (!file.endsWith(".json")) continue;
+    const id = file.slice(0, -5);
+    const raw = await fs.readFile(canvasFilePath(id));
+    canvases.push(parseCanvasFile(raw, id));
+  }
+  return canvases;
+}
+
+export async function listCanvases(fs: FileSystemAdapter): Promise<CanvasListItem[]> {
+  const canvases = await loadAllCanvases(fs);
+  return canvases
+    .slice()
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .map(({ id, title, updatedAt }) => ({ id, title, updatedAt }));
+}
+
+export async function createCanvas(fs: FileSystemAdapter, input: CreateCanvasInput): Promise<CanvasData> {
+  const now = new Date().toISOString();
+  const canvas: CanvasData = { id: generateId(), title: input.title, cards: [], createdAt: now, updatedAt: now };
+  await fs.ensureDir(CANVASES_DIR);
+  await fs.writeFile(canvasFilePath(canvas.id), serializeCanvasFile(canvas));
+  return canvas;
+}
+
+export async function getCanvas(fs: FileSystemAdapter, id: string): Promise<CanvasData> {
+  const raw = await fs.readFile(canvasFilePath(id));
+  return parseCanvasFile(raw, id);
+}
+
+// cards is replaced wholesale, not diffed/merged — same "the debounced save
+// writes the full current state" model note content already uses; a
+// canvas is small enough that this is never a real cost.
+export async function updateCanvas(fs: FileSystemAdapter, input: UpdateCanvasInput): Promise<CanvasData> {
+  const existing = await getCanvas(fs, input.id);
+  const updated: CanvasData = {
+    ...existing,
+    title: input.title ?? existing.title,
+    cards: input.cards ?? existing.cards,
+    updatedAt: new Date().toISOString(),
+  };
+  await fs.writeFile(canvasFilePath(updated.id), serializeCanvasFile(updated));
+  return updated;
+}
+
+export async function deleteCanvas(fs: FileSystemAdapter, id: string): Promise<void> {
+  const canvases = await loadAllCanvases(fs);
+  if (!canvases.some((c) => c.id === id)) throw new Error(`Canvas "${id}" not found`);
+  await fs.deleteFile(canvasFilePath(id));
 }

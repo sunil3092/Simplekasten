@@ -162,3 +162,49 @@ export interface UpdateTemplateInput {
   name?: string;
   content?: string;
 }
+
+export interface CanvasNodeCard {
+  id: string;
+  kind: "note";
+  noteId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface CanvasTextCard {
+  id: string;
+  kind: "text";
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type CanvasCard = CanvasNodeCard | CanvasTextCard;
+
+export interface CanvasData {
+  id: string;
+  title: string;
+  cards: CanvasCard[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CanvasListItem {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+export interface CreateCanvasInput {
+  title: string;
+}
+
+export interface UpdateCanvasInput {
+  id: string;
+  title?: string;
+  cards?: CanvasCard[];
+}
