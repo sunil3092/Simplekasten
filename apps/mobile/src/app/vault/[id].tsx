@@ -166,6 +166,7 @@ export default function NoteScreen() {
             color={note?.reviewDue ? colors.accentInk : undefined}
             onPress={toggleReviewQueue}
           />
+          <IconButton icon="history" label="Version history" onPress={() => router.push({ pathname: "/history", params: { noteId: id } })} />
           <IconButton icon="trash" label="Delete note" onPress={confirmDelete} />
         </View>
       ),
