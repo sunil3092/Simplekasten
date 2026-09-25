@@ -1,4 +1,5 @@
 import { extractHashtags, extractWikiLinkTitles } from "@simplekasten/core";
+import { parseHistorySnapshot, serializeHistorySnapshot, type HistorySnapshot } from "./history-file";
 import { parseNoteFile, serializeNoteFile } from "./note-file";
 import { addDays, nextReviewState, type ReviewRating } from "./srs";
 import { parseTemplateFile, serializeTemplateFile } from "./template-file";
@@ -21,6 +22,11 @@ import type {
 
 const NOTES_DIR = "notes";
 const TEMPLATES_DIR = "templates";
+const HISTORY_DIR = ".history";
+// One snapshot per this many milliseconds of active editing, not one per
+// autosave tick — see version-history.md's "Scope decision" for why.
+const SNAPSHOT_COALESCE_MS = 5 * 60 * 1000;
+const MAX_VERSIONS_PER_NOTE = 100;
 
 // Sentinel characters wrapped around matches in a search snippet.
 // QuickSwitcher's Snippet component splits on these to highlight them without
@@ -203,6 +209,14 @@ export async function updateNote(fs: FileSystemAdapter, input: UpdateNoteInput):
   const notes = await loadAllNotes(fs);
   const existing = notes.find((n) => n.id === input.id && !n.deletedAt);
   if (!existing) throw new Error(`Note "${input.id}" not found`);
+
+  const contentChanged = input.content !== undefined && input.content !== existing.content;
+  if (contentChanged) {
+    const versions = await listNoteVersions(fs, existing.id);
+    const last = versions[0];
+    const dueForSnapshot = !last || Date.now() - Date.parse(last.createdAt) > SNAPSHOT_COALESCE_MS;
+    if (dueForSnapshot) await writeSnapshot(fs, existing.id, { title: existing.title, content: existing.content });
+  }
 
   const updated: VaultNote = {
     ...existing,
@@ -626,6 +640,69 @@ export async function submitReview(fs: FileSystemAdapter, input: SubmitReviewInp
     reviewReps: next.reps,
     reviewDue: addDays(input.today, next.interval),
   };
+  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  return updated;
+}
+
+function historyDir(noteId: string): string {
+  return `${HISTORY_DIR}/${noteId}`;
+}
+
+function historyFilePath(noteId: string, versionId: string): string {
+  return `${historyDir(noteId)}/${versionId}.md`;
+}
+
+export interface NoteVersion {
+  id: string;
+  createdAt: string;
+  title: string;
+}
+
+export async function listNoteVersions(fs: FileSystemAdapter, noteId: string): Promise<NoteVersion[]> {
+  await fs.ensureDir(historyDir(noteId));
+  const files = await fs.listFiles(historyDir(noteId));
+  const versions: NoteVersion[] = [];
+  for (const file of files) {
+    if (!file.endsWith(".md")) continue;
+    const id = file.slice(0, -3);
+    const snapshot = parseHistorySnapshot(await fs.readFile(historyFilePath(noteId, id)));
+    versions.push({ id, createdAt: snapshot.createdAt, title: snapshot.title });
+  }
+  // Newest first — versionId (generateId()'s base36 timestamp prefix) sorts
+  // lexically by creation time, but createdAt is the source of truth.
+  return versions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getNoteVersion(fs: FileSystemAdapter, noteId: string, versionId: string): Promise<HistorySnapshot> {
+  return parseHistorySnapshot(await fs.readFile(historyFilePath(noteId, versionId)));
+}
+
+async function writeSnapshot(fs: FileSystemAdapter, noteId: string, snapshot: { title: string; content: string }): Promise<void> {
+  await fs.ensureDir(historyDir(noteId));
+  const id = generateId();
+  await fs.writeFile(historyFilePath(noteId, id), serializeHistorySnapshot({ ...snapshot, createdAt: new Date().toISOString() }));
+
+  // Prune past the cap, oldest first — a safety bound against pathological
+  // cases, not a real-world limit under the 5-minute coalescing window.
+  const versions = await listNoteVersions(fs, noteId);
+  for (const stale of versions.slice(MAX_VERSIONS_PER_NOTE)) {
+    await fs.deleteFile(historyFilePath(noteId, stale.id));
+  }
+}
+
+export async function restoreNoteVersion(fs: FileSystemAdapter, noteId: string, versionId: string): Promise<VaultNote> {
+  const notes = await loadAllNotes(fs);
+  const existing = notes.find((n) => n.id === noteId && !n.deletedAt);
+  if (!existing) throw new Error(`Note "${noteId}" not found`);
+
+  const target = await getNoteVersion(fs, noteId, versionId);
+
+  // Restoring is a deliberate, infrequent action, not an autosave tick, so
+  // the 5-minute coalescing window doesn't apply — always snapshot the
+  // current state first, so restoring is itself reversible.
+  await writeSnapshot(fs, noteId, { title: existing.title, content: existing.content });
+
+  const updated: VaultNote = { ...existing, title: target.title, content: target.content, updatedAt: new Date().toISOString() };
   await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
   return updated;
 }

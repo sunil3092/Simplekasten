@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryFs } from "./memory-fs.test-helper";
 import {
   createNote,
@@ -25,6 +25,9 @@ import {
   listDueForReview,
   removeFromReviewQueue,
   submitReview,
+  listNoteVersions,
+  getNoteVersion,
+  restoreNoteVersion,
 } from "./vault";
 
 describe("vault engine", () => {
@@ -450,6 +453,124 @@ describe("attachments", () => {
     it("throws submitting a review for a note that doesn't exist", async () => {
       const fs = createMemoryFs();
       await expect(submitReview(fs, { noteId: "nope", rating: "good", today: "2026-09-23" })).rejects.toThrow(/not found/);
+    });
+  });
+
+  describe("version history", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-09-25T00:00:00.000Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("has no versions before any content-changing edit", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "first draft" });
+      expect(await listNoteVersions(fs, note.id)).toEqual([]);
+    });
+
+    it("snapshots the pre-edit content on the very first content-changing update", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "first draft" });
+
+      await updateNote(fs, { id: note.id, content: "second draft" });
+
+      const versions = await listNoteVersions(fs, note.id);
+      expect(versions).toHaveLength(1);
+      const snapshot = await getNoteVersion(fs, note.id, versions[0].id);
+      expect(snapshot).toMatchObject({ title: "Atomicity", content: "first draft" });
+    });
+
+    it("does not snapshot on a title-only edit", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "first draft" });
+
+      await updateNote(fs, { id: note.id, title: "Renamed" });
+
+      expect(await listNoteVersions(fs, note.id)).toEqual([]);
+    });
+
+    it("coalesces edits within 5 minutes into a single version", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "v1" });
+
+      await updateNote(fs, { id: note.id, content: "v2" });
+      vi.advanceTimersByTime(4 * 60 * 1000);
+      await updateNote(fs, { id: note.id, content: "v3" });
+
+      expect(await listNoteVersions(fs, note.id)).toHaveLength(1);
+    });
+
+    it("creates a new version once the 5-minute coalescing window has passed", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "v1" });
+
+      await updateNote(fs, { id: note.id, content: "v2" });
+      vi.advanceTimersByTime(6 * 60 * 1000);
+      await updateNote(fs, { id: note.id, content: "v3" });
+
+      expect(await listNoteVersions(fs, note.id)).toHaveLength(2);
+    });
+
+    it("lists versions newest-first", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "v1" });
+      await updateNote(fs, { id: note.id, content: "v2" });
+      vi.advanceTimersByTime(6 * 60 * 1000);
+      await updateNote(fs, { id: note.id, content: "v3" });
+      vi.advanceTimersByTime(6 * 60 * 1000);
+      await updateNote(fs, { id: note.id, content: "v4" });
+
+      const versions = await listNoteVersions(fs, note.id);
+      const contents = await Promise.all(versions.map((v) => getNoteVersion(fs, note.id, v.id)));
+      expect(contents.map((c) => c.content)).toEqual(["v3", "v2", "v1"]);
+    });
+
+    it("prunes versions past the 100-version cap, oldest first", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "v0" });
+
+      for (let i = 1; i <= 105; i++) {
+        vi.advanceTimersByTime(6 * 60 * 1000);
+        await updateNote(fs, { id: note.id, content: `v${i}` });
+      }
+
+      const versions = await listNoteVersions(fs, note.id);
+      expect(versions).toHaveLength(100);
+      const contents = await Promise.all(versions.map((v) => getNoteVersion(fs, note.id, v.id)));
+      // The oldest surviving snapshot is "v5" (v0..v4 pruned) — the newest
+      // snapshot is always the second-to-last edit, since a snapshot
+      // captures pre-edit content.
+      expect(contents.map((c) => c.content)).toContain("v5");
+      expect(contents.map((c) => c.content)).not.toContain("v0");
+    });
+
+    it("restoreNoteVersion restores the note's title and content, snapshotting the current state first", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "original" });
+      await updateNote(fs, { id: note.id, title: "Renamed", content: "edited" });
+
+      const [onlyVersion] = await listNoteVersions(fs, note.id);
+      // Advance the clock so the pre-restore snapshot below has a strictly
+      // later createdAt than the one just captured, making the newest-first
+      // ordering asserted below unambiguous.
+      vi.advanceTimersByTime(1000);
+      const restored = await restoreNoteVersion(fs, note.id, onlyVersion.id);
+
+      expect(restored).toMatchObject({ title: "Atomicity", content: "original" });
+
+      const versionsAfterRestore = await listNoteVersions(fs, note.id);
+      expect(versionsAfterRestore).toHaveLength(2);
+      const preRestoreSnapshot = await getNoteVersion(fs, note.id, versionsAfterRestore[0].id);
+      expect(preRestoreSnapshot).toMatchObject({ title: "Renamed", content: "edited" });
+    });
+
+    it("throws restoring a version for a note that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(restoreNoteVersion(fs, "nope", "v1")).rejects.toThrow(/not found/);
     });
   });
 });
