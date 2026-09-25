@@ -13,6 +13,7 @@ import {
   DownloadIcon,
   FileTextIcon,
   HashIcon,
+  HistoryIcon,
   LayersIcon,
   LinkIcon,
   NetworkIcon,
@@ -25,6 +26,7 @@ import {
 } from "../components/icons";
 import { ReviewSession } from "../components/ReviewSession";
 import { TemplatesModal } from "../components/TemplatesModal";
+import { VersionHistoryModal } from "../components/VersionHistoryModal";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher, type CommandItem } from "../components/QuickSwitcher";
 import { SettingsModal } from "../components/SettingsModal";
@@ -113,6 +115,7 @@ function Vault() {
   // only there, never on normal edits, which stay uncontrolled for cursor
   // stability.
   const [editorNonce, setEditorNonce] = useState(0);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const { notice: themeNotice } = useTheme();
@@ -688,6 +691,9 @@ function Vault() {
                   >
                     <RepeatIcon />
                   </IconButton>
+                  <IconButton aria-label="Version history" title="Version history" onClick={() => setHistoryOpen(true)}>
+                    <HistoryIcon />
+                  </IconButton>
                   <IconButton
                     aria-label="Attach a photo or audio file"
                     title="Attach a photo or audio file"
@@ -798,6 +804,23 @@ function Vault() {
           onUpdate={updateTemplateEntry}
           onDelete={deleteTemplateEntry}
           onSetDefaultForDailyNote={setDefaultTemplate}
+        />
+      )}
+
+      {historyOpen && selected && (
+        <VersionHistoryModal
+          noteId={selected.id}
+          currentContent={selected.content}
+          onClose={() => setHistoryOpen(false)}
+          onListVersions={(noteId) => vaultClient.listNoteVersions(noteId) as Promise<{ id: string; createdAt: string; title: string }[]>}
+          onGetVersion={(noteId, versionId) => vaultClient.getNoteVersion(noteId, versionId) as Promise<{ title: string; content: string }>}
+          onRestore={async (noteId, versionId) => {
+            await flushPending();
+            const restored = (await vaultClient.restoreNoteVersion(noteId, versionId)) as { id: string };
+            setSelected((await vaultClient.getNoteById(restored.id)) as NoteDetail);
+            setEditorNonce((n) => n + 1);
+            refreshNotes(activeTag);
+          }}
         />
       )}
 

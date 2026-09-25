@@ -26,6 +26,13 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
     let nextNote = 1;
     const templates: { id: string; name: string; content: string; isDefaultForDailyNote: boolean }[] = [];
     let nextTemplate = 1;
+    // "Atomic Habits" starts with one earlier version, as if it had been
+    // edited before — enough for specs to exercise the version list and
+    // diff view without simulating the real 5-minute coalescing window.
+    const versions: { id: string; noteId: string; title: string; content: string; createdAt: string }[] = [
+      { id: "ver1", noteId: "a", title: "Atomic Habits", content: "Small changes compound.\nStart tiny.", createdAt: "2026-09-20T12:00:00.000Z" },
+    ];
+    let nextVersion = 2;
     const stamp = "2026-09-21T00:00:00.000Z";
     // "Atomic Habits" starts with one photo and one voice note, as if they'd
     // been added on mobile. Files are served as data: URLs below.
@@ -168,6 +175,24 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
           note.reviewInterval = interval;
           note.reviewDue = addDays(input.today, interval);
           return detail(note.id);
+        },
+        listNoteVersions: async (noteId: string) =>
+          versions
+            .filter((v) => v.noteId === noteId)
+            .slice()
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .map(({ id, createdAt, title }) => ({ id, createdAt, title })),
+        getNoteVersion: async (noteId: string, versionId: string) => {
+          const v = versions.find((x) => x.noteId === noteId && x.id === versionId)!;
+          return { title: v.title, content: v.content, createdAt: v.createdAt };
+        },
+        restoreNoteVersion: async (noteId: string, versionId: string) => {
+          const note = notes.find((n) => n.id === noteId)!;
+          const target = versions.find((v) => v.noteId === noteId && v.id === versionId)!;
+          versions.push({ id: `ver${nextVersion++}`, noteId, title: note.title, content: note.content, createdAt: "2026-09-25T00:00:00.000Z" });
+          note.title = target.title;
+          note.content = target.content;
+          return detail(noteId);
         },
       },
     };

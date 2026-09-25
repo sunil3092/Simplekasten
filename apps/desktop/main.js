@@ -108,6 +108,9 @@ function registerIpcHandlers() {
   ipcMain.handle("vault:removeFromReviewQueue", (_event, noteId) => localEngine.removeFromReviewQueue(currentAdapter(), noteId));
   ipcMain.handle("vault:listDueForReview", (_event, date) => localEngine.listDueForReview(currentAdapter(), date));
   ipcMain.handle("vault:submitReview", (_event, input) => localEngine.submitReview(currentAdapter(), input));
+  ipcMain.handle("vault:listNoteVersions", (_event, noteId) => localEngine.listNoteVersions(currentAdapter(), noteId));
+  ipcMain.handle("vault:getNoteVersion", (_event, noteId, versionId) => localEngine.getNoteVersion(currentAdapter(), noteId, versionId));
+  ipcMain.handle("vault:restoreNoteVersion", (_event, noteId, versionId) => localEngine.restoreNoteVersion(currentAdapter(), noteId, versionId));
   ipcMain.handle("vault:getVaultPath", () => getVaultPath());
   ipcMain.handle("vault:addAttachment", async (_event, noteId) => {
     const result = await dialog.showOpenDialog({

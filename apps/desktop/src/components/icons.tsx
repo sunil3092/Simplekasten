@@ -50,3 +50,4 @@ export const ChevronLeftIcon = named("chevronLeft");
 export const ChevronRightIcon = named("chevronRight");
 export const RepeatIcon = named("repeat");
 export const CheckIcon = named("check");
+export const HistoryIcon = named("history");

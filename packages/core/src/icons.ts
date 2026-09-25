@@ -42,6 +42,7 @@ export const ICONS = {
   chevronRight: [path("M9 6l6 6-6 6")],
   repeat: [path("M17 2l4 4-4 4"), path("M3 11V9a4 4 0 014-4h14"), path("M7 22l-4-4 4-4"), path("M21 13v2a4 4 0 01-4 4H3")],
   check: [path("M20 6L9 17l-5-5")],
+  history: [path("M3 12a9 9 0 1 0 3-6.7"), path("M3 4v4h4"), path("M12 7v5l4 2")],
 } satisfies Record<string, IconShape[]>;
 
 export type IconName = keyof typeof ICONS;
