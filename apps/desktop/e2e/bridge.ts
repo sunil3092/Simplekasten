@@ -33,6 +33,14 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
       { id: "ver1", noteId: "a", title: "Atomic Habits", content: "Small changes compound.\nStart tiny.", createdAt: "2026-09-20T12:00:00.000Z" },
     ];
     let nextVersion = 2;
+    const canvases: {
+      id: string;
+      title: string;
+      cards: { id: string; kind: "note" | "text"; noteId?: string; text?: string; x: number; y: number; width: number; height: number }[];
+      createdAt: string;
+      updatedAt: string;
+    }[] = [];
+    let nextCanvas = 1;
     const stamp = "2026-09-21T00:00:00.000Z";
     // "Atomic Habits" starts with one photo and one voice note, as if they'd
     // been added on mobile. Files are served as data: URLs below.
@@ -193,6 +201,31 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
           note.title = target.title;
           note.content = target.content;
           return detail(noteId);
+        },
+        listCanvases: async () =>
+          canvases
+            .slice()
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+            .map(({ id, title, updatedAt }) => ({ id, title, updatedAt })),
+        createCanvas: async (input: { title: string }) => {
+          const canvas = { id: `canvas${nextCanvas++}`, title: input.title, cards: [], createdAt: stamp, updatedAt: stamp };
+          canvases.push(canvas);
+          return canvas;
+        },
+        getCanvas: async (id: string) => {
+          const canvas = canvases.find((c) => c.id === id)!;
+          return { title: canvas.title, cards: canvas.cards };
+        },
+        updateCanvas: async (input: { id: string; title?: string; cards?: typeof canvases[number]["cards"] }) => {
+          const canvas = canvases.find((c) => c.id === input.id)!;
+          if (input.title !== undefined) canvas.title = input.title;
+          if (input.cards !== undefined) canvas.cards = input.cards;
+          canvas.updatedAt = stamp;
+          return canvas;
+        },
+        deleteCanvas: async (id: string) => {
+          const idx = canvases.findIndex((c) => c.id === id);
+          if (idx !== -1) canvases.splice(idx, 1);
         },
       },
     };

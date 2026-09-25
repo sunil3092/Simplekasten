@@ -1,7 +1,7 @@
 "use client";
 
 import { COPY } from "@simplekasten/core";
-import type { ReviewRating } from "@simplekasten/local-engine";
+import type { CanvasCard, ReviewRating } from "@simplekasten/local-engine";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Attachments, type AttachmentItem } from "../components/Attachments";
 import { GraphView } from "../components/GraphView";
@@ -15,6 +15,7 @@ import {
   HashIcon,
   HistoryIcon,
   LayersIcon,
+  LayoutIcon,
   LinkIcon,
   NetworkIcon,
   PaperclipIcon,
@@ -24,6 +25,7 @@ import {
   SettingsIcon,
   TrashIcon,
 } from "../components/icons";
+import { CanvasView } from "../components/CanvasView";
 import { ReviewSession } from "../components/ReviewSession";
 import { TemplatesModal } from "../components/TemplatesModal";
 import { VersionHistoryModal } from "../components/VersionHistoryModal";
@@ -102,6 +104,8 @@ function Vault() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const [canvases, setCanvases] = useState<{ id: string; title: string; updatedAt: string }[]>([]);
+  const [openCanvasId, setOpenCanvasId] = useState<string | null>(null);
   const [dueCount, setDueCount] = useState(0);
   // Non-null while a review session is open; holds the due notes fetched at
   // session start so rating through the queue doesn't reshuffle mid-session
@@ -173,12 +177,17 @@ function Vault() {
     setDueCount(((await vaultClient.listDueForReview(todayLocal())) as NoteListItem[]).length);
   }
 
+  async function refreshCanvases() {
+    setCanvases((await vaultClient.listCanvases()) as { id: string; title: string; updatedAt: string }[]);
+  }
+
   useEffect(() => {
     refreshNotes(activeTag);
     refreshTags();
     refreshDailyNotes();
     refreshTemplates();
     refreshDueCount();
+    refreshCanvases();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -390,6 +399,23 @@ function Vault() {
     await showVaultLocation();
   }
 
+  async function createCanvas() {
+    const title = window.prompt("Canvas title", "Untitled canvas");
+    if (title === null) return;
+    const canvas = (await vaultClient.createCanvas({ title: title.trim() || "Untitled canvas" })) as { id: string };
+    await refreshCanvases();
+    setOpenCanvasId(canvas.id);
+  }
+
+  // Creates a note for a canvas card without navigating the main editor to
+  // it — createNote() below opens the note it makes, which would close the
+  // canvas the user is still working in.
+  async function createNoteForCanvas(title: string): Promise<{ id: string }> {
+    const note = (await vaultClient.createNote({ title, content: "", type: "fleeting" })) as { id: string };
+    await refreshNotes();
+    return note;
+  }
+
   async function createNote(title = "Untitled") {
     await flushPending();
     // createNote returns a VaultNote, not a NoteDetail — only .id is used here.
@@ -475,6 +501,10 @@ function Vault() {
               <FileTextIcon />
               Templates…
             </Button>
+            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={createCanvas}>
+              <LayoutIcon />
+              New canvas…
+            </Button>
           </div>
         </div>
 
@@ -552,6 +582,26 @@ function Vault() {
                     }`}
                   >
                     {n.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {canvases.length > 0 && (
+          <div className="mt-4">
+            <SectionHeading compact icon={<LayoutIcon />} className="mb-1.5">
+              Canvases
+            </SectionHeading>
+            <ul className="flex flex-col gap-1">
+              {canvases.map((c) => (
+                <li key={c.id}>
+                  <button
+                    onClick={() => setOpenCanvasId(c.id)}
+                    className="block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-2"
+                  >
+                    {c.title}
                   </button>
                 </li>
               ))}
@@ -854,6 +904,25 @@ function Vault() {
             openNote(id);
           }}
           onClose={() => setGraphData(null)}
+        />
+      )}
+
+      {openCanvasId && (
+        <CanvasView
+          canvasId={openCanvasId}
+          notes={notes}
+          onClose={() => {
+            setOpenCanvasId(null);
+            refreshCanvases();
+          }}
+          onOpenNote={(id) => {
+            setOpenCanvasId(null);
+            openNote(id);
+          }}
+          onLoad={(id) => vaultClient.getCanvas(id) as Promise<{ title: string; cards: CanvasCard[] }>}
+          onSave={(input) => vaultClient.updateCanvas(input) as Promise<void>}
+          onSearchNotes={(query) => vaultClient.search(query) as Promise<SearchResultItem[]>}
+          onCreateNote={createNoteForCanvas}
         />
       )}
     </div>
