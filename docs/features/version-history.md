@@ -1,6 +1,6 @@
 # Feature: Version History / Diffing
 
-**Status:** spec complete, ready to implement.
+**Status:** shipped 2026-09-25.
 **Why:** gap analysis item #8. Notion, Obsidian Sync, and Roam all offer
 some form of "what did this note look like an hour ago" recovery — the
 one safety net a plain-file, no-backend vault doesn't get for free the way
@@ -156,8 +156,38 @@ then prunes anything past the 100-version cap.
 
 ## Where this left off
 
-Not started as of 2026-09-25 (spec only). Next concrete step:
-`packages/local-engine/src/diff.ts` and its unit tests — same reasoning
-`srs.ts` followed for spaced repetition: the algorithm is the part most
-worth getting right in isolation before `history-file.ts` or any of
-`vault.ts`'s I/O touches it.
+Shipped 2026-09-25, implemented close to spec with one deviation:
+
+- **local-engine**: `diff.ts` (pure LCS line diff, 7 unit tests) and
+  `history-file.ts` (minimal snapshot format, 4 round-trip tests) came
+  first, then `vault.ts` gained `listNoteVersions`/`getNoteVersion`/
+  `restoreNoteVersion` plus the coalescing snapshot write inside
+  `updateNote`. Deviation from the original sketch: `HistorySnapshot` (and
+  its on-disk frontmatter) carries `createdAt` directly, rather than
+  encoding the timestamp in the version id and parsing it back out —
+  simpler and more explicit, and `versionId` just reuses the existing
+  `generateId()` helper instead of a bespoke format. 9 new tests cover the
+  5-minute coalescing window and 100-version cap (using
+  `vi.useFakeTimers()`), title-only edits not versioning, and
+  `restoreNoteVersion`'s always-snapshot-first behavior.
+- **Desktop**: IPC wired end-to-end, a `history` icon added, and
+  `VersionHistoryModal.tsx` built as a dialog (not a full-screen overlay —
+  looking up an old version is an occasional lookup) listing versions by
+  timestamp with `diffLines` rendered as coloured added/removed lines and
+  a confirm-gated restore. `e2e/bridge.ts` extended with version fixtures;
+  `version-history.e2e.ts` covers the diff view and a full restore
+  round-trip. 26 desktop e2e specs total, all green.
+- **Mobile**: `src/lib/vault.ts` gained the same three calls, the note
+  screen header got a matching `history` icon, and a new `app/history.tsx`
+  screen lists versions with a read-only content preview per version (no
+  diff view, matching Templates' precedent of mobile being a simpler
+  consumer) and a Restore action behind an `Alert.alert` confirmation.
+  Verified via `tsc` (clean); the screen's actual version list/restore
+  flow inherits the same `expo-file-system` web-target limitation every
+  note-touching mobile screen here has (`review.tsx` included) — real
+  interaction needs a device/emulator. The vault tab was re-screenshotted
+  to confirm no regression from adding the new route.
+
+Full-suite final check: 170 unit tests (desktop 32, core 19, local-engine
+87, themes 32) + 26 desktop e2e tests, all green; `tsc --noEmit` clean
+across all five workspaces.

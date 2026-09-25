@@ -53,7 +53,7 @@ behavioural parity.
 | 5 | **Web clipper** | Evernote, Notion, Obsidian (via plugin) | Medium — big value for literature notes, but needs a browser extension, a new surface this monorepo doesn't have | Large |
 | 6 | **PDF import + annotation** | Obsidian, Notion, Evernote | Medium — literature-note workflow staple | Large |
 | 7 | **Block-level references/transclusion** | Roam (best-in-class), Logseq, Tana | Medium — powerful but a fundamental data-model change (block-based vs. document-based notes); high risk to bolt onto the current whole-document `Note` model | Very large |
-| 8 | **Version history / diffing** | Notion, Obsidian Sync, Roam | Medium — already a nice-to-have in the plan | Medium |
+| 8 | ~~Version history / diffing~~ | Notion, Obsidian Sync, Roam | **Done** — see below | — |
 | 9 | **AI features** (related-notes suggestions, auto-tag, chat-over-vault) | Reflect, Tana, Notion AI, Capacities | Medium — real differentiator now, but needs an LLM API budget/key decision from the user first | Medium (once an API key exists) |
 | 10 | ~~Command palette~~ | Obsidian, Notion, Linear | **Done** — see below | — |
 | 11 | **Cross-device sync** (opt-in, on top of the now-local vault) | Obsidian Sync, iCloud/Dropbox-synced vaults | Medium — the dormant `apps/api`/`packages/db` are explicitly reserved for this; real product decision (which sync transport?) needed before speccing | Large |
@@ -71,19 +71,20 @@ command palette; a review queue wants nothing else new):
 2. **Note templates** — ✅ shipped 2026-09-23, spec at `docs/features/templates.md`
 3. **Spaced repetition / review queue** — ✅ shipped 2026-09-23, spec at `docs/features/spaced-repetition.md`
 4. **Command palette** — ✅ shipped 2026-09-23, spec at `docs/features/command-palette.md`
+5. **Version history / diffing** — ✅ shipped 2026-09-25, spec at `docs/features/version-history.md`
 
-All four are done — everything picked out in this section at the start of
+All five are done — everything picked out in this section at the start of
 this build-out is now shipped.
 
-Canvas, web clipper, PDF import, block transclusion, AI features, sync, and
-real-time collaboration are documented above as deliberately deferred —
-each is a multi-session project in its own right and needs an explicit
-go-ahead (an LLM API key for AI features; a decision on browser extension
-distribution for the clipper; a data-model decision for block references; a
-sync-transport decision for cross-device sync) before it's worth speccing
-in detail. Of the remaining gap-analysis rows, **#8 Version history /
-diffing** is the next-cheapest (Medium effort, no external decision
-needed) if this build-out continues.
+Every remaining gap-analysis row is either Large/Very-large effort (Canvas,
+web clipper, PDF import, block transclusion, real-time collaboration) or
+explicitly needs a product/infra decision from the user before it's worth
+speccing in detail (an LLM API budget/key for AI features; a sync-transport
+decision for cross-device sync, which the dormant `apps/api`/`packages/db`
+are reserved for). There is no more "cheap, no-decision-needed" item left
+in the backlog — the next step is either picking one of these up as a
+deliberate multi-session project, or getting the user's steer on which
+external decision to make first.
 
 ## Status
 
@@ -93,8 +94,36 @@ needed) if this build-out continues.
 | Templates | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Spaced repetition | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Command palette | ✅ | n/a (UI-only) | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
+| Version history | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-25 |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
+
+### Version History — shipped 2026-09-25
+
+A pure LCS line-diff (`packages/local-engine/src/diff.ts`) plus a minimal
+snapshot file format under `.history/<noteId>/`, separate from
+`note-file.ts`'s format so ordinary notes and their existing tests are
+untouched. Snapshots are coalesced — at most one per 5 minutes of active
+editing, taken lazily inside `updateNote` only when content actually
+changes — rather than one per autosave tick, and capped at 100 per note.
+Both apps get a `history` icon on the note header; desktop shows a real
+diff view (added/removed lines) in a dialog, mobile shows a simpler
+read-only preview per version (no diff, matching Templates' precedent).
+Restoring a version always snapshots the current state first,
+unconditionally, so restoring is itself reversible.
+
+170 unit tests total (87 in local-engine, up from 78) + 26 desktop e2e
+tests, all green; mobile confirmed via typecheck and a visual smoke test
+(same platform-limit caveat every mobile UI here has documented). See
+`docs/features/version-history.md` for the full spec and shipped-state
+notes.
+
+**This closes out every item picked in "Decision: what to build now"
+above.** The backlog's remaining rows are all Large+ effort or need an
+explicit product decision from the user — see that section for specifics.
+Continuing this build-out from here means either committing to one of
+those multi-session projects or getting the user's steer on an external
+decision (an LLM API key, a sync transport) first.
 
 ### Command Palette — shipped 2026-09-23
 
