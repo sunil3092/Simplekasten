@@ -20,6 +20,8 @@ function ThemedStack() {
       <Stack.Screen name="vault/[id]" options={{ title: "" }} />
       <Stack.Screen name="review" options={{ title: "Review" }} />
       <Stack.Screen name="history" options={{ title: "Version History" }} />
+      <Stack.Screen name="canvas/index" options={{ title: "Canvases" }} />
+      <Stack.Screen name="canvas/[id]" options={{ title: "" }} />
     </Stack>
   );
 }
