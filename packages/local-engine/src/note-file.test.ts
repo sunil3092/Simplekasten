@@ -15,6 +15,7 @@ describe("note-file frontmatter round-trip", () => {
       deletedAt: null,
       attachmentIds: [],
       tags: [],
+      noteDate: null,
     };
 
     const raw = serializeNoteFile(note);
@@ -35,6 +36,7 @@ describe("note-file frontmatter round-trip", () => {
       deletedAt: "2026-01-03T00:00:00.000Z",
       attachmentIds: [],
       tags: [],
+      noteDate: null,
     };
 
     const parsed = parseNoteFile(serializeNoteFile(note), note.id);
@@ -53,6 +55,7 @@ describe("note-file frontmatter round-trip", () => {
       deletedAt: null,
       attachmentIds: ["a1", "a2"],
       tags: [],
+      noteDate: null,
     };
 
     const raw = serializeNoteFile(withAttachments);
@@ -63,6 +66,31 @@ describe("note-file frontmatter round-trip", () => {
     const rawEmpty = serializeNoteFile(withoutAttachments);
     expect(rawEmpty).not.toContain("attachmentIds");
     expect(parseNoteFile(rawEmpty, withoutAttachments.id)).toEqual(withoutAttachments);
+  });
+
+  it("round-trips a daily note's noteDate, omitting the field entirely for ordinary notes", () => {
+    const daily: VaultNote = {
+      id: "day1",
+      zettelId: "4",
+      title: "September 22, 2026",
+      type: "daily",
+      tags: [],
+      content: "",
+      createdAt: "2026-09-22T00:00:00.000Z",
+      updatedAt: "2026-09-22T00:00:00.000Z",
+      deletedAt: null,
+      attachmentIds: [],
+      noteDate: "2026-09-22",
+    };
+
+    const raw = serializeNoteFile(daily);
+    expect(raw).toContain("noteDate");
+    expect(parseNoteFile(raw, daily.id)).toEqual(daily);
+
+    const ordinary: VaultNote = { ...daily, id: "day2", type: "fleeting", noteDate: null };
+    const rawOrdinary = serializeNoteFile(ordinary);
+    expect(rawOrdinary).not.toContain("noteDate");
+    expect(parseNoteFile(rawOrdinary, ordinary.id)).toEqual(ordinary);
   });
 
   it("throws when a file has no frontmatter block", () => {
@@ -81,6 +109,7 @@ describe("note-file frontmatter round-trip", () => {
       deletedAt: null,
       attachmentIds: [],
       tags: ["method", "zettel"],
+      noteDate: null,
     };
     expect(parseNoteFile(serializeNoteFile(note), note.id)).toEqual(note);
     expect(serializeNoteFile({ ...note, tags: [] })).not.toContain("tags:");

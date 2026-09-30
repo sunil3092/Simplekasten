@@ -18,6 +18,7 @@ export const NOTE_TYPES: NoteTypeInfo[] = [
   { value: "literature", label: "Literature", graphColor: "accent", badge: { bg: "accent2Soft", fg: "accent2", border: "accent2" } },
   { value: "permanent", label: "Permanent", graphColor: "ink", badge: { bg: "accentSoft", fg: "accentInk", border: "accent" } },
   { value: "structure", label: "Structure", graphColor: "inkMuted", badge: { bg: "surface2", fg: "inkMuted", border: "line", dashed: true } },
+  { value: "daily", label: "Daily", graphColor: "accentInk", badge: { bg: "lineSoft", fg: "ink", border: "accent" } },
 ];
 
 export function noteTypeInfo(type: string): NoteTypeInfo {

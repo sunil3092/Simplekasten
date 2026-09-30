@@ -5,7 +5,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Attachments, type AttachmentItem } from "../components/Attachments";
 import { GraphView } from "../components/GraphView";
 import {
+  CalendarIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   DownloadIcon,
   FileTextIcon,
   HashIcon,
@@ -18,6 +21,7 @@ import {
   SettingsIcon,
   TrashIcon,
 } from "../components/icons";
+import { TemplatesModal } from "../components/TemplatesModal";
 import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher } from "../components/QuickSwitcher";
 import { TagPicker } from "../components/TagPicker";
@@ -40,6 +44,7 @@ interface NoteDetail {
   title: string;
   content: string;
   type: NoteType;
+  noteDate: string | null;
   tagNames: string[];
   assignedTags: string[];
   attachments: AttachmentItem[];
@@ -61,6 +66,12 @@ interface SearchResultItem {
   zettelId: string;
   snippet: string;
 }
+interface Template {
+  id: string;
+  name: string;
+  content: string;
+  isDefaultForDailyNote: boolean;
+}
 
 export default function Home() {
   return <Vault />;
@@ -77,12 +88,22 @@ interface PendingSave {
 function Vault() {
   const [vaultPath, setVaultPath] = useState<string>("");
   const [notes, setNotes] = useState<NoteListItem[]>([]);
+  const [dailyNotes, setDailyNotes] = useState<NoteListItem[]>([]);
   const [tags, setTags] = useState<TagItem[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [selected, setSelected] = useState<NoteDetail | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  // NoteEditor is uncontrolled by design (see its own comment) — it only
+  // reads initialValue on mount, so an external content change made outside
+  // typing (applying a template) needs a remount to become visible. Bumped
+  // only there, never on normal edits, which stay uncontrolled for cursor
+  // stability.
+  const [editorNonce, setEditorNonce] = useState(0);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const { notice: themeNotice } = useTheme();
@@ -128,9 +149,19 @@ function Vault() {
     setTags((await vaultClient.listTags()) as TagItem[]);
   }
 
+  async function refreshDailyNotes() {
+    setDailyNotes((await vaultClient.listDailyNotes()) as NoteListItem[]);
+  }
+
+  async function refreshTemplates() {
+    setTemplates((await vaultClient.listTemplates()) as Template[]);
+  }
+
   useEffect(() => {
     refreshNotes(activeTag);
     refreshTags();
+    refreshDailyNotes();
+    refreshTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -161,11 +192,68 @@ function Vault() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setSwitcherOpen(true);
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        openDaily(todayLocal());
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // "en-CA" is a locale-format trick that happens to render YYYY-MM-DD in
+  // the browser's local time — not a hardcoded region. The date has to be
+  // computed client-side: the engine has no notion of the user's timezone,
+  // and "today" is inherently local to the device.
+  function todayLocal(): string {
+    return new Date().toLocaleDateString("en-CA");
+  }
+
+  function shiftDate(date: string, days: number): string {
+    const [y, m, d] = date.split("-").map(Number);
+    const next = new Date(Date.UTC(y, m - 1, d + days));
+    return next.toISOString().slice(0, 10);
+  }
+
+  async function openDaily(date: string) {
+    await flushPending();
+    setAttachmentError(null);
+    const note = (await vaultClient.getOrCreateDailyNote(date)) as { id: string };
+    setSelected((await vaultClient.getNoteById(note.id)) as NoteDetail);
+    setSaveStatus("saved");
+    refreshNotes(activeTag);
+    refreshDailyNotes();
+  }
+
+  async function createTemplate(input: { name: string; content: string }) {
+    await vaultClient.createTemplate(input);
+    await refreshTemplates();
+  }
+
+  async function updateTemplateEntry(input: { id: string; name?: string; content?: string }) {
+    await vaultClient.updateTemplate(input);
+    await refreshTemplates();
+  }
+
+  async function deleteTemplateEntry(id: string) {
+    await vaultClient.deleteTemplate(id);
+    await refreshTemplates();
+  }
+
+  async function setDefaultTemplate(id: string) {
+    await vaultClient.setDefaultForDailyNote(id);
+    await refreshTemplates();
+  }
+
+  async function applyTemplate(templateId: string) {
+    if (!selected) return;
+    setTemplateMenuOpen(false);
+    await flushPending();
+    const updated = (await vaultClient.applyTemplate({ noteId: selected.id, templateId })) as NoteDetail;
+    setSelected(updated);
+    setEditorNonce((n) => n + 1);
+  }
 
   async function flushPending() {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -337,6 +425,10 @@ function Vault() {
               <DownloadIcon />
               Show vault location
             </Button>
+            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setTemplatesOpen(true)}>
+              <FileTextIcon />
+              Templates…
+            </Button>
           </div>
         </div>
 
@@ -355,6 +447,15 @@ function Vault() {
                 Jump to…
               </span>
               <Kbd>⌘K</Kbd>
+            </span>
+          </Button>
+          <Button className="w-full justify-start" onClick={() => openDaily(todayLocal())}>
+            <span className="flex w-full items-center justify-between">
+              <span className="flex items-center gap-2">
+                <CalendarIcon />
+                Today
+              </span>
+              <Kbd>⌘J</Kbd>
             </span>
           </Button>
           <Button className="w-full justify-start" onClick={openGraph}>
@@ -389,6 +490,28 @@ function Vault() {
                     onClick={() => openNote(n.id)}
                     className={`block w-full rounded-lg border-(length:--border-w) border-dashed px-2.5 py-1.5 text-left text-sm transition-colors ${
                       n.id === selected?.id ? "border-accent bg-accent-soft text-accent-ink" : "border-line text-ink-muted hover:border-accent/50"
+                    }`}
+                  >
+                    {n.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {dailyNotes.length > 0 && (
+          <div className="mt-4">
+            <SectionHeading compact icon={<CalendarIcon />} className="mb-1.5">
+              Journal
+            </SectionHeading>
+            <ul className="flex flex-col gap-1" data-testid="journal-list">
+              {dailyNotes.map((n) => (
+                <li key={n.id}>
+                  <button
+                    onClick={() => openNote(n.id)}
+                    className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
+                      n.id === selected?.id ? "bg-accent-soft text-accent-ink" : "text-ink-muted hover:bg-surface-2"
                     }`}
                   >
                     {n.title}
@@ -447,6 +570,24 @@ function Vault() {
                 </div>
                 <TagPicker vaultTags={tags} assigned={selected.assignedTags} onNote={selected.tagNames} onChange={updateTags} />
                 <span className="font-mono text-xs text-ink-faint">{selected.zettelId}</span>
+                {selected.type === "daily" && selected.noteDate && (
+                  <div className="flex items-center gap-0.5">
+                    <IconButton
+                      aria-label="Previous day"
+                      title="Previous day"
+                      onClick={() => openDaily(shiftDate(selected.noteDate!, -1))}
+                    >
+                      <ChevronLeftIcon />
+                    </IconButton>
+                    <IconButton
+                      aria-label="Next day"
+                      title="Next day"
+                      onClick={() => openDaily(shiftDate(selected.noteDate!, 1))}
+                    >
+                      <ChevronRightIcon />
+                    </IconButton>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-1">
                   {selected.tagNames.map((name) => (
                     <button
@@ -461,7 +602,35 @@ function Vault() {
                 </div>
                 <span className="ml-auto flex items-center gap-1">
                   <SaveStatusIndicator status={saveStatus} />
-                  <IconButton aria-label="Attach a photo or audio file" title="Attach a photo or audio file" onClick={addAttachment} className="ml-2">
+                  {templates.length > 0 && (
+                    <span className="relative ml-2">
+                      <IconButton aria-label="Insert template" title="Insert template" onClick={() => setTemplateMenuOpen((o) => !o)}>
+                        <FileTextIcon />
+                      </IconButton>
+                      {templateMenuOpen && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setTemplateMenuOpen(false)} />
+                          <div className="absolute top-full right-0 z-20 mt-1.5 w-52 rounded-xl border-(length:--border-w) border-line bg-surface p-1.5 shadow-lg">
+                            {templates.map((t) => (
+                              <button
+                                key={t.id}
+                                onClick={() => applyTemplate(t.id)}
+                                className="block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-2"
+                              >
+                                {t.name}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </span>
+                  )}
+                  <IconButton
+                    aria-label="Attach a photo or audio file"
+                    title="Attach a photo or audio file"
+                    onClick={addAttachment}
+                    className={templates.length > 0 ? "" : "ml-2"}
+                  >
                     <PaperclipIcon />
                   </IconButton>
                   <IconButton aria-label="Delete note" title="Delete note" onClick={() => setConfirmingDelete(true)} className="hover:text-danger">
@@ -479,7 +648,7 @@ function Vault() {
               />
 
               <NoteEditor
-                key={selected.id}
+                key={`${selected.id}:${editorNonce}`}
                 initialValue={selected.content}
                 onChange={updateContent}
                 onNavigateLink={navigateToTitle}
@@ -557,6 +726,17 @@ function Vault() {
       )}
 
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+
+      {templatesOpen && (
+        <TemplatesModal
+          templates={templates}
+          onClose={() => setTemplatesOpen(false)}
+          onCreate={createTemplate}
+          onUpdate={updateTemplateEntry}
+          onDelete={deleteTemplateEntry}
+          onSetDefaultForDailyNote={setDefaultTemplate}
+        />
+      )}
 
       {confirmingDelete && selected && (
         <ConfirmDialog

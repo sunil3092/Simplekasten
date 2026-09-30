@@ -8,13 +8,16 @@ import type { Page } from "@playwright/test";
  */
 export async function stubBridge(page: Page, settings: { theme: string; themeMode: "system" | "light" | "dark" }) {
   await page.addInitScript((s) => {
-    const notes = [
-      { id: "a", zettelId: "1", title: "Atomic Habits", content: "Small changes compound. #habits", type: "fleeting", tags: [] as string[] },
+    const notes: { id: string; zettelId: string; title: string; content: string; type: string; tags: string[]; noteDate?: string }[] = [
+      { id: "a", zettelId: "1", title: "Atomic Habits", content: "Small changes compound. #habits", type: "fleeting", tags: [] },
       { id: "b", zettelId: "2", title: "Systems", content: "See [[Atomic Habits]].", type: "permanent", tags: ["method"] },
     ];
+    let nextNote = 1;
     // Mirrors the engine: a note's tags are its assigned tags plus #hashtags.
     const tagsOf = (n: (typeof notes)[number]) =>
       [...new Set([...n.tags, ...Array.from(n.content.matchAll(/(?<![#\w])#([a-zA-Z][\w/-]*)/g), (m) => m[1].toLowerCase())])].sort();
+    const templates: { id: string; name: string; content: string; isDefaultForDailyNote: boolean }[] = [];
+    let nextTemplate = 1;
     const stamp = "2026-09-21T00:00:00.000Z";
     // "Atomic Habits" starts with one photo and one voice note, as if they'd
     // been added on mobile. Files are served as data: URLs below.
@@ -68,6 +71,19 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
           for (const n of notes) for (const t of tagsOf(n)) counts.set(t, (counts.get(t) ?? 0) + 1);
           return [...counts].map(([name, noteCount]) => ({ id: name, name, noteCount }));
         },
+        getOrCreateDailyNote: async (date: string) => {
+          const existing = notes.find((n) => n.noteDate === date);
+          if (existing) return detail(existing.id);
+          const id = `daily${nextNote++}`;
+          notes.push({ id, zettelId: String(notes.length + 1), title: date, content: "", type: "daily", tags: [], noteDate: date });
+          return detail(id);
+        },
+        listDailyNotes: async (limit = 30) =>
+          notes
+            .filter((n) => n.type === "daily")
+            .sort((a, b) => (b.noteDate ?? "").localeCompare(a.noteDate ?? ""))
+            .slice(0, limit)
+            .map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type, updatedAt: stamp })),
         getVaultPath: async () => "/fixture",
         chooseVaultFolder: async () => "/fixture",
         addAttachment: async (noteId: string) => {
@@ -79,6 +95,33 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
           attachments = attachments.filter((a) => a.id !== id);
         },
         attachmentUrl: (id: string) => (attachments.find((a) => a.id === id)?.kind === "voice" ? silence : photo),
+        listTemplates: async () => templates.slice().sort((a, b) => a.name.localeCompare(b.name)),
+        createTemplate: async (input: { name: string; content: string }) => {
+          const t = { id: `tpl${nextTemplate++}`, name: input.name, content: input.content, isDefaultForDailyNote: false };
+          templates.push(t);
+          return t;
+        },
+        updateTemplate: async (input: { id: string; name?: string; content?: string }) => {
+          const t = templates.find((x) => x.id === input.id)!;
+          if (input.name !== undefined) t.name = input.name;
+          if (input.content !== undefined) t.content = input.content;
+          return t;
+        },
+        deleteTemplate: async (id: string) => {
+          const idx = templates.findIndex((t) => t.id === id);
+          if (idx !== -1) templates.splice(idx, 1);
+        },
+        setDefaultForDailyNote: async (id: string) => {
+          for (const t of templates) t.isDefaultForDailyNote = t.id === id;
+          return templates.find((t) => t.id === id)!;
+        },
+        applyTemplate: async (input: { noteId: string; templateId: string }) => {
+          const note = notes.find((n) => n.id === input.noteId)!;
+          const template = templates.find((t) => t.id === input.templateId)!;
+          const expanded = template.content.replaceAll("{{title}}", note.title);
+          note.content = note.content ? `${note.content}\n\n${expanded}` : expanded;
+          return detail(note.id);
+        },
       },
     };
   }, settings);

@@ -96,6 +96,14 @@ function registerIpcHandlers() {
   ipcMain.handle("vault:search", (_event, query) => localEngine.searchNotes(currentAdapter(), query));
   ipcMain.handle("vault:getGraph", () => localEngine.getGraph(currentAdapter()));
   ipcMain.handle("vault:listTags", () => localEngine.listTags(currentAdapter()));
+  ipcMain.handle("vault:getOrCreateDailyNote", (_event, date) => localEngine.getOrCreateDailyNote(currentAdapter(), date));
+  ipcMain.handle("vault:listDailyNotes", (_event, limit) => localEngine.listDailyNotes(currentAdapter(), limit));
+  ipcMain.handle("vault:listTemplates", () => localEngine.listTemplates(currentAdapter()));
+  ipcMain.handle("vault:createTemplate", (_event, input) => localEngine.createTemplate(currentAdapter(), input));
+  ipcMain.handle("vault:updateTemplate", (_event, input) => localEngine.updateTemplate(currentAdapter(), input));
+  ipcMain.handle("vault:deleteTemplate", (_event, id) => localEngine.deleteTemplate(currentAdapter(), id));
+  ipcMain.handle("vault:setDefaultForDailyNote", (_event, id) => localEngine.setDefaultForDailyNote(currentAdapter(), id));
+  ipcMain.handle("vault:applyTemplate", (_event, input) => localEngine.applyTemplate(currentAdapter(), input));
   ipcMain.handle("vault:getVaultPath", () => getVaultPath());
   ipcMain.handle("vault:addAttachment", async (_event, noteId) => {
     const result = await dialog.showOpenDialog({

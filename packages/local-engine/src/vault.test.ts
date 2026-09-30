@@ -5,6 +5,8 @@ import {
   deleteNote,
   getGraph,
   getNoteById,
+  getOrCreateDailyNote,
+  listDailyNotes,
   listNotes,
   listTags,
   searchNotes,
@@ -13,6 +15,12 @@ import {
   deleteAttachment,
   getAttachmentFilePath,
   listAttachments,
+  applyTemplate,
+  createTemplate,
+  deleteTemplate,
+  listTemplates,
+  setDefaultForDailyNote,
+  updateTemplate,
 } from "./vault";
 
 describe("vault engine", () => {
@@ -285,5 +293,138 @@ describe("attachments", () => {
     await fs.writeFile("attachments/manifest.json", "{ not json");
 
     await expect(getNoteById(fs, note.id)).rejects.toThrow(/attachments\/manifest\.json" is not valid JSON/);
+  });
+
+  describe("daily notes", () => {
+    it("creates a daily note once per date and returns the same one on a second call", async () => {
+      const fs = createMemoryFs();
+      const first = await getOrCreateDailyNote(fs, "2026-09-22");
+      const second = await getOrCreateDailyNote(fs, "2026-09-22");
+
+      expect(second.id).toBe(first.id);
+      expect(first.type).toBe("daily");
+      expect(first.noteDate).toBe("2026-09-22");
+      expect(first.title).toBe("September 22, 2026");
+      expect(await listNotes(fs)).toHaveLength(1);
+    });
+
+    it("creates a separate note for a different date", async () => {
+      const fs = createMemoryFs();
+      const today = await getOrCreateDailyNote(fs, "2026-09-22");
+      const tomorrow = await getOrCreateDailyNote(fs, "2026-09-23");
+
+      expect(tomorrow.id).not.toBe(today.id);
+      expect(await listNotes(fs)).toHaveLength(2);
+    });
+
+    it("assigns daily notes a zettelId from the normal sequence, not a separate namespace", async () => {
+      const fs = createMemoryFs();
+      await createNote(fs, { title: "Ordinary", content: "" });
+      const daily = await getOrCreateDailyNote(fs, "2026-09-22");
+
+      expect(daily.zettelId).toBe("2");
+    });
+
+    it("lists daily notes newest-first, excluding ordinary and deleted notes", async () => {
+      const fs = createMemoryFs();
+      await createNote(fs, { title: "Ordinary", content: "" });
+      const older = await getOrCreateDailyNote(fs, "2026-09-20");
+      const newer = await getOrCreateDailyNote(fs, "2026-09-22");
+      const deleted = await getOrCreateDailyNote(fs, "2026-09-21");
+      await deleteNote(fs, deleted.id);
+
+      const daily = await listDailyNotes(fs);
+      expect(daily.map((n) => n.id)).toEqual([newer.id, older.id]);
+    });
+
+    it("respects the limit passed to listDailyNotes", async () => {
+      const fs = createMemoryFs();
+      await getOrCreateDailyNote(fs, "2026-09-20");
+      await getOrCreateDailyNote(fs, "2026-09-21");
+      await getOrCreateDailyNote(fs, "2026-09-22");
+
+      expect(await listDailyNotes(fs, 2)).toHaveLength(2);
+    });
+  });
+
+  describe("templates", () => {
+    it("creates, lists (alphabetically), updates and deletes templates", async () => {
+      const fs = createMemoryFs();
+      await createTemplate(fs, { name: "Zettel", content: "z" });
+      const daily = await createTemplate(fs, { name: "Daily Log", content: "## Tasks" });
+
+      expect((await listTemplates(fs)).map((t) => t.name)).toEqual(["Daily Log", "Zettel"]);
+
+      const renamed = await updateTemplate(fs, { id: daily.id, name: "Journal" });
+      expect(renamed.content).toBe("## Tasks");
+      expect((await listTemplates(fs)).map((t) => t.name)).toEqual(["Journal", "Zettel"]);
+
+      await deleteTemplate(fs, renamed.id);
+      expect((await listTemplates(fs)).map((t) => t.name)).toEqual(["Zettel"]);
+    });
+
+    it("throws deleting or updating a template that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(deleteTemplate(fs, "nope")).rejects.toThrow(/not found/);
+      await expect(updateTemplate(fs, { id: "nope", name: "x" })).rejects.toThrow(/not found/);
+    });
+
+    it("keeps only one default-for-daily-note template at a time", async () => {
+      const fs = createMemoryFs();
+      const a = await createTemplate(fs, { name: "A", content: "" });
+      const b = await createTemplate(fs, { name: "B", content: "" });
+
+      await setDefaultForDailyNote(fs, a.id);
+      expect((await listTemplates(fs)).find((t) => t.id === a.id)?.isDefaultForDailyNote).toBe(true);
+
+      await setDefaultForDailyNote(fs, b.id);
+      const templates = await listTemplates(fs);
+      expect(templates.find((t) => t.id === a.id)?.isDefaultForDailyNote).toBe(false);
+      expect(templates.find((t) => t.id === b.id)?.isDefaultForDailyNote).toBe(true);
+    });
+
+    it("applies a template by appending its expanded content, never replacing existing text", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "My Note", content: "Existing text." });
+      const template = await createTemplate(fs, { name: "Greeting", content: "Hello, {{title}}!" });
+
+      const detail = await applyTemplate(fs, { noteId: note.id, templateId: template.id });
+      expect(detail.content).toBe("Existing text.\n\nHello, My Note!");
+    });
+
+    it("applies a template to an empty note without a leading blank line", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Empty", content: "" });
+      const template = await createTemplate(fs, { name: "Greeting", content: "Hello, {{title}}!" });
+
+      const detail = await applyTemplate(fs, { noteId: note.id, templateId: template.id });
+      expect(detail.content).toBe("Hello, Empty!");
+    });
+
+    it("throws applying a missing template or to a missing note", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Note", content: "" });
+      const template = await createTemplate(fs, { name: "T", content: "x" });
+
+      await expect(applyTemplate(fs, { noteId: note.id, templateId: "nope" })).rejects.toThrow(/not found/);
+      await expect(applyTemplate(fs, { noteId: "nope", templateId: template.id })).rejects.toThrow(/not found/);
+    });
+
+    it("pre-fills a new daily note from the default-for-daily-note template, expanding its tokens", async () => {
+      const fs = createMemoryFs();
+      const template = await createTemplate(fs, { name: "Daily", content: "# {{title}}\n\nLog:" });
+      await setDefaultForDailyNote(fs, template.id);
+
+      const daily = await getOrCreateDailyNote(fs, "2026-09-23");
+      expect(daily.content).toBe("# September 23, 2026\n\nLog:");
+    });
+
+    it("leaves a new daily note's content empty when no default template exists", async () => {
+      const fs = createMemoryFs();
+      await createTemplate(fs, { name: "Not default", content: "should not appear" });
+
+      const daily = await getOrCreateDailyNote(fs, "2026-09-23");
+      expect(daily.content).toBe("");
+    });
   });
 });

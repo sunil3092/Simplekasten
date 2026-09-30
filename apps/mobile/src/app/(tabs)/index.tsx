@@ -107,6 +107,22 @@ export default function VaultScreen() {
     }
   }
 
+  // "en-CA" is a locale-format trick that renders as YYYY-MM-DD in the
+  // device's local time — not a hardcoded region. Computed on the device
+  // since the engine has no notion of the user's timezone.
+  async function openToday() {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const date = new Date().toLocaleDateString("en-CA");
+      const note = await vault.getOrCreateDailyNote(date);
+      setQuery("");
+      router.push(`/vault/${note.id}`);
+    } finally {
+      setCreating(false);
+    }
+  }
+
   const trimmed = query.trim();
   const searching = trimmed.length > 0;
   const rows: Row[] = searching ? (results ?? []) : notes;
@@ -141,7 +157,10 @@ export default function VaultScreen() {
 
       {!searching && (
         <>
-          <Button variant="primary" icon="plus" label={COPY.newNote} onPress={() => createNote()} disabled={creating} style={styles.newNote} />
+          <View style={styles.actionRow}>
+            <Button icon="calendar" label="Today" onPress={openToday} disabled={creating} style={styles.actionButton} />
+            <Button variant="primary" icon="plus" label={COPY.newNote} onPress={() => createNote()} disabled={creating} style={styles.actionButton} />
+          </View>
 
           {tags.length > 0 && (
             <View style={styles.tagRow}>
@@ -229,7 +248,8 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 },
   search: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, marginBottom: 12 },
   searchInput: { flex: 1, fontSize: 15, paddingVertical: 10 },
-  newNote: { marginBottom: 12 },
+  actionRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  actionButton: { flex: 1 },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
   maps: { marginBottom: 12 },
   mapRow: { borderStyle: "dashed", paddingHorizontal: 12, paddingVertical: 9, marginBottom: 6 },

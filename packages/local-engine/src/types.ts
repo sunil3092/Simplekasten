@@ -33,6 +33,8 @@ export interface VaultNote {
   attachmentIds: string[];
   /** Tags assigned from a tag picker (frontmatter `tags`), normalised and sorted. Optional on disk. */
   tags: string[];
+  /** "YYYY-MM-DD", set only when type === "daily" — the calendar day this note represents. */
+  noteDate: string | null;
 }
 
 export interface Attachment {
@@ -80,6 +82,7 @@ export interface NoteDetail {
   attachments: Attachment[];
   backlinks: BacklinkItem[];
   contents: ContentsItem[];
+  noteDate: string | null;
 }
 
 export interface TagItem {
@@ -132,4 +135,25 @@ export interface LinkRef {
   targetNoteId: string | null;
   targetTitle: string;
   resolved: boolean;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  /** May contain {{date}}, {{time}}, {{title}} tokens, expanded at apply time. */
+  content: string;
+  isDefaultForDailyNote: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateTemplateInput {
+  name: string;
+  content: string;
+}
+
+export interface UpdateTemplateInput {
+  id: string;
+  name?: string;
+  content?: string;
 }
