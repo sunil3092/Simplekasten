@@ -138,8 +138,11 @@ The icon (two linked slips from the slip-box, on Memphis purple) is drawn once a
 ## 📦 Build
 
 ```bash
-npm run build
+npm run build                          # 🏗️ every workspace
+npm run build -w @simplekasten/desktop  # 🖥️ installer only
 ```
+
+The desktop build has three steps: the Next.js static export, an esbuild bundle of the Electron main process (`build:main`), and electron-builder. The bundle matters — at dev time `main.js` loads the engine's TypeScript through `tsx`, but a packaged app can't, because `tsx` spawns an esbuild binary that isn't in the package. Bundling ahead of time inlines the TypeScript instead, so the shipped app needs nothing from `node_modules`. `e2e/packaged-build.e2e.ts` launches the packaged app to prove it still boots; it skips when there's no build.
 
 ---
 

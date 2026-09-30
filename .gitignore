@@ -27,3 +27,4 @@ apps/desktop/e2e/results/
 apps/desktop/test-results/
 .playwright-mcp/
 test-results/
+apps/desktop/main.bundle.js

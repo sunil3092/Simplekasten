@@ -1,7 +1,9 @@
-// tsx's CJS require hook lets this plain-CommonJS main process require
-// @simplekasten/local-engine's TypeScript source directly — same "no build
-// step, run TS at dev-time" approach apps/desktop already uses with `tsx`.
-require("tsx/cjs");
+// At dev time, tsx's CJS require hook lets this plain-CommonJS main process
+// require @simplekasten/local-engine's TypeScript source directly — no build
+// step. A packaged build can't do that (tsx spawns esbuild, which isn't
+// there), so `npm run build:main` bundles this file and the TypeScript it
+// pulls in ahead of time, defining SK_BUNDLED so esbuild drops the hook.
+if (process.env.SK_BUNDLED !== "1") require("tsx/cjs");
 
 const { app, BrowserWindow, ipcMain, dialog, net, protocol } = require("electron");
 const { pathToFileURL } = require("url");
