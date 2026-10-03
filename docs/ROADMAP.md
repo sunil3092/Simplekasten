@@ -59,6 +59,7 @@ behavioural parity.
 | 11 | **Cross-device sync** (opt-in, on top of the now-local vault) | Obsidian Sync, iCloud/Dropbox-synced vaults | Medium — the dormant `apps/api`/`packages/db` are explicitly reserved for this; real product decision (which sync transport?) needed before speccing | Large |
 | 12 | ~~Local-first / offline sync~~ | Obsidian, Logseq | **Done** — see architecture note above | — |
 | 13 | **Real-time collaboration** (multiple people, one vault) | Roam, Notion | Low priority for a personal Zettelkasten tool | Very large |
+| 14 | **Flow view** (notes as top-to-bottom function-block-diagram cards, directional arrows for related notes, branching like a flowchart) | Requested directly by the user 2026-10-03; closest prior art is Miro/Whimsical flowcharts and Obsidian's "Excalibrain" plugin | Medium — a genuinely different read on the same link graph Graph view already has (hierarchical/layered instead of force-directed), good for seeing cause→effect or prerequisite chains rather than overall note clustering | Medium — needs a layered-DAG layout algorithm (Sugiyama-style: break cycles, longest-path layer assignment, barycenter ordering within a layer) plus a new renderer; no new engine data since it's the same nodes/edges `getGraph()` already returns |
 
 ## Decision: what to build now
 
@@ -90,6 +91,18 @@ already exist as a concept; a PDF is just a richer attachment type with
 per-page annotation data alongside it) if this build-out continues — the
 web clipper and block transclusion both carry structural risk the others
 don't.
+
+**Flow view** (gap analysis row #14) was added 2026-10-03 at the user's
+direct request — a hierarchical, top-to-bottom "function block diagram"
+read on the same note-link graph Graph view already visualizes, instead
+of Graph view's force-directed layout. A prototype was built on the
+separate `claude/flow-view-prototype` branch (not merged into this
+branch) to demo the idea before committing to the full spec→engine→both-
+UIs→tests process every other shipped feature here went through; see that
+branch's commits for the prototype's `flow-layout.ts` algorithm and
+desktop-only `FlowView.tsx`. If the direction is approved, it still needs:
+a proper spec doc, mobile UI, and e2e coverage before it could be called
+shipped the way the features above are.
 
 ## Status
 
