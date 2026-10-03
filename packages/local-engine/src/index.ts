@@ -5,4 +5,5 @@ export * from "./srs";
 export * from "./history-file";
 export * from "./diff";
 export * from "./canvas-file";
+export * from "./flow-layout";
 export * from "./vault";
