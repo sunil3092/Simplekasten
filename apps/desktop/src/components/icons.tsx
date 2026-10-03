@@ -52,3 +52,4 @@ export const RepeatIcon = named("repeat");
 export const CheckIcon = named("check");
 export const HistoryIcon = named("history");
 export const LayoutIcon = named("layout");
+export const FlowIcon = named("flow");

@@ -1,4 +1,4 @@
-import type { GraphEdge, GraphNode } from "./types";
+import type { GraphEdge } from "./types";
 
 // Pure, I/O-free layered-DAG layout — no FileSystemAdapter needed, same
 // reasoning diff.ts and srs.ts get their own files: the algorithm is the
@@ -74,7 +74,7 @@ function longestPathLayers(ids: string[], acyclicEdges: GraphEdge[]): Map<string
   return layer;
 }
 
-export function layoutFlow(nodes: GraphNode[], edges: GraphEdge[]): FlowLayoutNode[] {
+export function layoutFlow(nodes: { id: string }[], edges: GraphEdge[]): FlowLayoutNode[] {
   const ids = nodes.map((n) => n.id);
   const idSet = new Set(ids);
   const validEdges = edges.filter((e) => idSet.has(e.source) && idSet.has(e.target) && e.source !== e.target);

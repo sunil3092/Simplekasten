@@ -44,6 +44,14 @@ export const ICONS = {
   check: [path("M20 6L9 17l-5-5")],
   history: [path("M3 12a9 9 0 1 0 3-6.7"), path("M3 4v4h4"), path("M12 7v5l4 2")],
   layout: [rect(3.5, 3.5, 17, 17, 1.5), path("M3.5 10.5h17"), path("M10.5 10.5v10")],
+  flow: [
+    rect(7, 3, 10, 5, 1.2),
+    rect(3, 16, 8, 5, 1.2),
+    rect(13, 16, 8, 5, 1.2),
+    path("M12 8v4"),
+    path("M12 12H7v4"),
+    path("M12 12h5v4"),
+  ],
 } satisfies Record<string, IconShape[]>;
 
 export type IconName = keyof typeof ICONS;

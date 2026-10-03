@@ -12,6 +12,7 @@ import {
   ChevronRightIcon,
   DownloadIcon,
   FileTextIcon,
+  FlowIcon,
   HashIcon,
   HistoryIcon,
   LayersIcon,
@@ -26,6 +27,7 @@ import {
   TrashIcon,
 } from "../components/icons";
 import { CanvasView } from "../components/CanvasView";
+import { FlowView } from "../components/FlowView";
 import { ReviewSession } from "../components/ReviewSession";
 import { TemplatesModal } from "../components/TemplatesModal";
 import { VersionHistoryModal } from "../components/VersionHistoryModal";
@@ -124,6 +126,7 @@ function Vault() {
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const { notice: themeNotice } = useTheme();
   const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [flowData, setFlowData] = useState<GraphData | null>(null);
   // Structure notes are Simplekasten's Maps of Content — a curated table of
   // contents you link into rather than a folder you file things under.
   // Surfacing them as a standing sidebar section is what makes folder-free
@@ -395,6 +398,12 @@ function Vault() {
     setGraphData((await vaultClient.getGraph()) as GraphData);
   }
 
+  // Prototype: same data Graph view uses, read as a top-to-bottom layered
+  // diagram instead — see packages/local-engine/src/flow-layout.ts.
+  async function openFlow() {
+    setFlowData((await vaultClient.getGraph()) as GraphData);
+  }
+
   async function showVault() {
     await showVaultLocation();
   }
@@ -479,6 +488,7 @@ function Vault() {
     { id: "review", icon: "repeat", label: "Review", description: "Start a spaced-repetition review session", run: openReview },
     { id: "templates", icon: "fileText", label: "Templates…", description: "Manage note templates", run: () => setTemplatesOpen(true) },
     { id: "graph", icon: "network", label: "Graph view", description: "Visualize how notes link together", run: openGraph },
+    { id: "flow", icon: "flow", label: "Flow view", description: "See related notes as a top-to-bottom flow diagram", run: openFlow },
     { id: "settings", icon: "settings", label: "Settings", description: "Theme and appearance settings", run: () => setSettingsOpen(true) },
     { id: "choose-vault", icon: "download", label: "Choose vault folder…", description: "Switch to a different vault", run: chooseFolder },
     { id: "show-vault", icon: "download", label: "Show vault location", description: "Reveal the vault's folder on disk", run: showVault },
@@ -550,6 +560,10 @@ function Vault() {
           <Button className="w-full justify-start" onClick={openGraph}>
             <NetworkIcon />
             Graph view
+          </Button>
+          <Button className="w-full justify-start" onClick={openFlow}>
+            <FlowIcon />
+            Flow view
           </Button>
           <Button variant="primary" className="w-full justify-start" onClick={() => createNote()}>
             <PlusIcon />
@@ -904,6 +918,18 @@ function Vault() {
             openNote(id);
           }}
           onClose={() => setGraphData(null)}
+        />
+      )}
+
+      {flowData && (
+        <FlowView
+          nodes={flowData.nodes}
+          edges={flowData.edges}
+          onSelectNode={(id) => {
+            setFlowData(null);
+            openNote(id);
+          }}
+          onClose={() => setFlowData(null)}
         />
       )}
 
