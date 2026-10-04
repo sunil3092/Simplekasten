@@ -1,5 +1,5 @@
 import { COPY } from "@simplekasten/core";
-import { useEffect, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 
 const focusRing = "outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-1 focus-visible:ring-offset-surface";
 
@@ -45,6 +45,18 @@ export function Kbd({ children }: { children: ReactNode }) {
       {children}
     </kbd>
   );
+}
+
+/**
+ * A keyboard shortcut hint for "the platform's command key + `letter`": ⌘K on
+ * a Mac, Ctrl+K on Windows and Linux. The shortcuts themselves accept either
+ * key; this only decides which one to show. The page is prerendered without
+ * knowing the platform, so it starts on Ctrl and switches after mounting.
+ */
+export function ShortcutHint({ letter }: { letter: string }) {
+  const [mac, setMac] = useState(false);
+  useEffect(() => setMac(/mac/i.test(navigator.platform)), []);
+  return <Kbd>{mac ? `⌘${letter}` : `Ctrl+${letter}`}</Kbd>;
 }
 
 export function Chip({

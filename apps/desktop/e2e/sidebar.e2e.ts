@@ -37,3 +37,19 @@ test("vault folder controls live in Settings, not the sidebar", async ({ page })
   await expect(settings.getByRole("button", { name: "Choose vault folder…" })).toBeVisible();
   await expect(settings.getByRole("button", { name: "Show vault location" })).toBeVisible();
 });
+
+test("shortcut hints name the key for the platform: Ctrl on Windows and Linux, ⌘ on a Mac", async ({ browser }) => {
+  for (const [platform, jump, today] of [
+    ["Win32", "Ctrl+K", "Ctrl+J"],
+    ["MacIntel", "⌘K", "⌘J"],
+  ] as const) {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.addInitScript((p) => Object.defineProperty(navigator, "platform", { get: () => p }), platform);
+    await stubBridge(page, { theme: "classic", themeMode: "light" });
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: /Jump to/ })).toContainText(jump);
+    await expect(page.getByRole("button", { name: /Today/ })).toContainText(today);
+    await context.close();
+  }
+});

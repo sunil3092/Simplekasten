@@ -46,7 +46,7 @@ import {
   Chip,
   ConfirmDialog,
   IconButton,
-  Kbd,
+  ShortcutHint,
   NoteLink,
   PromptDialog,
   SaveStatusIndicator,
@@ -808,7 +808,7 @@ function Vault() {
                       <SearchIcon />
                       Jump to…
                     </span>
-                    <Kbd>⌘K</Kbd>
+                    <ShortcutHint letter="K" />
                   </span>
                 </Button>
                 <Button
@@ -822,7 +822,7 @@ function Vault() {
                       <CalendarIcon />
                       Today
                     </span>
-                    <Kbd>⌘J</Kbd>
+                    <ShortcutHint letter="J" />
                   </span>
                 </Button>
                 <Button
