@@ -76,4 +76,20 @@ describe("theme storage", () => {
     await removeTheme(fs, "never-installed");
     expect((await listInstalledThemes(fs)).themes).toEqual([]);
   });
+
+  // A theme id reaches removeTheme straight from the Settings UI and is
+  // interpolated into a file path, so an id that isn't a plain theme id has
+  // to delete nothing at all rather than escape the themes folder.
+  it("deletes nothing when the id could escape the themes folder", async () => {
+    const fs = memoryFs();
+    await installTheme(fs, JSON.stringify(custom));
+    await fs.writeFile("notes/keepme.md", "---\nid: keepme\n---\nbody");
+
+    for (const id of ["../notes/keepme", "../../secrets", "sunset/../../notes/keepme", "Sunset", ""]) {
+      await removeTheme(fs, id);
+    }
+
+    expect(await fs.exists("notes/keepme.md")).toBe(true);
+    expect((await listInstalledThemes(fs)).themes.map((t) => t.id)).toEqual(["sunset"]);
+  });
 });

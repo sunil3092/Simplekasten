@@ -1,7 +1,17 @@
 "use client";
 
 import { COPY } from "@simplekasten/core";
-import type { CanvasCard, ReviewRating } from "@simplekasten/local-engine";
+// These describe what the vault engine returns over the preload bridge, so
+// they come from the engine itself rather than being restated here.
+import type {
+  CanvasListItem,
+  GraphData,
+  NoteDetail,
+  NoteListItem,
+  ReviewRating,
+  TagItem,
+  Template,
+} from "@simplekasten/local-engine";
 import {
   useEffect,
   useLayoutEffect,
@@ -10,7 +20,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Attachments, type AttachmentItem } from "../components/Attachments";
+import { Attachments } from "../components/Attachments";
 import { GraphView } from "../components/GraphView";
 import {
   CalendarIcon,
@@ -54,7 +64,7 @@ import {
 } from "../components/ui";
 import { badgeClasses, NOTE_TYPES, type NoteType } from "../lib/noteTypes";
 import { useTheme } from "../lib/ThemeProvider";
-import { showVaultLocation, vaultClient } from "../lib/vaultClient";
+import { loadNote, showVaultLocation, vaultClient } from "../lib/vaultClient";
 
 function SidebarDisclosure({
   title,
@@ -79,54 +89,6 @@ function SidebarDisclosure({
       <div className="pt-1">{children}</div>
     </details>
   );
-}
-
-interface NoteListItem {
-  id: string;
-  zettelId: string;
-  title: string;
-  type: NoteType;
-  updatedAt: string;
-}
-interface NoteDetail {
-  id: string;
-  zettelId: string;
-  title: string;
-  content: string;
-  type: NoteType;
-  noteDate: string | null;
-  reviewDue: string | null;
-  tagNames: string[];
-  assignedTags: string[];
-  attachments: AttachmentItem[];
-  backlinks: { noteId: string; title: string; zettelId: string }[];
-  contents: {
-    noteId: string | null;
-    title: string;
-    zettelId: string | null;
-    resolved: boolean;
-  }[];
-}
-interface TagItem {
-  id: string;
-  name: string;
-  noteCount: number;
-}
-interface GraphData {
-  nodes: { id: string; title: string; zettelId: string; type: NoteType }[];
-  edges: { source: string; target: string }[];
-}
-interface SearchResultItem {
-  id: string;
-  title: string;
-  zettelId: string;
-  snippet: string;
-}
-interface Template {
-  id: string;
-  name: string;
-  content: string;
-  isDefaultForDailyNote: boolean;
 }
 
 export default function Home() {
@@ -154,9 +116,7 @@ function Vault() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
-  const [canvases, setCanvases] = useState<
-    { id: string; title: string; updatedAt: string }[]
-  >([]);
+  const [canvases, setCanvases] = useState<CanvasListItem[]>([]);
   const [openCanvasId, setOpenCanvasId] = useState<string | null>(null);
   const [dueCount, setDueCount] = useState(0);
   // Non-null while a review session is open; holds the due notes fetched at
@@ -216,36 +176,29 @@ function Vault() {
     vaultPath.split(/[\\/]/).filter(Boolean).pop() ?? "Simplekasten";
 
   async function refreshNotes(tag?: string | null) {
-    setNotes((await vaultClient.listNotes(tag ?? undefined)) as NoteListItem[]);
+    setNotes(await vaultClient.listNotes(tag ?? undefined));
   }
 
   async function refreshTags() {
-    setTags((await vaultClient.listTags()) as TagItem[]);
+    setTags(await vaultClient.listTags());
   }
 
   async function refreshDailyNotes() {
-    setDailyNotes((await vaultClient.listDailyNotes()) as NoteListItem[]);
+    setDailyNotes(await vaultClient.listDailyNotes());
   }
 
   async function refreshTemplates() {
-    setTemplates((await vaultClient.listTemplates()) as Template[]);
+    setTemplates(await vaultClient.listTemplates());
   }
 
   async function refreshDueCount() {
     setDueCount(
-      ((await vaultClient.listDueForReview(todayLocal())) as NoteListItem[])
-        .length,
+      (await vaultClient.listDueForReview(todayLocal())).length,
     );
   }
 
   async function refreshCanvases() {
-    setCanvases(
-      (await vaultClient.listCanvases()) as {
-        id: string;
-        title: string;
-        updatedAt: string;
-      }[],
-    );
+    setCanvases(await vaultClient.listCanvases());
   }
 
   useEffect(() => {
@@ -312,10 +265,8 @@ function Vault() {
   async function openDaily(date: string) {
     await flushPending();
     setAttachmentError(null);
-    const note = (await vaultClient.getOrCreateDailyNote(date)) as {
-      id: string;
-    };
-    setSelected((await vaultClient.getNoteById(note.id)) as NoteDetail);
+    const note = await vaultClient.getOrCreateDailyNote(date);
+    setSelected(await loadNote(note.id));
     setSaveStatus("saved");
     refreshNotes(activeTag);
     refreshDailyNotes();
@@ -351,10 +302,10 @@ function Vault() {
     if (!selected) return;
     setTemplateMenuOpen(false);
     await flushPending();
-    const updated = (await vaultClient.applyTemplate({
+    const updated = await vaultClient.applyTemplate({
       noteId: selected.id,
       templateId,
-    })) as NoteDetail;
+    });
     setSelected(updated);
     setEditorNonce((n) => n + 1);
   }
@@ -364,19 +315,17 @@ function Vault() {
     if (selected.reviewDue)
       await vaultClient.removeFromReviewQueue(selected.id);
     else await vaultClient.addToReviewQueue(selected.id, todayLocal());
-    setSelected((await vaultClient.getNoteById(selected.id)) as NoteDetail);
+    setSelected(await loadNote(selected.id));
     refreshDueCount();
   }
 
   async function openReview() {
-    const due = (await vaultClient.listDueForReview(
-      todayLocal(),
-    )) as NoteListItem[];
+    const due = await vaultClient.listDueForReview(todayLocal());
     setReviewQueue(due);
     setReviewIndex(0);
     setReviewNote(
       due.length > 0
-        ? ((await vaultClient.getNoteById(due[0].id)) as NoteDetail)
+        ? await loadNote(due[0].id)
         : null,
     );
   }
@@ -397,14 +346,12 @@ function Vault() {
     setReviewIndex(nextIndex);
     setReviewNote(
       nextIndex < reviewQueue.length
-        ? ((await vaultClient.getNoteById(
-            reviewQueue[nextIndex].id,
-          )) as NoteDetail)
+        ? await loadNote(reviewQueue[nextIndex].id)
         : null,
     );
     refreshDueCount();
     if (selected && selected.id === reviewNote.id)
-      setSelected((await vaultClient.getNoteById(selected.id)) as NoteDetail);
+      setSelected(await loadNote(selected.id));
   }
 
   async function flushPending() {
@@ -425,7 +372,7 @@ function Vault() {
     // resolve a link another note was waiting on) or its tags (a content
     // edit can add/remove #hashtags) — refresh just those derived fields so
     // the open panels don't go stale until the user navigates away and back.
-    const fresh = (await vaultClient.getNoteById(payload.id)) as NoteDetail;
+    const fresh = await loadNote(payload.id);
     setSelected((current) =>
       current && current.id === payload.id
         ? {
@@ -454,7 +401,12 @@ function Vault() {
   async function openNote(id: string) {
     await flushPending();
     setAttachmentError(null);
-    setSelected((await vaultClient.getNoteById(id)) as NoteDetail);
+    // The only place a note id can be stale: it comes from a list, a
+    // backlink, a search result, a canvas card or a flow node, any of which
+    // can still name a note deleted since. Clearing the selection is the
+    // honest outcome there, so this one reads the nullable result directly
+    // instead of going through loadNote.
+    setSelected(await vaultClient.getNoteById(id));
     setSaveStatus("saved");
   }
 
@@ -465,7 +417,7 @@ function Vault() {
     const deletedId = selected.id;
     await vaultClient.deleteNote(deletedId);
     const remaining = (
-      (await vaultClient.listNotes(activeTag ?? undefined)) as NoteListItem[]
+      await vaultClient.listNotes(activeTag ?? undefined)
     ).filter((n) => n.id !== deletedId);
     setNotes(remaining);
     refreshTags();
@@ -485,7 +437,7 @@ function Vault() {
     setSaveStatus("saving");
     await vaultClient.updateNote({ id, tags: assignedTags });
     setSaveStatus("saved");
-    const fresh = (await vaultClient.getNoteById(id)) as NoteDetail;
+    const fresh = await loadNote(id);
     setSelected((current) =>
       current && current.id === id
         ? {
@@ -500,7 +452,7 @@ function Vault() {
   }
 
   async function refreshAttachments(id: string) {
-    const fresh = (await vaultClient.getNoteById(id)) as NoteDetail;
+    const fresh = await loadNote(id);
     setSelected((current) =>
       current && current.id === id
         ? { ...current, attachments: fresh.attachments }
@@ -529,19 +481,19 @@ function Vault() {
   }
 
   async function openGraph() {
-    setGraphData((await vaultClient.getGraph()) as GraphData);
+    setGraphData(await vaultClient.getGraph());
   }
 
   // Prototype: same data Graph view uses, read as a top-to-bottom layered
   // diagram instead — see packages/local-engine/src/flow-layout.ts.
   async function openFlow() {
-    setFlowData((await vaultClient.getGraph()) as GraphData);
+    setFlowData(await vaultClient.getGraph());
   }
 
   // Re-reads links and notes for an open flow view. A save can still land
   // just after the view closes; that must not bring it back.
   async function refreshFlow() {
-    const graph = (await vaultClient.getGraph()) as GraphData;
+    const graph = await vaultClient.getGraph();
     setFlowData((current) => (current ? graph : current));
   }
 
@@ -551,10 +503,10 @@ function Vault() {
     id: string;
     title?: string;
     content?: string;
-    type?: string;
+    type?: NoteType;
   }) {
     await vaultClient.updateNote(input);
-    const fresh = (await vaultClient.getNoteById(input.id)) as NoteDetail;
+    const fresh = await loadNote(input.id);
     refreshNotes(activeTag);
     refreshTags();
     // A type change can add or remove a journal entry or a map of content.
@@ -590,9 +542,9 @@ function Vault() {
       vaultClient.listTemplates(),
     ]);
     return {
-      notes: (allNotes as unknown[]).length,
-      canvases: (allCanvases as unknown[]).length,
-      templates: (allTemplates as unknown[]).length,
+      notes: allNotes.length,
+      canvases: allCanvases.length,
+      templates: allTemplates.length,
     };
   }
 
@@ -631,9 +583,9 @@ function Vault() {
 
   async function createCanvas(title: string) {
     setNamingCanvas(false);
-    const canvas = (await vaultClient.createCanvas({
+    const canvas = await vaultClient.createCanvas({
       title: title.trim() || "Untitled canvas",
-    })) as { id: string };
+    });
     await refreshCanvases();
     setOpenCanvasId(canvas.id);
   }
@@ -642,11 +594,11 @@ function Vault() {
   // it — createNote() below opens the note it makes, which would close the
   // canvas the user is still working in.
   async function createNoteForCanvas(title: string): Promise<{ id: string }> {
-    const note = (await vaultClient.createNote({
+    const note = await vaultClient.createNote({
       title,
       content: "",
       type: "fleeting",
-    })) as { id: string };
+    });
     await refreshNotes();
     return note;
   }
@@ -654,14 +606,14 @@ function Vault() {
   async function createNote(title = "Untitled") {
     await flushPending();
     // createNote returns a VaultNote, not a NoteDetail — only .id is used here.
-    const note = (await vaultClient.createNote({
+    const note = await vaultClient.createNote({
       title,
       content: "",
       type: "fleeting",
-    })) as { id: string };
+    });
     await refreshNotes();
     justCreatedIdRef.current = note.id;
-    setSelected((await vaultClient.getNoteById(note.id)) as NoteDetail);
+    setSelected(await loadNote(note.id));
     setSaveStatus("saved");
   }
 
@@ -1283,9 +1235,7 @@ function Vault() {
       {switcherOpen && (
         <QuickSwitcher
           recentNotes={notes}
-          onSearch={(query) =>
-            vaultClient.search(query) as Promise<SearchResultItem[]>
-          }
+          onSearch={(query) => vaultClient.search(query)}
           onSelect={(id) => {
             setSwitcherOpen(false);
             openNote(id);
@@ -1328,25 +1278,13 @@ function Vault() {
           noteId={selected.id}
           currentContent={selected.content}
           onClose={() => setHistoryOpen(false)}
-          onListVersions={(noteId) =>
-            vaultClient.listNoteVersions(noteId) as Promise<
-              { id: string; createdAt: string; title: string }[]
-            >
-          }
-          onGetVersion={(noteId, versionId) =>
-            vaultClient.getNoteVersion(noteId, versionId) as Promise<{
-              title: string;
-              content: string;
-            }>
-          }
+          onListVersions={(noteId) => vaultClient.listNoteVersions(noteId)}
+          onGetVersion={(noteId, versionId) => vaultClient.getNoteVersion(noteId, versionId)}
           onRestore={async (noteId, versionId) => {
             await flushPending();
-            const restored = (await vaultClient.restoreNoteVersion(
-              noteId,
-              versionId,
-            )) as { id: string };
+            const restored = await vaultClient.restoreNoteVersion(noteId, versionId);
             setSelected(
-              (await vaultClient.getNoteById(restored.id)) as NoteDetail,
+              await loadNote(restored.id),
             );
             setEditorNonce((n) => n + 1);
             refreshNotes(activeTag);
@@ -1408,7 +1346,7 @@ function Vault() {
           }}
           onClose={() => setFlowData(null)}
           onLoadNote={async (id) => {
-            const note = (await vaultClient.getNoteById(id)) as NoteDetail;
+            const note = await loadNote(id);
             return {
               title: note.title,
               content: note.content,
@@ -1433,16 +1371,11 @@ function Vault() {
             setOpenCanvasId(null);
             openNote(id);
           }}
-          onLoad={(id) =>
-            vaultClient.getCanvas(id) as Promise<{
-              title: string;
-              cards: CanvasCard[];
-            }>
-          }
-          onSave={(input) => vaultClient.updateCanvas(input) as Promise<void>}
-          onSearchNotes={(query) =>
-            vaultClient.search(query) as Promise<SearchResultItem[]>
-          }
+          onLoad={(id) => vaultClient.getCanvas(id)}
+          onSave={async (input) => {
+            await vaultClient.updateCanvas(input);
+          }}
+          onSearchNotes={(query) => vaultClient.search(query)}
           onCreateNote={createNoteForCanvas}
         />
       )}

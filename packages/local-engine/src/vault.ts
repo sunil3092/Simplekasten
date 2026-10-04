@@ -49,18 +49,52 @@ function generateId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
 }
 
-async function loadAllNotes(fs: FileSystemAdapter): Promise<VaultNote[]> {
-  await fs.ensureDir(NOTES_DIR);
-  const files = await fs.listFiles(NOTES_DIR);
-  const notes: VaultNote[] = [];
-  for (const file of files) {
-    if (!file.endsWith(".md")) continue;
-    const id = file.slice(0, -3);
-    const raw = await fs.readFile(noteFilePath(id));
-    notes.push(parseNoteFile(raw, id));
+/**
+ * Reads and parses every file of one kind out of its folder. Notes,
+ * templates and canvases are each "a folder of files named by their id", so
+ * they share this loader — a kind only supplies its extension and parser.
+ */
+async function loadAll<T>(
+  fs: FileSystemAdapter,
+  dir: string,
+  ext: string,
+  parse: (raw: string, id: string) => T,
+): Promise<T[]> {
+  await fs.ensureDir(dir);
+  const items: T[] = [];
+  for (const file of await fs.listFiles(dir)) {
+    if (!file.endsWith(ext)) continue;
+    items.push(parse(await fs.readFile(dir + "/" + file), file.slice(0, -ext.length)));
   }
-  return notes;
+  return items;
 }
+
+function loadAllNotes(fs: FileSystemAdapter): Promise<VaultNote[]> {
+  return loadAll(fs, NOTES_DIR, ".md", parseNoteFile);
+}
+
+async function writeNote(fs: FileSystemAdapter, note: VaultNote): Promise<void> {
+  await fs.writeFile(noteFilePath(note.id), serializeNoteFile(note));
+}
+
+/**
+ * The live note with this id, or the engine's standard not-found error.
+ * Soft-deleted notes count as absent — every caller but `deleteNote` itself
+ * is acting on a note the user can still see.
+ */
+async function requireNote(fs: FileSystemAdapter, id: string): Promise<VaultNote> {
+  const note = (await loadAllNotes(fs)).find((n) => n.id === id && !n.deletedAt);
+  if (!note) throw new Error(`Note "${id}" not found`);
+  return note;
+}
+
+const toListItem = ({ id, zettelId, title, type, updatedAt }: VaultNote): NoteListItem => ({
+  id,
+  zettelId,
+  title,
+  type,
+  updatedAt,
+});
 
 // Everything below is recomputed from note content on every read, the
 // "content is the source of truth, links/tags are derived" rule — there's no
@@ -152,7 +186,7 @@ export async function listNotes(fs: FileSystemAdapter, tag?: string): Promise<No
   return filtered
     .slice()
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .map(({ id, zettelId, title, type, updatedAt }) => ({ id, zettelId, title, type, updatedAt }));
+    .map(toListItem);
 }
 
 export async function getNoteById(fs: FileSystemAdapter, id: string): Promise<NoteDetail | null> {
@@ -225,14 +259,12 @@ export async function createNote(fs: FileSystemAdapter, input: CreateNoteInput):
   };
 
   await fs.ensureDir(NOTES_DIR);
-  await fs.writeFile(noteFilePath(note.id), serializeNoteFile(note));
+  await writeNote(fs, note);
   return note;
 }
 
 export async function updateNote(fs: FileSystemAdapter, input: UpdateNoteInput): Promise<VaultNote> {
-  const notes = await loadAllNotes(fs);
-  const existing = notes.find((n) => n.id === input.id && !n.deletedAt);
-  if (!existing) throw new Error(`Note "${input.id}" not found`);
+  const existing = await requireNote(fs, input.id);
 
   const contentChanged = input.content !== undefined && input.content !== existing.content;
   if (contentChanged) {
@@ -251,7 +283,7 @@ export async function updateNote(fs: FileSystemAdapter, input: UpdateNoteInput):
     updatedAt: new Date().toISOString(),
   };
 
-  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  await writeNote(fs, updated);
   return updated;
 }
 
@@ -261,7 +293,7 @@ export async function deleteNote(fs: FileSystemAdapter, id: string): Promise<voi
   const existing = notes.find((n) => n.id === id);
   if (!existing) throw new Error(`Note "${id}" not found`);
 
-  await fs.writeFile(noteFilePath(id), serializeNoteFile({ ...existing, deletedAt: new Date().toISOString() }));
+  await writeNote(fs, { ...existing, deletedAt: new Date().toISOString() });
 }
 
 // Get-or-create by calendar date. There's no server round trip to save here
@@ -295,7 +327,7 @@ export async function getOrCreateDailyNote(fs: FileSystemAdapter, date: string):
   };
 
   await fs.ensureDir(NOTES_DIR);
-  await fs.writeFile(noteFilePath(note.id), serializeNoteFile(note));
+  await writeNote(fs, note);
   return note;
 }
 
@@ -307,24 +339,15 @@ export async function listDailyNotes(fs: FileSystemAdapter, limit = 30): Promise
     .slice()
     .sort((a, b) => (b.noteDate ?? "").localeCompare(a.noteDate ?? ""))
     .slice(0, limit)
-    .map(({ id, zettelId, title, type, updatedAt }) => ({ id, zettelId, title, type, updatedAt }));
+    .map(toListItem);
 }
 
 function templateFilePath(id: string): string {
   return `${TEMPLATES_DIR}/${id}.md`;
 }
 
-async function loadAllTemplates(fs: FileSystemAdapter): Promise<Template[]> {
-  await fs.ensureDir(TEMPLATES_DIR);
-  const files = await fs.listFiles(TEMPLATES_DIR);
-  const templates: Template[] = [];
-  for (const file of files) {
-    if (!file.endsWith(".md")) continue;
-    const id = file.slice(0, -3);
-    const raw = await fs.readFile(templateFilePath(id));
-    templates.push(parseTemplateFile(raw, id));
-  }
-  return templates;
+function loadAllTemplates(fs: FileSystemAdapter): Promise<Template[]> {
+  return loadAll(fs, TEMPLATES_DIR, ".md", parseTemplateFile);
 }
 
 // Expanded at apply time, never stored expanded, so editing a template
@@ -405,9 +428,7 @@ export async function applyTemplate(fs: FileSystemAdapter, input: { noteId: stri
   const template = templates.find((t) => t.id === input.templateId);
   if (!template) throw new Error(`Template "${input.templateId}" not found`);
 
-  const notes = await loadAllNotes(fs);
-  const note = notes.find((n) => n.id === input.noteId && !n.deletedAt);
-  if (!note) throw new Error(`Note "${input.noteId}" not found`);
+  const note = await requireNote(fs, input.noteId);
 
   const expanded = expandTemplateTokens(template.content, { title: note.title });
   const separator = note.content.length > 0 ? "\n\n" : "";
@@ -538,9 +559,7 @@ export async function createAttachment(fs: FileSystemAdapter, input: CreateAttac
     throw new Error(`Unsupported attachment mime type "${input.mimeType}" — only image/* and audio/* are supported`);
   }
 
-  const notes = await loadAllNotes(fs);
-  const note = notes.find((n) => n.id === input.noteId && !n.deletedAt);
-  if (!note) throw new Error(`Note "${input.noteId}" not found`);
+  await requireNote(fs, input.noteId);
 
   const attachment: Attachment = {
     id: generateId(),
@@ -563,14 +582,11 @@ export async function createAttachment(fs: FileSystemAdapter, input: CreateAttac
   // land in between, and writing back the stale object would discard it.
   const fresh = (await loadAllNotes(fs)).find((n) => n.id === input.noteId);
   if (fresh) {
-    await fs.writeFile(
-      noteFilePath(fresh.id),
-      serializeNoteFile({
-        ...fresh,
-        attachmentIds: [...fresh.attachmentIds, attachment.id],
-        updatedAt: new Date().toISOString(),
-      }),
-    );
+    await writeNote(fs, {
+      ...fresh,
+      attachmentIds: [...fresh.attachmentIds, attachment.id],
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   return attachment;
@@ -595,14 +611,11 @@ export async function deleteAttachment(fs: FileSystemAdapter, id: string): Promi
   const notes = await loadAllNotes(fs);
   const note = notes.find((n) => n.id === attachment.noteId);
   if (note) {
-    await fs.writeFile(
-      noteFilePath(note.id),
-      serializeNoteFile({
-        ...note,
-        attachmentIds: note.attachmentIds.filter((attachmentId) => attachmentId !== id),
-        updatedAt: new Date().toISOString(),
-      }),
-    );
+    await writeNote(fs, {
+      ...note,
+      attachmentIds: note.attachmentIds.filter((attachmentId) => attachmentId !== id),
+      updatedAt: new Date().toISOString(),
+    });
   }
 }
 
@@ -618,24 +631,20 @@ export async function getAttachmentFilePath(fs: FileSystemAdapter, id: string): 
 // either way. Due immediately (today) so a freshly-added note shows up in
 // the very next review session rather than waiting.
 export async function addToReviewQueue(fs: FileSystemAdapter, noteId: string, today: string): Promise<VaultNote> {
-  const notes = await loadAllNotes(fs);
-  const note = notes.find((n) => n.id === noteId && !n.deletedAt);
-  if (!note) throw new Error(`Note "${noteId}" not found`);
+  const note = await requireNote(fs, noteId);
 
   const updated: VaultNote = { ...note, reviewDue: today, reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 };
-  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  await writeNote(fs, updated);
   return updated;
 }
 
 // Resets to the "never reviewed" defaults — re-adding later starts fresh,
 // not from wherever progress left off. Simplest correct behavior for v1.
 export async function removeFromReviewQueue(fs: FileSystemAdapter, noteId: string): Promise<VaultNote> {
-  const notes = await loadAllNotes(fs);
-  const note = notes.find((n) => n.id === noteId && !n.deletedAt);
-  if (!note) throw new Error(`Note "${noteId}" not found`);
+  const note = await requireNote(fs, noteId);
 
   const updated: VaultNote = { ...note, reviewDue: null, reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 };
-  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  await writeNote(fs, updated);
   return updated;
 }
 
@@ -644,7 +653,7 @@ export async function listDueForReview(fs: FileSystemAdapter, date: string): Pro
   return notes
     .slice()
     .sort((a, b) => (a.reviewDue as string).localeCompare(b.reviewDue as string))
-    .map(({ id, zettelId, title, type, updatedAt }) => ({ id, zettelId, title, type, updatedAt }));
+    .map(toListItem);
 }
 
 export interface SubmitReviewInput {
@@ -654,9 +663,7 @@ export interface SubmitReviewInput {
 }
 
 export async function submitReview(fs: FileSystemAdapter, input: SubmitReviewInput): Promise<VaultNote> {
-  const notes = await loadAllNotes(fs);
-  const note = notes.find((n) => n.id === input.noteId && !n.deletedAt);
-  if (!note) throw new Error(`Note "${input.noteId}" not found`);
+  const note = await requireNote(fs, input.noteId);
 
   const next = nextReviewState({ ease: note.reviewEase, interval: note.reviewInterval, reps: note.reviewReps }, input.rating);
   const updated: VaultNote = {
@@ -666,7 +673,7 @@ export async function submitReview(fs: FileSystemAdapter, input: SubmitReviewInp
     reviewReps: next.reps,
     reviewDue: addDays(input.today, next.interval),
   };
-  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  await writeNote(fs, updated);
   return updated;
 }
 
@@ -717,9 +724,7 @@ async function writeSnapshot(fs: FileSystemAdapter, noteId: string, snapshot: { 
 }
 
 export async function restoreNoteVersion(fs: FileSystemAdapter, noteId: string, versionId: string): Promise<VaultNote> {
-  const notes = await loadAllNotes(fs);
-  const existing = notes.find((n) => n.id === noteId && !n.deletedAt);
-  if (!existing) throw new Error(`Note "${noteId}" not found`);
+  const existing = await requireNote(fs, noteId);
 
   const target = await getNoteVersion(fs, noteId, versionId);
 
@@ -729,7 +734,7 @@ export async function restoreNoteVersion(fs: FileSystemAdapter, noteId: string, 
   await writeSnapshot(fs, noteId, { title: existing.title, content: existing.content });
 
   const updated: VaultNote = { ...existing, title: target.title, content: target.content, updatedAt: new Date().toISOString() };
-  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  await writeNote(fs, updated);
   return updated;
 }
 
@@ -737,17 +742,8 @@ function canvasFilePath(id: string): string {
   return `${CANVASES_DIR}/${id}.json`;
 }
 
-async function loadAllCanvases(fs: FileSystemAdapter): Promise<CanvasData[]> {
-  await fs.ensureDir(CANVASES_DIR);
-  const files = await fs.listFiles(CANVASES_DIR);
-  const canvases: CanvasData[] = [];
-  for (const file of files) {
-    if (!file.endsWith(".json")) continue;
-    const id = file.slice(0, -5);
-    const raw = await fs.readFile(canvasFilePath(id));
-    canvases.push(parseCanvasFile(raw, id));
-  }
-  return canvases;
+function loadAllCanvases(fs: FileSystemAdapter): Promise<CanvasData[]> {
+  return loadAll(fs, CANVASES_DIR, ".json", parseCanvasFile);
 }
 
 export async function listCanvases(fs: FileSystemAdapter): Promise<CanvasListItem[]> {

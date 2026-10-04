@@ -148,8 +148,42 @@ describe("note-file frontmatter round-trip", () => {
     });
   });
 
-  it("throws when a file has no frontmatter block", () => {
-    expect(() => parseNoteFile("just plain markdown, no frontmatter", "id1")).toThrow();
+  it("throws naming the offending file when there is no frontmatter block", () => {
+    expect(() => parseNoteFile("just plain markdown, no frontmatter", "id1")).toThrow(
+      'Note file "id1.md" is missing its YAML frontmatter block',
+    );
+  });
+
+  // Vaults get edited by other tools and synced between machines, so a note
+  // saved with Windows line endings has to read back the same as one saved
+  // with Unix ones.
+  it("parses a file written with CRLF line endings", () => {
+    const parsed = parseNoteFile(
+      '---\r\nid: crlf1\r\nzettelId: "7"\r\ntitle: Windows\r\ntype: fleeting\r\n---\r\nBody line one.\r\nBody line two.',
+      "crlf1",
+    );
+    expect(parsed.title).toBe("Windows");
+    expect(parsed.zettelId).toBe("7");
+    expect(parsed.content).toBe("Body line one.\r\nBody line two.");
+  });
+
+  it("falls back to documented defaults when the frontmatter is empty", () => {
+    const parsed = parseNoteFile("---\n\n---\nJust a body.", "bare1");
+    expect(parsed).toMatchObject({
+      id: "bare1",
+      zettelId: "",
+      title: "Untitled",
+      type: "fleeting",
+      content: "Just a body.",
+      deletedAt: null,
+      attachmentIds: [],
+      tags: [],
+      noteDate: null,
+      reviewDue: null,
+      reviewEase: 2.5,
+      reviewInterval: 0,
+      reviewReps: 0,
+    });
   });
 
   it("round-trips assigned tags, omitting the key when there are none", () => {

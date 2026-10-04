@@ -11,6 +11,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    // demo/ holds the sample vault the README tour and the dev-vault seed
+    // both read, and its own integrity test.
+    include: ["src/**/*.test.{ts,tsx}", "demo/**/*.test.ts"],
   },
 });

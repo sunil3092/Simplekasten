@@ -30,17 +30,21 @@ Local-first vault of plain markdown files (YAML frontmatter + body, no
 server/login required) shared by Desktop (Electron) and Mobile (Expo)
 through `packages/local-engine` · atomic notes with zettel IDs ·
 bidirectional `[[wiki-links]]` + backlinks panel · note types
-(fleeting/literature/permanent/structure) with shared badge/graph colours
-(`packages/themes`) · substring search + create-from-search on both
-platforms · auto-parsed `#hashtags` + tag filter · graph view (local
-neighborhood + whole vault, pan/pinch-zoom on mobile) · CodeMirror 6 editor
-(desktop) / native `[[` suggestions (mobile) · Maps of Content (structure
-notes as index pages) · installable/hot-swappable themes (Classic by default, Memphis,
-SnowUI, plus user-supplied theme files) · photo + voice-note attachments on both
-platforms (desktop: file picker; mobile: camera/library/recording) · delete
-note with confirmation, both platforms · dark mode · a shared UI/copy/icon
-layer (`packages/core`) keeping desktop and mobile in visual and
-behavioural parity.
+(fleeting/literature/permanent/structure/daily) with shared badge/graph
+colours (`packages/themes`) · substring search + create-from-search on both
+platforms · tags in one namespace — auto-parsed `#hashtags` plus tags
+assigned from a picker into frontmatter, with a shared picker model
+(`packages/core/src/tags.ts`) so desktop's dropdown and mobile's sheet
+list, lock and offer "Create" identically — and a tag filter · graph view
+(local neighborhood + whole vault, pan/pinch-zoom on mobile) · CodeMirror 6
+editor (desktop) / native `[[` suggestions (mobile) · Maps of Content
+(structure notes as index pages) · installable/hot-swappable themes
+(Classic by default, Memphis, SnowUI, plus user-supplied theme files) ·
+photo + voice-note attachments on both platforms (desktop: file picker;
+mobile: camera/library/recording) · delete note with confirmation, both
+platforms · purge the whole vault behind two confirmations (desktop) · dark
+mode · a shared UI/copy/icon layer (`packages/core`) keeping desktop and
+mobile in visual and behavioural parity.
 
 ## Gap analysis
 
@@ -118,8 +122,52 @@ dedicated e2e coverage; only the mobile UI is still missing.
 | Version history | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-25 |
 | Canvas | ✅ | ✅ | ✅ | ✅ (view-only) | ✅ | ✅ 2026-09-25 |
 | Flow view | ✅ | ✅ | ✅ | ❌ not started | ✅ | Desktop only, 2026-10-04 |
+| Vault purge | n/a (README) | ✅ | ✅ | ❌ not started | ✅ | Desktop only, 2026-10-04 |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
+
+### Vault purge — shipped 2026-10-04
+
+`purgeVault(fs)` in `packages/local-engine/src/vault.ts` plus a two-step
+dialog in desktop's Settings. It deletes only the files in the engine's own
+folders, one by one — never the vault folder itself, which the user chose
+and may hold other things — and leaves `themes/` alone, since installed
+themes are appearance, not content. Notes already in the trash go too,
+along with every note's `.history/` snapshots and every attachment.
+
+Two confirmations rather than one: the first step shows the actual counts of
+what will go, the second requires typing the vault's folder name. There is
+no trash to restore from, so the cost of an accidental click is the whole
+vault. Desktop only — mobile has no Settings surface for destructive vault
+actions, the same authoring-vs-consuming split Templates established.
+
+No separate spec doc: the behaviour is small enough to live in the README's
+"The vault folder" section, and writing a spec after the fact would
+document intentions rather than what shipped. A development run of the
+desktop app points at `dev-vault/` at the repo root under its own setting
+key, so trying a purge out never reaches the installed app's vault.
+
+### Seeded dev vault — added 2026-10-04
+
+`npm run dev:desktop` now seeds `dev-vault/` before starting, so a
+development run opens onto a vault with resolved links, tags, a Map of
+Content, a journal entry and a non-empty review queue rather than the empty
+state. It writes only to `dev-vault/`, only when that folder holds no notes,
+and skips entirely when `SIMPLEKASTEN_VAULT` is set — the folder a developer
+pointed at on purpose may hold real notes.
+
+The sample notes were already in the repo, as the fixture the README's demo
+GIF is recorded from. They moved to `apps/desktop/demo/sample-vault.ts` so
+the GIF and the dev vault show the same thing, with an integrity test
+(`sample-vault.test.ts`) covering the two ways that data fails quietly: a
+`[[wiki-link]]` to a renamed note renders unresolved in the GIF, and the
+seed queues notes for review by title. The seeder itself goes through the
+real engine functions via the same `tsx/cjs` hook `main.js` uses, so it
+can't drift from the on-disk note format.
+
+237 unit tests total (131 in local-engine, up from 122; 45 in desktop, up
+from 37) + 45 desktop e2e tests, all green; `tsc --noEmit` clean across all
+five workspaces.
 
 ### Canvas — shipped 2026-09-25
 

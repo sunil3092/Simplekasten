@@ -1,18 +1,13 @@
-import yaml from "js-yaml";
 import type { NoteType } from "@simplekasten/core";
+import { parseFrontmatter, serializeFrontmatter } from "./frontmatter";
 import type { VaultNote } from "./types";
 
-// A note file is always `---\n<yaml>\n---\n<body>` — the filename (its id)
-// is what's stable across edits, so a title change never renames the file.
-const FRONTMATTER_PATTERN = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
+// The filename (its id) is what's stable across edits, so a title change
+// never renames the file. The stored file shape itself lives in
+// frontmatter.ts, shared with templates and history snapshots.
 
 export function parseNoteFile(raw: string, id: string): VaultNote {
-  const match = raw.match(FRONTMATTER_PATTERN);
-  if (!match) {
-    throw new Error(`Note file "${id}.md" is missing its YAML frontmatter block`);
-  }
-
-  const frontmatter = (yaml.load(match[1]) ?? {}) as Record<string, unknown>;
+  const { frontmatter, body } = parseFrontmatter(raw, `Note file "${id}.md"`);
   const now = new Date().toISOString();
 
   return {
@@ -20,7 +15,7 @@ export function parseNoteFile(raw: string, id: string): VaultNote {
     zettelId: frontmatter.zettelId != null ? String(frontmatter.zettelId) : "",
     title: frontmatter.title != null ? String(frontmatter.title) : "Untitled",
     type: (frontmatter.type as NoteType) ?? "fleeting",
-    content: match[2] ?? "",
+    content: body,
     createdAt: frontmatter.createdAt != null ? String(frontmatter.createdAt) : now,
     updatedAt: frontmatter.updatedAt != null ? String(frontmatter.updatedAt) : now,
     deletedAt: frontmatter.deletedAt != null ? String(frontmatter.deletedAt) : null,
@@ -55,5 +50,5 @@ export function serializeNoteFile(note: VaultNote): string {
     frontmatter.reviewReps = note.reviewReps;
   }
 
-  return `---\n${yaml.dump(frontmatter)}---\n${note.content}`;
+  return serializeFrontmatter(frontmatter, note.content);
 }

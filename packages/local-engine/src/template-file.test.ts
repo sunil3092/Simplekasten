@@ -36,7 +36,9 @@ describe("template-file frontmatter round-trip", () => {
     expect(parseTemplateFile(rawNotDefault, notDefault.id)).toEqual(notDefault);
   });
 
-  it("throws when a file has no frontmatter block", () => {
-    expect(() => parseTemplateFile("just plain markdown, no frontmatter", "id1")).toThrow();
+  it("throws naming the offending file when there is no frontmatter block", () => {
+    expect(() => parseTemplateFile("just plain markdown, no frontmatter", "id1")).toThrow(
+      'Template file "id1.md" is missing its YAML frontmatter block',
+    );
   });
 });

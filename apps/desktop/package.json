@@ -4,7 +4,8 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "seed:dev": "node scripts/seed-dev-vault.js",
+    "dev": "npm run seed:dev && concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
     "dev:renderer": "next dev",
     "dev:electron": "wait-on http://localhost:3000 && cross-env ELECTRON_START_URL=http://localhost:3000 electron .",
     "build:renderer": "next build",

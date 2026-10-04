@@ -4,7 +4,7 @@ import { JOURNAL_TAG } from "@simplekasten/core";
 import { layoutFlow, routeFlowEdge, type FlowPoint, type FlowRect } from "@simplekasten/local-engine";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../lib/ThemeProvider";
-import { NOTE_TYPES, noteTypeInfo } from "../lib/noteTypes";
+import { NOTE_TYPES, noteTypeInfo, type NoteType } from "../lib/noteTypes";
 import { CalendarIcon, ChevronDownIcon, ExpandIcon, LayoutIcon, PlusIcon, SearchIcon, TrashIcon, XIcon } from "./icons";
 import { moveToEditorOnKey, NoteEditor } from "./NoteEditor";
 import { ConfirmDialog } from "./ui";
@@ -13,7 +13,7 @@ export interface FlowNode {
   id: string;
   title: string;
   zettelId: string;
-  type: string;
+  type: NoteType;
 }
 
 export interface FlowEdge {
@@ -28,7 +28,7 @@ interface FlowViewProps {
   onClose: () => void;
   onLoadNote: (id: string) => Promise<{ title: string; content: string; tags?: string[] }>;
   /** Resolves with the note's tags as saved, so the tag filter stays current. */
-  onSaveNote: (input: { id: string; title?: string; content?: string; type?: string }) => Promise<{ tags?: string[] } | void>;
+  onSaveNote: (input: { id: string; title?: string; content?: string; type?: NoteType }) => Promise<{ tags?: string[] } | void>;
   onCreateNote: () => Promise<{ id: string }>;
   onDeleteNote: (id: string) => Promise<void>;
   /** Identifies the vault, so each vault remembers its own card arrangement. */
@@ -241,7 +241,7 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
   const [hideJournal, setHideJournal] = useState(false);
   // A type just picked on a card, shown at once while the save and the
   // refreshed `nodes` catch up.
-  const [pickedTypes, setPickedTypes] = useState<Map<string, string>>(new Map());
+  const [pickedTypes, setPickedTypes] = useState<Map<string, NoteType>>(new Map());
   // The card being typed in stays on screen even if its tags stop matching
   // the filter — otherwise retyping a #hashtag would whisk it away mid-edit.
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -273,7 +273,7 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
     if (tags && mountedRef.current) setNoteTags((prev) => new Map(prev).set(id, tags));
   }
 
-  function changeType(id: string, type: string) {
+  function changeType(id: string, type: NoteType) {
     // Text still waiting to be saved goes first, so the two writes can't cross.
     flushSave(id);
     setPickedTypes((prev) => new Map(prev).set(id, type));
@@ -764,7 +764,7 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
                             aria-label="Note type"
                             title="Note type"
                             value={type}
-                            onChange={(e) => changeType(l.id, e.target.value)}
+                            onChange={(e) => changeType(l.id, e.target.value as NoteType)}
                             className="cursor-pointer appearance-none bg-transparent pr-3 font-mono text-[10px] font-medium tracking-wide uppercase outline-none"
                           >
                             {NOTE_TYPES.map((t) => (

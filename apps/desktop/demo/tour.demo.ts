@@ -2,7 +2,8 @@ import { test, type Page } from "@playwright/test";
 import { mkdirSync } from "fs";
 import path from "path";
 import sharp from "sharp";
-import { stubBridge, type SeedNote } from "../e2e/bridge";
+import { stubBridge } from "../e2e/bridge";
+import { SAMPLE_VAULT } from "./sample-vault";
 
 // Builds docs/demo/tour.gif, the walkthrough in the root README. It drives
 // the real renderer against the stubbed bridge (like the e2e specs), takes
@@ -15,37 +16,6 @@ const WIDTH = 1280;
 const HEIGHT = 760;
 const GIF_WIDTH = 1000;
 const SECONDS_PER_FRAME = 3.2;
-
-const note = (n: number, title: string, type: string, content: string): SeedNote => ({
-  id: `n${n}`,
-  zettelId: String(n),
-  title,
-  type,
-  content,
-  tags: [],
-});
-
-const VAULT: SeedNote[] = [
-  note(
-    1,
-    "Learning Systems",
-    "structure",
-    "A map of how I study.\n\n- [[Zettelkasten Method]]\n- [[Spaced Repetition]]\n- [[Active Recall]]\n- [[Feynman Technique]]\n- [[Forgetting Curve]]",
-  ),
-  note(2, "Zettelkasten Method", "permanent", "A slip-box of small notes that link to each other instead of living in folders. #method\n\nBuilt on [[Atomic Notes]] and [[Linking Over Filing]]."),
-  note(3, "Atomic Notes", "permanent", "One idea per note, written so it stands on its own. #method\n\nSmall notes are what make [[Linking Over Filing]] possible."),
-  note(4, "Linking Over Filing", "permanent", "A note's value comes from what it connects to, not where it is stored. #method"),
-  note(
-    5,
-    "Spaced Repetition",
-    "literature",
-    "Review just before you would forget; each successful review pushes the next one further out. #memory\n\nA direct answer to the [[Forgetting Curve]], and it works best with [[Active Recall]].",
-  ),
-  note(6, "Active Recall", "literature", "Pull the answer out of memory instead of re-reading it. #memory\n\nEvery recall flattens the [[Forgetting Curve]] a little."),
-  note(7, "Forgetting Curve", "permanent", "Memory of new material drops fast at first, then levels off. #memory\n\nEach review resets the curve and makes it shallower."),
-  note(8, "Feynman Technique", "fleeting", "Explain it in plain words, as if teaching a beginner; the gaps show what you don't understand yet."),
-  note(9, "Reading Inbox", "fleeting", "Books and articles to process later."),
-];
 
 async function caption(page: Page, text: string) {
   await page.evaluate((text) => {
@@ -74,7 +44,7 @@ test("build the README tour", async ({ page }) => {
   };
 
   await page.setViewportSize({ width: WIDTH, height: HEIGHT });
-  await stubBridge(page, { theme: "classic", themeMode: "light" }, VAULT);
+  await stubBridge(page, { theme: "classic", themeMode: "light" }, SAMPLE_VAULT);
   // The sidebar heading is the vault folder's name.
   await page.addInitScript(() => {
     (window as unknown as { simplekasten: { vault: { getVaultPath: () => Promise<string> } } }).simplekasten.vault.getVaultPath = async () => "/Documents/My Notes";

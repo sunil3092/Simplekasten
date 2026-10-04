@@ -51,7 +51,9 @@ snapshot file is a minimal frontmatter + body, parsed by a new
 `history-file.ts` (deliberately not reusing `note-file.ts`'s
 `parseNoteFile`/`serializeNoteFile`, which require fields — `zettelId`,
 `type`, `attachmentIds`, the review-queue group — that don't apply to a
-historical snapshot):
+historical snapshot; the two share only the `---\n<yaml>\n---\n<body>`
+envelope itself, which `frontmatter.ts` defines once for notes, templates
+and snapshots alike):
 
 ```
 ---

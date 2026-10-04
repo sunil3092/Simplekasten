@@ -17,7 +17,9 @@ describe("history-file frontmatter round-trip", () => {
     expect(parseHistorySnapshot(serializeHistorySnapshot(snapshot))).toEqual(snapshot);
   });
 
-  it("throws when a file has no frontmatter block", () => {
-    expect(() => parseHistorySnapshot("just plain markdown, no frontmatter")).toThrow();
+  it("throws naming a snapshot with no frontmatter block", () => {
+    expect(() => parseHistorySnapshot("just plain markdown, no frontmatter")).toThrow(
+      "History snapshot is missing its YAML frontmatter block",
+    );
   });
 });

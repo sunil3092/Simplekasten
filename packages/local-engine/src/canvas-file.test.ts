@@ -37,8 +37,8 @@ describe("canvas-file round-trip", () => {
     expect(parsed.cards).toEqual([]);
   });
 
-  it("throws parsing invalid JSON", () => {
-    expect(() => parseCanvasFile("not json", "c4")).toThrow();
+  it("throws a SyntaxError parsing invalid JSON", () => {
+    expect(() => parseCanvasFile("not json", "c4")).toThrow(SyntaxError);
   });
 
   it("uses the filename id even if the serialized data carried a different one", () => {

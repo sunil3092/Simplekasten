@@ -91,12 +91,22 @@ npm install
 
 Both apps work fully offline out of the box — there's nothing else to set up.
 
+## 🗄️ The vault folder
+
+Your notes are a folder of plain files, not a database: one markdown file per note under `notes/`, plus `templates/`, `canvases/`, `attachments/`, `themes/` and a hidden `.history/` for version snapshots. Back it up, sync it, or open it in any editor — the folder **is** the portable export, so there's nothing to zip. Settings shows where it lives, reveals it in your file manager, and lets you pick a different folder.
+
+**Purging a vault** (Settings → Purge vault, desktop) permanently deletes everything Simplekasten stores in it: every note including ones already in the trash, with their version history and attachments, plus every template and canvas. Installed themes and your settings are kept, and other files you keep in the folder are left alone. It asks twice — first showing exactly what will go, then requiring you to type the vault's name — because there is no trash to restore from afterwards.
+
 ## 💻 Development
 
 ```bash
 npm run dev:desktop   # 🖥️ Electron app — fully local, no login, no network
 npm run dev:mobile    # 📱 Expo app — fully local, no login, no network
 ```
+
+🧪 A development run of the desktop app keeps its notes in `dev-vault/` at the repo root (gitignored) and remembers its chosen folder under a separate setting, so trying things out — **including purging** — never touches the vault the installed app uses. Set `SIMPLEKASTEN_VAULT` to point one launch somewhere else.
+
+🌱 `dev:desktop` seeds that folder first, so a dev run opens onto a vault with something in it: nine linked notes covering every note type, two tag groups, a Map of Content, today's journal entry pre-filled from a template, and two notes due for review. It writes only to `dev-vault/`, only when that folder has no notes yet, and does nothing at all when `SIMPLEKASTEN_VAULT` is set, so it can never reach a real vault. Run it alone with `npm run seed:dev`; to start over, delete `dev-vault/` or purge from Settings. The sample notes live in [apps/desktop/demo/sample-vault.ts](./apps/desktop/demo/sample-vault.ts) and are the same ones the README's demo GIF is recorded from.
 
 💾 The desktop app is fully local, backed by its local vault engine — see [apps/desktop/README.md](./apps/desktop/README.md).
 
@@ -170,6 +180,8 @@ npm run test:e2e -w @simplekasten/desktop  # 🎭 Playwright browser tests (desk
 ```
 
 The Playwright suite (`apps/desktop/e2e`) runs the real renderer against a stubbed Electron bridge — no Electron process or real vault needed. It covers the sidebar, notes, links, tags, journal, templates, review, version history, canvas and flow view, and the themes: that Classic is the default (including a JavaScript-off first paint), and that under Memphis every colour painted on screen comes from the palette. First run: `npx playwright install chromium` inside `apps/desktop`. Screenshots and traces go to `test-results/` (gitignored).
+
+**On a fresh clone, run `npm run dev:mobile` once before `npm run typecheck`.** The mobile app uses Expo Router's typed routes, whose generated types live in the gitignored `apps/mobile/.expo/types/`. Until the dev server has written them, `tsc` can't know routes like `/review` or `/canvas` exist and reports them as invalid — the same thing happens if routes are added while the server isn't running.
 
 ## 🖼️ App icon
 

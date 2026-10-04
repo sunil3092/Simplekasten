@@ -128,7 +128,59 @@ describe("vault engine", () => {
 
     const results = await searchNotes(fs, "atomic");
     expect(results).toHaveLength(1);
-    expect(results[0].snippet).toContain("atomic");
+    // Short enough to fit the 60-character window on both sides, so the
+    // whole body comes back with just the match wrapped and no ellipses.
+    expect(results[0].snippet).toBe("Notes should be \u0001atomic\u0002 and self-contained.");
+  });
+
+  it("trims a long match to a 60-character window each side, marking both cut ends", async () => {
+    const fs = createMemoryFs();
+    await createNote(fs, { title: "Long", content: "a".repeat(100) + "needle" + "b".repeat(100) });
+
+    const [result] = await searchNotes(fs, "needle");
+    expect(result.snippet).toBe(
+      "\u2026" + "a".repeat(60) + "\u0001needle\u0002" + "b".repeat(60) + "\u2026",
+    );
+  });
+
+  it("falls back to the first 120 characters, unmarked, when only the title matches", async () => {
+    const fs = createMemoryFs();
+    await createNote(fs, { title: "Findme", content: "x".repeat(200) });
+
+    const [result] = await searchNotes(fs, "findme");
+    expect(result.snippet).toBe("x".repeat(120) + "\u2026");
+    expect(result.snippet).not.toContain("\u0001");
+  });
+
+  it("returns a short body whole when only the title matches", async () => {
+    const fs = createMemoryFs();
+    await createNote(fs, { title: "Findme", content: "A short body." });
+
+    const [result] = await searchNotes(fs, "findme");
+    expect(result.snippet).toBe("A short body.");
+  });
+
+  it("caps results at 20 even when more notes match", async () => {
+    const fs = createMemoryFs();
+    for (let i = 0; i < 25; i++) await createNote(fs, { title: "Match " + i, content: "" });
+
+    expect(await searchNotes(fs, "match")).toHaveLength(20);
+  });
+
+  it("returns nothing for a blank or whitespace-only query", async () => {
+    const fs = createMemoryFs();
+    await createNote(fs, { title: "Anything", content: "body" });
+
+    expect(await searchNotes(fs, "")).toEqual([]);
+    expect(await searchNotes(fs, "   ")).toEqual([]);
+  });
+
+  it("excludes a soft-deleted note from search results", async () => {
+    const fs = createMemoryFs();
+    const note = await createNote(fs, { title: "Findme", content: "body" });
+    await deleteNote(fs, note.id);
+
+    expect(await searchNotes(fs, "findme")).toEqual([]);
   });
 
   it("ranks a title match above a content-only match", async () => {
@@ -424,6 +476,18 @@ describe("attachments", () => {
 
       const detail = await applyTemplate(fs, { noteId: note.id, templateId: template.id });
       expect(detail.content).toBe("Hello, Empty!");
+    });
+
+    it("expands {{date}} and {{time}} too, leaving no tokens behind", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "My Note", content: "" });
+      const template = await createTemplate(fs, { name: "Log", content: "{{date}} at {{time}} - {{title}}" });
+
+      const detail = await applyTemplate(fs, { noteId: note.id, templateId: template.id });
+      // Both tokens render through the machine's own locale clock, so the
+      // shape is what is asserted here, not a fixed instant.
+      expect(detail.content).not.toContain("{{");
+      expect(detail.content).toMatch(/^[A-Z][a-z]+ \d{1,2}, \d{4} at \d{1,2}:\d{2}\s?[AP]M - My Note$/);
     });
 
     it("throws applying a missing template or to a missing note", async () => {
