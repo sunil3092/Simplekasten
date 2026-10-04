@@ -1,6 +1,6 @@
 # Feature: Flow view
 
-**Status:** desktop shipped 2026-10-04. Mobile has no flow view yet.
+**Status:** shipped 2026-10-04 on desktop and mobile.
 **Why:** gap analysis item #14. Graph view shows how the whole vault
 clusters; Flow view reads the same links as a top-to-bottom diagram, so a
 chain of reasoning ("this builds on that, which builds on those") can be
@@ -90,3 +90,28 @@ Two pure, I/O-free modules, each with its own unit tests:
 - Filtering shows only notes that carry a chosen tag; a linked note without
   the tag is hidden even when a visible note points to it.
 - Positions don't travel with the vault to another device.
+
+## Mobile
+
+Added 2026-10-04 as a fourth tab (`apps/mobile/src/app/(tabs)/flow.tsx`),
+spec at `docs/superpowers/specs/2026-10-04-mobile-flow-view-design.md`.
+Same behaviour, with touch in place of mouse and keyboard:
+
+- One finger pans, two fingers pinch-zoom. It opens zoomed out far enough
+  to show the whole top row, down to half size.
+- A card is dragged by its header strip. The card last touched colours its
+  arrows.
+- A `[[link]]` inside a text field can't be tapped, so each link in a card
+  gets a chip under the text. Tapping it opens the note, or, if there is no
+  such note yet, creates it on the flow with the card's tags.
+- Tags are a scrolling row of chips; the type is picked from a small sheet.
+
+Layout, card size, arrow routing, the tag filter rule and the tag list are
+shared with desktop in `packages/local-engine/src/flow-view.ts`, so a flow
+is arranged the same way on both. Card positions are per device: mobile
+keeps them in the app's `settings.json`, not in the vault.
+
+Not on mobile yet: `[[` and `#` suggestions while typing in a card.
+Verified on the Android emulator except pinch-zoom (the test tooling can
+only send one finger) and the Journal chip (the test vault had no journal
+entries).

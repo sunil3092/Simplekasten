@@ -124,7 +124,7 @@ dedicated e2e coverage; only the mobile UI is still missing.
 | Command palette | ✅ | n/a (UI-only) | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Version history | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-25 |
 | Canvas | ✅ | ✅ | ✅ | ✅ (view-only) | ✅ | ✅ 2026-09-25 |
-| Flow view | ✅ | ✅ | ✅ | ❌ not started | ✅ | Desktop only, 2026-10-04 |
+| Flow view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-10-04 |
 | Vault purge | n/a (README) | ✅ | ✅ | ❌ not started | ✅ | Desktop only, 2026-10-04 |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*

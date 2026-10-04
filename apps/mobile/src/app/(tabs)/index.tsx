@@ -147,6 +147,7 @@ export default function VaultScreen() {
     { kind: "command", id: "today", icon: "calendar", label: "Today", description: "Open or create today's daily note", run: openToday },
     { kind: "command", id: "review", icon: "repeat", label: "Review", description: COPY.reviewCommandDescription, run: () => { setQuery(""); router.push("/review"); } },
     { kind: "command", id: "graph", icon: "network", label: "Graph view", description: "Visualize how notes link together", run: () => { setQuery(""); router.push("/graph"); } },
+    { kind: "command", id: "flow", icon: "flow", label: "Flow view", description: "See related notes as a top-to-bottom flow diagram", run: () => { setQuery(""); router.push("/flow"); } },
     { kind: "command", id: "canvases", icon: "layout", label: "Canvases", description: "View canvases made on desktop", run: () => { setQuery(""); router.push("/canvas"); } },
     { kind: "command", id: "settings", icon: "settings", label: "Settings", description: "Theme and appearance settings", run: () => { setQuery(""); router.push("/settings"); } },
   ];
