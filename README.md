@@ -1,4 +1,6 @@
-<img src="./assets/icon/icon-preview.png" alt="Simplekasten app icon" width="96" align="right" />
+<p align="center">
+  <img src="./assets/icon/icon-preview.png" alt="Simplekasten app icon" width="112" />
+</p>
 
 # 🗃️ Simplekasten
 

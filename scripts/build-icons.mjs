@@ -23,11 +23,16 @@ const CANVAS = 1024;
 // The glyph file is a 14x14 SVG holding one <path>; only that path is reused.
 const glyphPath = readFileSync(join(root, "assets/icon/glyph.svg"), "utf8").match(/<path[^>]*\/>/)[0];
 
-/** The glyph, `scale` of the canvas wide, centred. */
+// Two of the glyph's three cards sit on its left, so although its outline is
+// centred it looks pushed to the left. Nudging it right by this share of its
+// own width puts its visual weight in the middle.
+const OPTICAL_SHIFT = 0.045;
+
+/** The glyph, `scale` of the canvas wide, optically centred. */
 function glyph(scale) {
   const size = CANVAS * scale;
   const offset = (CANVAS - size) / 2;
-  return `<svg x="${offset}" y="${offset}" width="${size}" height="${size}" viewBox="0 0 14 14">${glyphPath}</svg>`;
+  return `<svg x="${offset + size * OPTICAL_SHIFT}" y="${offset}" width="${size}" height="${size}" viewBox="0 0 14 14">${glyphPath}</svg>`;
 }
 
 /**
