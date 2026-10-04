@@ -33,6 +33,7 @@ import {
   getCanvas,
   updateCanvas,
   deleteCanvas,
+  purgeVault,
 } from "./vault";
 
 describe("vault engine", () => {
@@ -699,6 +700,42 @@ describe("attachments", () => {
     it("throws getting a canvas that doesn't exist", async () => {
       const fs = createMemoryFs();
       await expect(getCanvas(fs, "nope")).rejects.toThrow();
+    });
+  });
+
+  describe("purging the vault", () => {
+    it("deletes every note, version, template, canvas and attachment, and nothing else", async () => {
+      const fs = createMemoryFs();
+      const kept = await createNote(fs, { title: "Kept until purge", content: "body" });
+      const trashed = await createNote(fs, { title: "Already in the trash", content: "" });
+      await deleteNote(fs, trashed.id);
+      await getOrCreateDailyNote(fs, "2026-09-22");
+      await fs.writeFile(`.history/${kept.id}/v1.md`, "an older version");
+      await createTemplate(fs, { name: "Meeting", content: "## Notes" });
+      await createCanvas(fs, { title: "Board" });
+      await fs.writeFile("source.png", "image bytes");
+      await createAttachment(fs, { noteId: kept.id, sourcePath: "source.png", mimeType: "image/png", filename: "photo.png" });
+      // Not the engine's: an installed theme, and a stray file the user keeps beside the vault's folders.
+      await fs.writeFile("themes/sunset.json", "{}");
+      await fs.writeFile("my-own-file.txt", "hands off");
+
+      expect(await purgeVault(fs)).toEqual({ notes: 3, templates: 1, canvases: 1, attachments: 1 });
+
+      expect(await listNotes(fs)).toEqual([]);
+      expect(await listTemplates(fs)).toEqual([]);
+      expect(await listCanvases(fs)).toEqual([]);
+      for (const dir of ["notes", `.history/${kept.id}`, "templates", "canvases", "attachments"]) {
+        expect(await fs.listFiles(dir), dir).toEqual([]);
+      }
+      expect(await fs.readFile("themes/sunset.json")).toBe("{}");
+      expect(await fs.readFile("my-own-file.txt")).toBe("hands off");
+    });
+
+    it("leaves an already-empty vault usable", async () => {
+      const fs = createMemoryFs();
+      expect(await purgeVault(fs)).toEqual({ notes: 0, templates: 0, canvases: 0, attachments: 0 });
+      const note = await createNote(fs, { title: "First note after a purge", content: "" });
+      expect(note.zettelId).toBe("1");
     });
   });
 });

@@ -118,6 +118,7 @@ function registerIpcHandlers() {
   ipcMain.handle("vault:getCanvas", (_event, id) => localEngine.getCanvas(currentAdapter(), id));
   ipcMain.handle("vault:updateCanvas", (_event, input) => localEngine.updateCanvas(currentAdapter(), input));
   ipcMain.handle("vault:deleteCanvas", (_event, id) => localEngine.deleteCanvas(currentAdapter(), id));
+  ipcMain.handle("vault:purgeVault", () => localEngine.purgeVault(currentAdapter()));
   ipcMain.handle("vault:getVaultPath", () => getVaultPath());
   ipcMain.handle("vault:addAttachment", async (_event, noteId) => {
     const result = await dialog.showOpenDialog({

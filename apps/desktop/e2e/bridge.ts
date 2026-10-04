@@ -163,6 +163,13 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
             .slice(0, limit)
             .map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type, updatedAt: stamp })),
         getVaultPath: async () => "/fixture",
+        purgeVault: async () => {
+          notes.length = 0;
+          templates.length = 0;
+          canvases.length = 0;
+          versions.length = 0;
+          attachments = [];
+        },
         chooseVaultFolder: async () => "/fixture",
         addAttachment: async (noteId: string) => {
           const a = { id: `new${nextAttachment++}`, noteId, kind: "photo", filename: "added.svg", mimeType: "image/svg+xml", createdAt: stamp };

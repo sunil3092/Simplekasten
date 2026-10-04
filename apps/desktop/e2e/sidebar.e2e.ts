@@ -53,3 +53,37 @@ test("shortcut hints name the key for the platform: Ctrl on Windows and Linux, �
     await context.close();
   }
 });
+
+test("purging the vault takes a warning and the vault's name, then leaves an empty vault", async ({ page }) => {
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
+  await page.goto("/");
+  const sidebar = page.locator("aside").first();
+  await expect(sidebar.getByText("2 notes")).toBeVisible();
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Purge vault…" }).click();
+  const dialog = page.getByRole("dialog", { name: "Purge vault" });
+
+  // First confirmation: what will go.
+  await expect(dialog.getByTestId("purge-summary")).toContainText("2 notes");
+  await expect(dialog).toContainText("cannot be undone");
+  // Escape backs out of the purge only; Settings stays, and nothing is deleted.
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+  await expect(sidebar.getByText("2 notes")).toBeVisible();
+
+  // Second confirmation: the vault's name (the fixture vault is "/fixture").
+  await page.getByRole("button", { name: "Purge vault…" }).click();
+  await dialog.getByRole("button", { name: "Continue" }).click();
+  const purge = dialog.getByRole("button", { name: "Purge vault" });
+  await expect(purge).toBeDisabled();
+  await dialog.getByRole("textbox").fill("wrong");
+  await expect(purge).toBeDisabled();
+  await dialog.getByRole("textbox").fill("fixture");
+  await purge.click();
+
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeHidden();
+  await expect(sidebar.getByText("0 notes")).toBeVisible();
+  await expect(page.getByText(/Your vault is empty/)).toBeVisible();
+});

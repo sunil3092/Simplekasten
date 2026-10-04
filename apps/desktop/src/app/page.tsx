@@ -37,7 +37,7 @@ import { FlowView } from "../components/FlowView";
 import { ReviewSession } from "../components/ReviewSession";
 import { TemplatesModal } from "../components/TemplatesModal";
 import { VersionHistoryModal } from "../components/VersionHistoryModal";
-import { NoteEditor } from "../components/NoteEditor";
+import { moveToEditorOnKey, NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher, type CommandItem } from "../components/QuickSwitcher";
 import { TagPicker } from "../components/TagPicker";
 import { SettingsModal } from "../components/SettingsModal";
@@ -581,6 +581,48 @@ function Vault() {
     refreshDailyNotes();
     refreshDueCount();
     await refreshFlow();
+  }
+
+  async function vaultSummary() {
+    const [allNotes, allCanvases, allTemplates] = await Promise.all([
+      vaultClient.listNotes(),
+      vaultClient.listCanvases(),
+      vaultClient.listTemplates(),
+    ]);
+    return {
+      notes: (allNotes as unknown[]).length,
+      canvases: (allCanvases as unknown[]).length,
+      templates: (allTemplates as unknown[]).length,
+    };
+  }
+
+  async function purgeVault() {
+    // An edit still waiting to be saved would write its note straight back
+    // into the emptied vault — drop it rather than flush it.
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    pendingRef.current = null;
+
+    await vaultClient.purgeVault();
+
+    setSelected(null);
+    setActiveTag(null);
+    setSaveStatus("saved");
+    // Card positions belong to notes that no longer exist.
+    try {
+      window.localStorage.removeItem(`simplekasten.flow-positions:${vaultPath}`);
+    } catch {
+      // nothing to clear
+    }
+    await Promise.all([
+      refreshNotes(),
+      refreshTags(),
+      refreshDailyNotes(),
+      refreshTemplates(),
+      refreshDueCount(),
+      refreshCanvases(),
+    ]);
+    setSettingsOpen(false);
   }
 
   async function showVault() {
@@ -1152,6 +1194,7 @@ function Vault() {
                 ref={titleInputRef}
                 value={selected.title}
                 onChange={(e) => updateTitle(e.target.value)}
+                onKeyDown={(e) => moveToEditorOnKey(e, e.currentTarget.parentElement)}
                 className="font-display mb-5 w-full border-none bg-transparent text-3xl font-bold tracking-tight text-ink outline-none placeholder:text-ink-faint"
                 placeholder={COPY.titlePlaceholder}
               />
@@ -1166,6 +1209,7 @@ function Vault() {
                   .filter((n) => n.id !== selected.id)
                   .map((n) => n.title)}
                 tagNames={tags.map((t) => t.name)}
+                onExitUp={() => titleInputRef.current?.focus()}
               />
 
               {attachmentError && (
@@ -1258,7 +1302,13 @@ function Vault() {
       {settingsOpen && (
         <SettingsModal
           onClose={() => setSettingsOpen(false)}
-          vault={{ path: vaultPath, onChoose: chooseFolder, onShow: showVault }}
+          vault={{
+            path: vaultPath,
+            onChoose: chooseFolder,
+            onShow: showVault,
+            getSummary: vaultSummary,
+            onPurge: purgeVault,
+          }}
         />
       )}
 

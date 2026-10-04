@@ -3,7 +3,7 @@
 import { autocompletion, closeBrackets, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
 import { Prec, RangeSetBuilder } from "@codemirror/state";
-import { Decoration, type DecorationSet, EditorView, placeholder, tooltips, ViewPlugin, type ViewUpdate } from "@codemirror/view";
+import { Decoration, type DecorationSet, EditorView, keymap, placeholder, tooltips, ViewPlugin, type ViewUpdate } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { COPY } from "@simplekasten/core";
 import { useEffect, useRef } from "react";
@@ -173,6 +173,21 @@ interface NoteEditorProps {
   autoFocus?: boolean;
   /** Fill a fixed-size container rather than growing with the text. */
   compact?: boolean;
+  /** Called when Up is pressed on the first line — lets the caller move to the title above. */
+  onExitUp?: () => void;
+}
+
+/**
+ * For the title field above an editor: Down or Enter moves the cursor into
+ * the editor inside `scope`, so a note reads as one continuous thing to type
+ * in rather than two boxes.
+ */
+export function moveToEditorOnKey(e: React.KeyboardEvent<HTMLInputElement>, scope: Element | null) {
+  if (e.key !== "ArrowDown" && e.key !== "Enter") return;
+  const editor = scope?.querySelector<HTMLElement>(".cm-content");
+  if (!editor) return;
+  e.preventDefault();
+  editor.focus();
 }
 
 /**
@@ -181,7 +196,7 @@ interface NoteEditorProps {
  * that — syncing `value` back in on every keystroke would fight the editor
  * for cursor position.
  */
-export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick, noteTitles, tagNames = [], autoFocus, compact }: NoteEditorProps) {
+export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick, noteTitles, tagNames = [], autoFocus, compact, onExitUp }: NoteEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
@@ -193,6 +208,8 @@ export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick,
   noteTitlesRef.current = noteTitles;
   const tagNamesRef = useRef(tagNames);
   tagNamesRef.current = tagNames;
+  const onExitUpRef = useRef(onExitUp);
+  onExitUpRef.current = onExitUp;
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -201,6 +218,29 @@ export function NoteEditor({ initialValue, onChange, onNavigateLink, onTagClick,
       doc: initialValue,
       parent: hostRef.current,
       extensions: [
+        // Up on the top line hands the cursor back to the title. Ahead of the
+        // default keymap, but behind an open suggestion list, which uses Up itself.
+        Prec.high(
+          keymap.of([
+            {
+              key: "ArrowUp",
+              run(view) {
+                const exit = onExitUpRef.current;
+                if (!exit) return false;
+                const cursor = view.state.selection.main;
+                if (!cursor.empty) return false;
+                // "Top line" means the top line on screen: in a first paragraph that
+                // wraps, Up still moves within it until the cursor reaches the top row.
+                const here = view.coordsAtPos(cursor.head);
+                const top = view.coordsAtPos(0);
+                const onTopRow = here && top ? Math.abs(here.top - top.top) < 2 : view.state.doc.lineAt(cursor.head).number === 1;
+                if (!onTopRow) return false;
+                exit();
+                return true;
+              },
+            },
+          ]),
+        ),
         minimalSetup,
         markdown(),
         EditorView.lineWrapping,

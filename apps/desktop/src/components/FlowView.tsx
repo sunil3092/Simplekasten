@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../lib/ThemeProvider";
 import { NOTE_TYPES, noteTypeInfo } from "../lib/noteTypes";
 import { CalendarIcon, ChevronDownIcon, ExpandIcon, LayoutIcon, PlusIcon, SearchIcon, TrashIcon, XIcon } from "./icons";
-import { NoteEditor } from "./NoteEditor";
+import { moveToEditorOnKey, NoteEditor } from "./NoteEditor";
 import { ConfirmDialog } from "./ui";
 
 export interface FlowNode {
@@ -797,6 +797,7 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
                     <input
                       value={text.title}
                       onChange={(e) => onTitleChange(l.id, e.target.value)}
+                      onKeyDown={(e) => moveToEditorOnKey(e, e.currentTarget.parentElement)}
                       placeholder="Untitled"
                       className="font-display w-full border-none bg-transparent px-3 pt-2 text-base font-bold text-ink outline-none"
                     />
@@ -811,6 +812,7 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
                           onTagClick={(tag) => changeFilter(filterTags.includes(tag) ? filterTags : [...filterTags, tag])}
                           noteTitles={nodes.filter((n) => n.id !== l.id).map((n) => cardText.get(n.id)?.title ?? n.title)}
                           tagNames={allTagNames}
+                          onExitUp={() => containerRef.current?.querySelector<HTMLInputElement>(`[data-flow-card-id="${l.id}"] input`)?.focus()}
                         />
                       )}
                     </div>

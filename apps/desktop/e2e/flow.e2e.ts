@@ -231,3 +231,28 @@ test("a card's type dropdown changes the note's type, and the rest of the app fo
   await expect(page.locator("main select").first()).toHaveValue("daily");
   await expect(page.locator("aside").first().getByRole("button", { name: "#journalentry 1" })).toBeVisible();
 });
+
+test("Down from a card's title moves into its text, and Up from the first line moves back", async ({ page }) => {
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Flow view" }).click();
+
+  const card = page.getByTestId("flow-card").first();
+  const title = card.locator("input");
+  const body = card.locator(".cm-content");
+  await expect(body).toContainText("Small changes compound.");
+
+  await title.click();
+  await page.keyboard.press("ArrowDown");
+  await expect(body).toBeFocused();
+  await page.keyboard.type("X");
+  await expect(body).toContainText("XSmall changes compound.");
+
+  await page.keyboard.press("ArrowUp");
+  await expect(title).toBeFocused();
+
+  // Enter in the title does the same as Down.
+  await page.keyboard.press("Enter");
+  await expect(body).toBeFocused();
+  await expect(title).toHaveValue("Atomic Habits");
+});

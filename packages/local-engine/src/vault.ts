@@ -791,3 +791,45 @@ export async function deleteCanvas(fs: FileSystemAdapter, id: string): Promise<v
   if (!canvases.some((c) => c.id === id)) throw new Error(`Canvas "${id}" not found`);
   await fs.deleteFile(canvasFilePath(id));
 }
+
+export interface PurgeResult {
+  notes: number;
+  templates: number;
+  canvases: number;
+  attachments: number;
+}
+
+/**
+ * Permanently deletes everything this engine keeps in the vault: every note
+ * (including ones already moved to the trash) with its version history,
+ * every template, canvas and attachment. There is no undo.
+ *
+ * It removes only files in the engine's own folders, one by one — never the
+ * vault folder itself, which the user chose and may hold other things — and
+ * leaves `themes/` alone, since installed themes are appearance, not content.
+ */
+export async function purgeVault(fs: FileSystemAdapter): Promise<PurgeResult> {
+  const noteFiles = (await fs.listFiles(NOTES_DIR)).filter((f) => f.endsWith(".md"));
+  for (const file of noteFiles) {
+    const id = file.slice(0, -3);
+    for (const version of await fs.listFiles(historyDir(id))) await fs.deleteFile(`${historyDir(id)}/${version}`);
+    await fs.deleteFile(noteFilePath(id));
+  }
+
+  const templateFiles = (await fs.listFiles(TEMPLATES_DIR)).filter((f) => f.endsWith(".md"));
+  for (const file of templateFiles) await fs.deleteFile(`${TEMPLATES_DIR}/${file}`);
+
+  const canvasFiles = (await fs.listFiles(CANVASES_DIR)).filter((f) => f.endsWith(".json"));
+  for (const file of canvasFiles) await fs.deleteFile(`${CANVASES_DIR}/${file}`);
+
+  // The attachments folder holds the files plus manifest.json, which lists them.
+  const attachmentFiles = await fs.listFiles(ATTACHMENTS_DIR);
+  for (const file of attachmentFiles) await fs.deleteFile(`${ATTACHMENTS_DIR}/${file}`);
+
+  return {
+    notes: noteFiles.length,
+    templates: templateFiles.length,
+    canvases: canvasFiles.length,
+    attachments: attachmentFiles.filter((f) => `${ATTACHMENTS_DIR}/${f}` !== MANIFEST_PATH).length,
+  };
+}

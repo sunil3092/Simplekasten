@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld("simplekasten", {
     getCanvas: (id) => ipcRenderer.invoke("vault:getCanvas", id),
     updateCanvas: (input) => ipcRenderer.invoke("vault:updateCanvas", input),
     deleteCanvas: (id) => ipcRenderer.invoke("vault:deleteCanvas", id),
+    purgeVault: () => ipcRenderer.invoke("vault:purgeVault"),
     getVaultPath: () => ipcRenderer.invoke("vault:getVaultPath"),
     chooseVaultFolder: () => ipcRenderer.invoke("vault:chooseVaultFolder"),
     addAttachment: (noteId) => ipcRenderer.invoke("vault:addAttachment", noteId),

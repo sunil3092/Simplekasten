@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   builtInThemes,
   memphisTheme,
@@ -13,7 +13,13 @@ const sunset: Theme = { ...memphisTheme, id: "sunset", name: "Sunset" };
 
 function renderModal(
   overrides: Partial<ThemeContextValue> = {},
-  vault?: { path: string; onChoose: () => void; onShow: () => void },
+  vault?: {
+    path: string;
+    onChoose: () => void;
+    onShow: () => void;
+    getSummary?: () => Promise<{ notes: number; canvases: number; templates: number }>;
+    onPurge?: () => Promise<void>;
+  },
 ) {
   const value: ThemeContextValue = {
     themes: [...builtInThemes, sunset],
@@ -97,6 +103,66 @@ describe("SettingsModal", () => {
     expect(vault.onChoose).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByRole("button", { name: /show vault location/i }));
     expect(vault.onShow).toHaveBeenCalledOnce();
+  });
+
+  describe("purging the vault", () => {
+    function openPurge() {
+      const vault = {
+        path: "C:\\Notes\\My Vault",
+        onChoose: vi.fn(),
+        onShow: vi.fn(),
+        getSummary: vi.fn(async () => ({ notes: 18, canvases: 1, templates: 0 })),
+        onPurge: vi.fn(async () => {}),
+      };
+      const { onClose } = renderModal({}, vault);
+      fireEvent.click(screen.getByRole("button", { name: /purge vault/i }));
+      return { vault, onClose };
+    }
+
+    it("warns with what will be deleted before anything else", async () => {
+      const { vault } = openPurge();
+      const dialog = await screen.findByRole("dialog", { name: "Purge vault" });
+      expect(dialog).toHaveTextContent('Purge "My Vault"?');
+      expect(screen.getByTestId("purge-summary")).toHaveTextContent("18 notes");
+      expect(screen.getByTestId("purge-summary")).toHaveTextContent("1 canvas");
+      expect(screen.getByTestId("purge-summary")).toHaveTextContent("0 templates");
+      expect(dialog).toHaveTextContent("cannot be undone");
+      expect(vault.onPurge).not.toHaveBeenCalled();
+    });
+
+    it("needs the vault's name typed exactly before the purge button works", async () => {
+      const { vault } = openPurge();
+      fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+      const purge = screen.getByRole("button", { name: "Purge vault" });
+      expect(purge).toBeDisabled();
+
+      const input = screen.getByLabelText(/type the vault's name/i);
+      fireEvent.change(input, { target: { value: "my vault" } });
+      expect(purge).toBeDisabled();
+      // Enter can't get past a wrong name either.
+      fireEvent.submit(input.closest("form")!);
+      expect(vault.onPurge).not.toHaveBeenCalled();
+
+      fireEvent.change(input, { target: { value: "My Vault" } });
+      expect(purge).toBeEnabled();
+      fireEvent.click(purge);
+      await waitFor(() => expect(vault.onPurge).toHaveBeenCalledOnce());
+    });
+
+    it("cancelling at either step deletes nothing and leaves Settings open", async () => {
+      const { vault, onClose } = openPurge();
+      const dialog = await screen.findByRole("dialog", { name: "Purge vault" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByRole("dialog", { name: "Purge vault" })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /purge vault/i }));
+      fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+      fireEvent.click(within(screen.getByRole("dialog", { name: "Purge vault" })).getByRole("button", { name: "Cancel" }));
+
+      expect(vault.onPurge).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+    });
   });
 
   it("credits the app icon's source, as its licence requires", () => {

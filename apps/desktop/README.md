@@ -22,6 +22,11 @@ this won't render anything over a headless remote session.
   stays pinned at the bottom.
 - **Settings:** the vault folder (choose a folder, or reveal it on disk),
   the theme, and light or dark mode.
+- **Purge vault** (Settings → Vault): permanently deletes every note with
+  its version history and attachments, every canvas and every template.
+  It asks twice — a warning listing what will go, then the vault's name
+  typed out. Installed themes, settings and any other files in the vault
+  folder are left alone.
 - **Views:** Graph view, Flow view (`docs/features/flow-view.md`) and
   canvases (`docs/features/canvas.md`) open full-screen over the editor.
 - **No menu bar:** on Windows and Linux the File/Edit/View menu is removed.

@@ -48,6 +48,7 @@ declare global {
         deleteCanvas: (id: string) => Promise<void>;
         getVaultPath: () => Promise<string>;
         chooseVaultFolder: () => Promise<string>;
+        purgeVault: () => Promise<unknown>;
         addAttachment: (noteId: string) => Promise<unknown>;
         deleteAttachment: (id: string) => Promise<void>;
         attachmentUrl: (id: string) => string;
@@ -91,6 +92,7 @@ export const vaultClient = {
   deleteCanvas: (id: string) => vault().deleteCanvas(id),
   getVaultPath: () => vault().getVaultPath(),
   chooseVaultFolder: () => vault().chooseVaultFolder(),
+  purgeVault: () => vault().purgeVault(),
   addAttachment: (noteId: string) => vault().addAttachment(noteId),
   deleteAttachment: (id: string) => vault().deleteAttachment(id),
   attachmentUrl: (id: string) => vault().attachmentUrl(id),

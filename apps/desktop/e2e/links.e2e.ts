@@ -23,3 +23,17 @@ test("links show in both directions and navigate", async ({ page }) => {
   await panel.getByRole("button", { name: /Systems/ }).click();
   await expect(panel.getByText(/^Links \(1\)/)).toBeVisible();
 });
+
+test("Down from the note title moves into the text, and Up from the first line moves back", async ({ page }) => {
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
+  await page.goto("/");
+  await page.getByRole("button", { name: /Atomic Habits/ }).first().click();
+  const title = page.locator("main input").first();
+  const body = page.locator("main .cm-content");
+
+  await title.click();
+  await page.keyboard.press("ArrowDown");
+  await expect(body).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(title).toBeFocused();
+});
