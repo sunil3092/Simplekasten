@@ -1,6 +1,7 @@
 "use client";
 
 import { COPY } from "@simplekasten/core";
+import type { CanvasCard, ReviewRating } from "@simplekasten/local-engine";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Attachments, type AttachmentItem } from "../components/Attachments";
 import { GraphView } from "../components/GraphView";
@@ -11,19 +12,27 @@ import {
   ChevronRightIcon,
   DownloadIcon,
   FileTextIcon,
+  FlowIcon,
   HashIcon,
+  HistoryIcon,
   LayersIcon,
+  LayoutIcon,
   LinkIcon,
   NetworkIcon,
   PaperclipIcon,
   PlusIcon,
+  RepeatIcon,
   SearchIcon,
   SettingsIcon,
   TrashIcon,
 } from "../components/icons";
+import { CanvasView } from "../components/CanvasView";
+import { FlowView } from "../components/FlowView";
+import { ReviewSession } from "../components/ReviewSession";
 import { TemplatesModal } from "../components/TemplatesModal";
+import { VersionHistoryModal } from "../components/VersionHistoryModal";
 import { NoteEditor } from "../components/NoteEditor";
-import { QuickSwitcher } from "../components/QuickSwitcher";
+import { QuickSwitcher, type CommandItem } from "../components/QuickSwitcher";
 import { TagPicker } from "../components/TagPicker";
 import { SettingsModal } from "../components/SettingsModal";
 import { Button, Chip, ConfirmDialog, IconButton, Kbd, NoteLink, SaveStatusIndicator, SectionHeading } from "../components/ui";
@@ -45,6 +54,7 @@ interface NoteDetail {
   content: string;
   type: NoteType;
   noteDate: string | null;
+  reviewDue: string | null;
   tagNames: string[];
   assignedTags: string[];
   attachments: AttachmentItem[];
@@ -98,16 +108,27 @@ function Vault() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const [canvases, setCanvases] = useState<{ id: string; title: string; updatedAt: string }[]>([]);
+  const [openCanvasId, setOpenCanvasId] = useState<string | null>(null);
+  const [dueCount, setDueCount] = useState(0);
+  // Non-null while a review session is open; holds the due notes fetched at
+  // session start so rating through the queue doesn't reshuffle mid-session
+  // if a note's due date happens to land on today from elsewhere.
+  const [reviewQueue, setReviewQueue] = useState<NoteListItem[] | null>(null);
+  const [reviewIndex, setReviewIndex] = useState(0);
+  const [reviewNote, setReviewNote] = useState<NoteDetail | null>(null);
   // NoteEditor is uncontrolled by design (see its own comment) — it only
   // reads initialValue on mount, so an external content change made outside
   // typing (applying a template) needs a remount to become visible. Bumped
   // only there, never on normal edits, which stay uncontrolled for cursor
   // stability.
   const [editorNonce, setEditorNonce] = useState(0);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const { notice: themeNotice } = useTheme();
   const [graphData, setGraphData] = useState<GraphData | null>(null);
+  const [flowData, setFlowData] = useState<GraphData | null>(null);
   // Structure notes are Simplekasten's Maps of Content — a curated table of
   // contents you link into rather than a folder you file things under.
   // Surfacing them as a standing sidebar section is what makes folder-free
@@ -157,11 +178,21 @@ function Vault() {
     setTemplates((await vaultClient.listTemplates()) as Template[]);
   }
 
+  async function refreshDueCount() {
+    setDueCount(((await vaultClient.listDueForReview(todayLocal())) as NoteListItem[]).length);
+  }
+
+  async function refreshCanvases() {
+    setCanvases((await vaultClient.listCanvases()) as { id: string; title: string; updatedAt: string }[]);
+  }
+
   useEffect(() => {
     refreshNotes(activeTag);
     refreshTags();
     refreshDailyNotes();
     refreshTemplates();
+    refreshDueCount();
+    refreshCanvases();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -253,6 +284,36 @@ function Vault() {
     const updated = (await vaultClient.applyTemplate({ noteId: selected.id, templateId })) as NoteDetail;
     setSelected(updated);
     setEditorNonce((n) => n + 1);
+  }
+
+  async function toggleReviewQueue() {
+    if (!selected) return;
+    if (selected.reviewDue) await vaultClient.removeFromReviewQueue(selected.id);
+    else await vaultClient.addToReviewQueue(selected.id, todayLocal());
+    setSelected((await vaultClient.getNoteById(selected.id)) as NoteDetail);
+    refreshDueCount();
+  }
+
+  async function openReview() {
+    const due = (await vaultClient.listDueForReview(todayLocal())) as NoteListItem[];
+    setReviewQueue(due);
+    setReviewIndex(0);
+    setReviewNote(due.length > 0 ? ((await vaultClient.getNoteById(due[0].id)) as NoteDetail) : null);
+  }
+
+  function closeReview() {
+    setReviewQueue(null);
+    setReviewNote(null);
+  }
+
+  async function rateReviewNote(rating: ReviewRating) {
+    if (!reviewQueue || !reviewNote) return;
+    await vaultClient.submitReview({ noteId: reviewNote.id, rating, today: todayLocal() });
+    const nextIndex = reviewIndex + 1;
+    setReviewIndex(nextIndex);
+    setReviewNote(nextIndex < reviewQueue.length ? ((await vaultClient.getNoteById(reviewQueue[nextIndex].id)) as NoteDetail) : null);
+    refreshDueCount();
+    if (selected && selected.id === reviewNote.id) setSelected((await vaultClient.getNoteById(selected.id)) as NoteDetail);
   }
 
   async function flushPending() {
@@ -355,8 +416,31 @@ function Vault() {
     setGraphData((await vaultClient.getGraph()) as GraphData);
   }
 
+  // Prototype: same data Graph view uses, read as a top-to-bottom layered
+  // diagram instead — see packages/local-engine/src/flow-layout.ts.
+  async function openFlow() {
+    setFlowData((await vaultClient.getGraph()) as GraphData);
+  }
+
   async function showVault() {
     await showVaultLocation();
+  }
+
+  async function createCanvas() {
+    const title = window.prompt("Canvas title", "Untitled canvas");
+    if (title === null) return;
+    const canvas = (await vaultClient.createCanvas({ title: title.trim() || "Untitled canvas" })) as { id: string };
+    await refreshCanvases();
+    setOpenCanvasId(canvas.id);
+  }
+
+  // Creates a note for a canvas card without navigating the main editor to
+  // it — createNote() below opens the note it makes, which would close the
+  // canvas the user is still working in.
+  async function createNoteForCanvas(title: string): Promise<{ id: string }> {
+    const note = (await vaultClient.createNote({ title, content: "", type: "fleeting" })) as { id: string };
+    await refreshNotes();
+    return note;
   }
 
   async function createNote(title = "Untitled") {
@@ -412,6 +496,22 @@ function Vault() {
     await save({ id: next.id, title: next.title, content: next.content, type: next.type });
   }
 
+  // Every command here already exists as a handler above — this only makes
+  // it reachable by typing ">" into the same Cmd/Ctrl+K switcher. Recomputed
+  // each render (not memoized) so its closures never go stale, same as the
+  // inline handlers already passed to QuickSwitcher below.
+  const commands: CommandItem[] = [
+    { id: "new-note", icon: "plus", label: "New note", description: "Create a new fleeting note", run: () => createNote() },
+    { id: "today", icon: "calendar", label: "Today", description: "Open or create today's daily note", run: () => openDaily(todayLocal()) },
+    { id: "review", icon: "repeat", label: "Review", description: "Start a spaced-repetition review session", run: openReview },
+    { id: "templates", icon: "fileText", label: "Templates…", description: "Manage note templates", run: () => setTemplatesOpen(true) },
+    { id: "graph", icon: "network", label: "Graph view", description: "Visualize how notes link together", run: openGraph },
+    { id: "flow", icon: "flow", label: "Flow view", description: "See related notes as a top-to-bottom flow diagram", run: openFlow },
+    { id: "settings", icon: "settings", label: "Settings", description: "Theme and appearance settings", run: () => setSettingsOpen(true) },
+    { id: "choose-vault", icon: "download", label: "Choose vault folder…", description: "Switch to a different vault", run: chooseFolder },
+    { id: "show-vault", icon: "download", label: "Show vault location", description: "Reveal the vault's folder on disk", run: showVault },
+  ];
+
   return (
     <div className="flex h-screen bg-bg">
       <aside className="flex w-64 flex-none flex-col border-r-(length:--border-w) border-line bg-surface px-3.5 py-4">
@@ -428,6 +528,10 @@ function Vault() {
             <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setTemplatesOpen(true)}>
               <FileTextIcon />
               Templates…
+            </Button>
+            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={createCanvas}>
+              <LayoutIcon />
+              New canvas…
             </Button>
           </div>
         </div>
@@ -458,9 +562,26 @@ function Vault() {
               <Kbd>⌘J</Kbd>
             </span>
           </Button>
+          <Button className="w-full justify-start" onClick={openReview}>
+            <span className="flex w-full items-center justify-between">
+              <span className="flex items-center gap-2">
+                <RepeatIcon />
+                Review
+              </span>
+              {dueCount > 0 && (
+                <span data-testid="review-due-count" className="font-mono text-[10px] text-accent-ink">
+                  {dueCount}
+                </span>
+              )}
+            </span>
+          </Button>
           <Button className="w-full justify-start" onClick={openGraph}>
             <NetworkIcon />
             Graph view
+          </Button>
+          <Button className="w-full justify-start" onClick={openFlow}>
+            <FlowIcon />
+            Flow view
           </Button>
           <Button variant="primary" className="w-full justify-start" onClick={() => createNote()}>
             <PlusIcon />
@@ -493,6 +614,26 @@ function Vault() {
                     }`}
                   >
                     {n.title}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {canvases.length > 0 && (
+          <div className="mt-4">
+            <SectionHeading compact icon={<LayoutIcon />} className="mb-1.5">
+              Canvases
+            </SectionHeading>
+            <ul className="flex flex-col gap-1">
+              {canvases.map((c) => (
+                <li key={c.id}>
+                  <button
+                    onClick={() => setOpenCanvasId(c.id)}
+                    className="block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-2"
+                  >
+                    {c.title}
                   </button>
                 </li>
               ))}
@@ -626,10 +767,20 @@ function Vault() {
                     </span>
                   )}
                   <IconButton
+                    aria-label={selected.reviewDue ? "Remove from review queue" : "Add to review queue"}
+                    title={selected.reviewDue ? "Remove from review queue" : "Add to review queue"}
+                    onClick={toggleReviewQueue}
+                    className={`${templates.length > 0 ? "" : "ml-2"} ${selected.reviewDue ? "text-accent-ink" : ""}`}
+                  >
+                    <RepeatIcon />
+                  </IconButton>
+                  <IconButton aria-label="Version history" title="Version history" onClick={() => setHistoryOpen(true)}>
+                    <HistoryIcon />
+                  </IconButton>
+                  <IconButton
                     aria-label="Attach a photo or audio file"
                     title="Attach a photo or audio file"
                     onClick={addAttachment}
-                    className={templates.length > 0 ? "" : "ml-2"}
                   >
                     <PaperclipIcon />
                   </IconButton>
@@ -722,6 +873,7 @@ function Vault() {
             createNote(title);
           }}
           onClose={() => setSwitcherOpen(false)}
+          commands={commands}
         />
       )}
 
@@ -738,6 +890,23 @@ function Vault() {
         />
       )}
 
+      {historyOpen && selected && (
+        <VersionHistoryModal
+          noteId={selected.id}
+          currentContent={selected.content}
+          onClose={() => setHistoryOpen(false)}
+          onListVersions={(noteId) => vaultClient.listNoteVersions(noteId) as Promise<{ id: string; createdAt: string; title: string }[]>}
+          onGetVersion={(noteId, versionId) => vaultClient.getNoteVersion(noteId, versionId) as Promise<{ title: string; content: string }>}
+          onRestore={async (noteId, versionId) => {
+            await flushPending();
+            const restored = (await vaultClient.restoreNoteVersion(noteId, versionId)) as { id: string };
+            setSelected((await vaultClient.getNoteById(restored.id)) as NoteDetail);
+            setEditorNonce((n) => n + 1);
+            refreshNotes(activeTag);
+          }}
+        />
+      )}
+
       {confirmingDelete && selected && (
         <ConfirmDialog
           title={COPY.deleteNoteTitle}
@@ -745,6 +914,16 @@ function Vault() {
           confirmLabel="Delete"
           onConfirm={deleteSelected}
           onCancel={() => setConfirmingDelete(false)}
+        />
+      )}
+
+      {reviewQueue && (
+        <ReviewSession
+          note={reviewNote}
+          current={Math.min(reviewIndex + 1, reviewQueue.length)}
+          total={reviewQueue.length}
+          onRate={rateReviewNote}
+          onClose={closeReview}
         />
       )}
 
@@ -758,6 +937,45 @@ function Vault() {
             openNote(id);
           }}
           onClose={() => setGraphData(null)}
+        />
+      )}
+
+      {flowData && (
+        <FlowView
+          nodes={flowData.nodes}
+          edges={flowData.edges}
+          onSelectNode={(id) => {
+            setFlowData(null);
+            openNote(id);
+          }}
+          onClose={() => setFlowData(null)}
+          onLoadNote={async (id) => {
+            const note = (await vaultClient.getNoteById(id)) as NoteDetail;
+            return { title: note.title, content: note.content };
+          }}
+          onSaveNote={async (input) => {
+            await vaultClient.updateNote(input);
+            refreshNotes(activeTag);
+          }}
+        />
+      )}
+
+      {openCanvasId && (
+        <CanvasView
+          canvasId={openCanvasId}
+          notes={notes}
+          onClose={() => {
+            setOpenCanvasId(null);
+            refreshCanvases();
+          }}
+          onOpenNote={(id) => {
+            setOpenCanvasId(null);
+            openNote(id);
+          }}
+          onLoad={(id) => vaultClient.getCanvas(id) as Promise<{ title: string; cards: CanvasCard[] }>}
+          onSave={(input) => vaultClient.updateCanvas(input) as Promise<void>}
+          onSearchNotes={(query) => vaultClient.search(query) as Promise<SearchResultItem[]>}
+          onCreateNote={createNoteForCanvas}
         />
       )}
     </div>

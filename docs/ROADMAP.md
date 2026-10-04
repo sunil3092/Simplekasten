@@ -49,16 +49,17 @@ behavioural parity.
 | 1 | **Daily Notes / Journal** | Roam, Logseq, Obsidian, Tana — the primary capture surface in nearly every modern PKM app | Very high — fleeting-note capture currently has no "just open the app and write" entry point | Small |
 | 2 | **Note templates** | Roam, Obsidian, Notion, RemNote | High — daily notes and literature notes benefit enormously from a starting structure | Small–Medium |
 | 3 | **Spaced repetition / review queue** | Obsidian (most-installed plugin category), RemNote (native), Anki-adjacent | High — already called out as a nice-to-have in `DEVELOPMENT_PLAN.md`; is the actual point of a slip-box (resurfacing permanent notes) | Medium |
-| 4 | **Visual canvas / whiteboard** | Heptabase (signature feature), Obsidian Canvas, Tana | Medium-high — spatial arrangement complements but doesn't replace graph view | Large |
+| 4 | ~~Visual canvas / whiteboard~~ | Heptabase (signature feature), Obsidian Canvas, Tana | **Done** — see below | — |
 | 5 | **Web clipper** | Evernote, Notion, Obsidian (via plugin) | Medium — big value for literature notes, but needs a browser extension, a new surface this monorepo doesn't have | Large |
 | 6 | **PDF import + annotation** | Obsidian, Notion, Evernote | Medium — literature-note workflow staple | Large |
 | 7 | **Block-level references/transclusion** | Roam (best-in-class), Logseq, Tana | Medium — powerful but a fundamental data-model change (block-based vs. document-based notes); high risk to bolt onto the current whole-document `Note` model | Very large |
-| 8 | **Version history / diffing** | Notion, Obsidian Sync, Roam | Medium — already a nice-to-have in the plan | Medium |
+| 8 | ~~Version history / diffing~~ | Notion, Obsidian Sync, Roam | **Done** — see below | — |
 | 9 | **AI features** (related-notes suggestions, auto-tag, chat-over-vault) | Reflect, Tana, Notion AI, Capacities | Medium — real differentiator now, but needs an LLM API budget/key decision from the user first | Medium (once an API key exists) |
-| 10 | **Command palette** (beyond note search — run actions: new daily note, toggle theme, export, etc.) | Obsidian, Notion, Linear | Medium — cheap, compounds nicely once daily notes/templates exist | Small |
+| 10 | ~~Command palette~~ | Obsidian, Notion, Linear | **Done** — see below | — |
 | 11 | **Cross-device sync** (opt-in, on top of the now-local vault) | Obsidian Sync, iCloud/Dropbox-synced vaults | Medium — the dormant `apps/api`/`packages/db` are explicitly reserved for this; real product decision (which sync transport?) needed before speccing | Large |
 | 12 | ~~Local-first / offline sync~~ | Obsidian, Logseq | **Done** — see architecture note above | — |
 | 13 | **Real-time collaboration** (multiple people, one vault) | Roam, Notion | Low priority for a personal Zettelkasten tool | Very large |
+| 14 | **Flow view** (notes as top-to-bottom function-block-diagram cards, directional arrows for related notes, branching like a flowchart) | Requested directly by the user 2026-10-03; closest prior art is Miro/Whimsical flowcharts and Obsidian's "Excalibrain" plugin | Medium — a genuinely different read on the same link graph Graph view already has (hierarchical/layered instead of force-directed), good for seeing cause→effect or prerequisite chains rather than overall note clustering | Medium — needs a layered-DAG layout algorithm (Sugiyama-style: break cycles, longest-path layer assignment, barycenter ordering within a layer) plus a new renderer; no new engine data since it's the same nodes/edges `getGraph()` already returns |
 
 ## Decision: what to build now
 
@@ -67,17 +68,41 @@ file-based vault model (`packages/local-engine`) without a rewrite, and
 that compound with each other (daily notes want templates; templates want a
 command palette; a review queue wants nothing else new):
 
-1. **Daily Notes / Journal** — build first, spec at `docs/features/daily-notes.md` (rewritten 2026-09-22 for the local-engine architecture)
-2. **Note templates** — build second (daily notes become far more useful once they can auto-fill from a template), spec at `docs/features/templates.md` (**stale** — still describes the old Postgres/tRPC design; needs a rewrite against `local-engine` before implementation, same shape as the daily-notes.md rewrite)
-3. **Spaced repetition / review queue** — build third, needs its own spec doc against `local-engine` (not yet written)
+1. **Daily Notes / Journal** — ✅ shipped 2026-09-22, spec at `docs/features/daily-notes.md`
+2. **Note templates** — ✅ shipped 2026-09-23, spec at `docs/features/templates.md`
+3. **Spaced repetition / review queue** — ✅ shipped 2026-09-23, spec at `docs/features/spaced-repetition.md`
+4. **Command palette** — ✅ shipped 2026-09-23, spec at `docs/features/command-palette.md`
+5. **Version history / diffing** — ✅ shipped 2026-09-25, spec at `docs/features/version-history.md`
+6. **Visual canvas / whiteboard** — ✅ shipped 2026-09-25, spec at `docs/features/canvas.md`
 
-Canvas, web clipper, PDF import, block transclusion, AI features, sync, and
-real-time collaboration are documented above as deliberately deferred —
-each is a multi-session project in its own right and needs an explicit
-go-ahead (an LLM API key for AI features; a decision on browser extension
-distribution for the clipper; a data-model decision for block references; a
-sync-transport decision for cross-device sync) before it's worth speccing
-in detail.
+All six are done. Canvas was the last item that fit the local file-based
+vault model without a rewrite or an external decision — picked over the
+web clipper (needs a whole new browser-extension surface) and block
+transclusion (risks the core note data model) for that reason.
+
+Every remaining gap-analysis row is either Large/Very-large effort (web
+clipper, PDF import, block transclusion, real-time collaboration) or
+explicitly needs a product/infra decision from the user before it's worth
+speccing in detail (an LLM API budget/key for AI features; a sync-transport
+decision for cross-device sync, which the dormant `apps/api`/`packages/db`
+are reserved for). Of the decision-free remaining items, **PDF import +
+annotation** is the least risky to the existing data model (attachments
+already exist as a concept; a PDF is just a richer attachment type with
+per-page annotation data alongside it) if this build-out continues — the
+web clipper and block transclusion both carry structural risk the others
+don't.
+
+**Flow view** (gap analysis row #14) was added 2026-10-03 at the user's
+direct request — a hierarchical, top-to-bottom "function block diagram"
+read on the same note-link graph Graph view already visualizes, instead
+of Graph view's force-directed layout. It started as a prototype on the
+separate `claude/flow-view-prototype` branch to demo the idea before
+committing to the full spec→engine→both-UIs→tests process every other
+shipped feature here went through; `flow-layout.ts` (the layered-DAG
+layout algorithm) and desktop-only `FlowView.tsx` were merged into `main`
+2026-10-04 once the direction was approved. It still needs a proper spec
+doc, mobile UI, and dedicated e2e coverage before it could be called
+shipped the way the features above are.
 
 ## Status
 
@@ -85,9 +110,126 @@ in detail.
 |---|---|---|---|---|---|---|
 | Daily Notes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-22 |
 | Templates | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
-| Spaced repetition | ✅ (2026-09-23) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Spaced repetition | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
+| Command palette | ✅ | n/a (UI-only) | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
+| Version history | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-25 |
+| Canvas | ✅ | ✅ | ✅ | ✅ (view-only) | ✅ | ✅ 2026-09-25 |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
+
+### Canvas — shipped 2026-09-25
+
+A corkboard, not a diagramming tool: freely positioned, resizable note
+cards (reference an existing note) and text cards (freeform scratch
+text), no connecting lines in v1. Stored as plain JSON
+(`canvases/<id>.json`) rather than a note file, since a canvas's content
+is structured card data, not markdown — same "non-markdown vault data is
+just a JSON file" convention `packages/themes` already used for installed
+themes. Desktop authors (a hand-rolled pannable/zoomable surface with
+drag/resize/create); mobile views (pan/pinch-zoom, tap a note card to
+open it, no editing) — the same authoring-vs-consuming split Templates
+established.
+
+183 unit tests total (100 in local-engine, up from 87) + 30 desktop e2e
+tests, all green; mobile confirmed via typecheck and a visual smoke test.
+See `docs/features/canvas.md` for the full spec and shipped-state notes.
+
+**This is the sixth and last feature that fit the local-first vault
+without a rewrite or an external decision.** Everything left in the gap
+analysis is either Large-effort with real structural risk (web clipper
+needs a new browser-extension surface; block transclusion risks the core
+note data model) or needs a product decision from the user first (an LLM
+API key for AI features; a sync-transport choice for cross-device sync).
+**PDF import + annotation** is the next-least-risky candidate if this
+continues, since attachments already exist as a concept to extend.
+
+### Version History — shipped 2026-09-25
+
+A pure LCS line-diff (`packages/local-engine/src/diff.ts`) plus a minimal
+snapshot file format under `.history/<noteId>/`, separate from
+`note-file.ts`'s format so ordinary notes and their existing tests are
+untouched. Snapshots are coalesced — at most one per 5 minutes of active
+editing, taken lazily inside `updateNote` only when content actually
+changes — rather than one per autosave tick, and capped at 100 per note.
+Both apps get a `history` icon on the note header; desktop shows a real
+diff view (added/removed lines) in a dialog, mobile shows a simpler
+read-only preview per version (no diff, matching Templates' precedent).
+Restoring a version always snapshots the current state first,
+unconditionally, so restoring is itself reversible.
+
+170 unit tests total (87 in local-engine, up from 78) + 26 desktop e2e
+tests, all green; mobile confirmed via typecheck and a visual smoke test
+(same platform-limit caveat every mobile UI here has documented). See
+`docs/features/version-history.md` for the full spec and shipped-state
+notes.
+
+**This closes out every item picked in "Decision: what to build now"
+above.** The backlog's remaining rows are all Large+ effort or need an
+explicit product decision from the user — see that section for specifics.
+Continuing this build-out from here means either committing to one of
+those multi-session projects or getting the user's steer on an external
+decision (an LLM API key, a sync transport) first.
+
+### Command Palette — shipped 2026-09-23
+
+No new engine capability — every command it exposes already had a handler.
+Typing `>` as the first character in the existing note-search surface
+(desktop's Cmd/Ctrl+K `QuickSwitcher`, mobile's inline vault-tab search)
+switches it from "find a note" to "run a command," the same mode-switch
+convention VS Code and Obsidian's own command palettes use. Desktop gets
+all 8 commands (New note, Today, Review, Templates, Graph view, Settings,
+Choose vault folder, Show vault location); mobile gets the 5 that apply
+there (no Templates authoring or vault-location commands, matching those
+features' existing desktop-only scope).
+
+This is the last of the four features picked out in "Decision: what to
+build now" above — Daily Notes, Templates, Spaced Repetition, and Command
+Palette are all shipped as of this entry. 150 unit tests + 24 desktop e2e
+tests green; mobile confirmed via typecheck and a visual smoke test (same
+platform-limit caveat every prior mobile UI here has: Expo's web target
+can't exercise real vault writes). See `docs/features/command-palette.md`
+for the full spec and shipped-state notes.
+
+**Next up, if this build-out continues:** per the gap analysis, **#8
+Version history / diffing** is the next-cheapest item with no external
+decision blocking it (unlike AI features, the web clipper, or sync, which
+all need a product/infra decision from the user first). No spec exists yet.
+
+### Spaced Repetition — shipped 2026-09-23
+
+A simplified SM-2 algorithm (`packages/local-engine/src/srs.ts`, four
+ratings: again/hard/good/easy instead of SM-2's 0-5 score) drives a review
+queue stored as four flat frontmatter fields on any note (`reviewDue`,
+`reviewEase`, `reviewInterval`, `reviewReps`), omitted as a group when a
+note isn't queued — same "omit when not applicable" convention `noteDate`
+and `attachmentIds` already follow. Any note can join the queue, not just
+`permanent` notes — restricting by type would be arbitrary since the queue
+is opt-in per note either way.
+
+Both apps get: a "Review" entry point with a due-count badge next to
+"Today", a full-screen (desktop) or pushed (mobile) review session
+presenting one due note at a time read-only with the four rating buttons
+and an "all caught up" end state, and a per-note header toggle to
+add/remove it from the queue.
+
+One deviation from the spec's original function signatures:
+`addToReviewQueue(fs, noteId, today)` takes `today` as a parameter rather
+than computing it — consistent with the client-local-date convention Daily
+Notes established (the engine has no timezone concept).
+
+146 unit tests total (67 in local-engine, up from 47) + 20 desktop e2e
+tests, all green; mobile confirmed via typecheck and the same visual-smoke
+process as Daily Notes and Templates (Expo's web target can't exercise
+real vault writes). See `docs/features/spaced-repetition.md` for the full
+spec and shipped-state notes.
+
+**All three planned features (Daily Notes, Templates, Spaced Repetition)
+are now shipped.** Next up per the gap analysis: **Command palette** (#10)
+is the cheapest remaining win and compounds with what's already
+built — a `Cmd/Ctrl+K`-adjacent action list (new daily note, toggle theme,
+open templates, jump into a review session, export) rather than only note
+search. No spec doc exists yet; write one against both apps' existing
+QuickSwitcher-equivalents before implementing.
 
 ### Templates — shipped 2026-09-23
 
@@ -114,10 +256,8 @@ platform limits as Daily Notes — Expo's web target can't exercise real
 vault writes, so full interaction needs a real emulator, none available
 in this sandbox). See `docs/features/templates.md` for the full spec.
 
-**Next up: Spaced Repetition.** No spec exists yet — write one against the
-local-engine architecture (schema likely a `reviewState` per permanent
-note: last-reviewed date, an ease factor, a due date, something in the
-SM-2 family) before implementing, same process as the last two features.
+**Next up (as of this writing): Spaced Repetition** — since shipped
+2026-09-23; see that section above for what it turned into.
 
 ### Daily Notes — shipped 2026-09-22
 

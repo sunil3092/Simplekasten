@@ -35,6 +35,14 @@ export interface VaultNote {
   tags: string[];
   /** "YYYY-MM-DD", set only when type === "daily" — the calendar day this note represents. */
   noteDate: string | null;
+  /** "YYYY-MM-DD"; presence means this note is in the spaced-repetition review queue. */
+  reviewDue: string | null;
+  /** SM-2 ease factor; meaningless while reviewDue is null. */
+  reviewEase: number;
+  /** Days until the next due date, from the last review. */
+  reviewInterval: number;
+  /** Consecutive successful (non-"again") reviews. */
+  reviewReps: number;
 }
 
 export interface Attachment {
@@ -83,6 +91,10 @@ export interface NoteDetail {
   backlinks: BacklinkItem[];
   contents: ContentsItem[];
   noteDate: string | null;
+  reviewDue: string | null;
+  reviewEase: number;
+  reviewInterval: number;
+  reviewReps: number;
 }
 
 export interface TagItem {
@@ -156,4 +168,50 @@ export interface UpdateTemplateInput {
   id: string;
   name?: string;
   content?: string;
+}
+
+export interface CanvasNodeCard {
+  id: string;
+  kind: "note";
+  noteId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface CanvasTextCard {
+  id: string;
+  kind: "text";
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export type CanvasCard = CanvasNodeCard | CanvasTextCard;
+
+export interface CanvasData {
+  id: string;
+  title: string;
+  cards: CanvasCard[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CanvasListItem {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+export interface CreateCanvasInput {
+  title: string;
+}
+
+export interface UpdateCanvasInput {
+  id: string;
+  title?: string;
+  cards?: CanvasCard[];
 }

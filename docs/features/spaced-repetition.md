@@ -1,6 +1,6 @@
 # Feature: Spaced Repetition (review queue)
 
-**Status:** spec complete, ready to implement.
+**Status:** shipped 2026-09-23.
 **Why:** the actual point of a slip-box is resurfacing old notes at the
 moment they're useful — Luhmann's system worked because he kept walking
 the archive, not just adding to it. Every mature PKM tool now has some
@@ -145,10 +145,36 @@ client-local `YYYY-MM-DD`, computed with `new Date().toLocaleDateString("en-CA")
 
 ## Where this left off
 
-Not started as of 2026-09-23 (spec only). Next concrete step:
-`packages/local-engine/src/types.ts` — add the four `reviewDue`/`reviewEase`/
-`reviewInterval`/`reviewReps` fields to `VaultNote`, then `note-file.ts`'s
-round-trip (omit-when-null, matching `noteDate`), then a `srs.ts` (or inline
-in `vault.ts`) home for `nextReviewState` with its own focused unit tests
-before wiring it into `addToReviewQueue`/`submitReview` — the algorithm is
-the part most worth getting right in isolation before any I/O touches it.
+Shipped 2026-09-23. All layers built and verified:
+
+- **local-engine**: `srs.ts` (pure SM-2, 12 unit tests), the four frontmatter
+  fields wired through `types.ts`/`note-file.ts` (round-trip tests updated,
+  6/6 passing), and `addToReviewQueue`/`removeFromReviewQueue`/
+  `listDueForReview`/`submitReview` in `vault.ts` (7 new tests in a "review
+  queue" describe block, part of `vault.test.ts`'s 36 total). One deviation
+  from the original signature sketch: `addToReviewQueue(fs, noteId, today)`
+  takes `today` as a parameter (not computed engine-side), consistent with
+  the client-local-date convention everywhere else in this engine.
+- **Desktop**: IPC wired end-to-end (`main.js`/`preload.js`/`vaultClient.ts`),
+  `repeat`/`check` icons added to `packages/core/src/icons.ts`, a sidebar
+  "Review" button with a due-count badge (`data-testid="review-due-count"`),
+  a full-screen `ReviewSession.tsx` (Again/Hard/Good/Easy, progress
+  indicator, all-caught-up end state), and a note-header toggle icon.
+  `e2e/bridge.ts`'s stub extended; `spaced-repetition.e2e.ts` covers both
+  the toggle and a full rate-through-the-queue session — all 20 desktop e2e
+  specs pass.
+- **Mobile**: `src/lib/vault.ts` gained the same four calls, the vault tab
+  has a "Review" button (due count inline, e.g. "Review · 3") next to
+  "Today", a new `app/review.tsx` screen (registered in `_layout.tsx`,
+  pushed rather than a tab) presents due notes one at a time with the same
+  rating buttons and end state, and the note screen's header gained the same
+  toggle icon. Verified via `tsc` (clean) and a visual smoke test through
+  Expo's web target — the vault tab renders correctly; the review screen's
+  actual due-list fetch hits the same documented `expo-file-system`
+  web-target limitation Daily Notes and Templates already hit
+  (`makeDirectoryAsync` isn't available on web), so real interaction is
+  unverified outside a device/emulator, as expected for this platform.
+
+Full-suite final check: 146 unit tests (desktop 28, core 19, local-engine
+67, themes 32) + 20 desktop e2e tests, all green; `tsc --noEmit` clean
+across all five workspaces.

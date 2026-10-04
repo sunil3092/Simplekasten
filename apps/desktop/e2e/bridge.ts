@@ -8,7 +8,19 @@ import type { Page } from "@playwright/test";
  */
 export async function stubBridge(page: Page, settings: { theme: string; themeMode: "system" | "light" | "dark" }) {
   await page.addInitScript((s) => {
-    const notes: { id: string; zettelId: string; title: string; content: string; type: string; tags: string[]; noteDate?: string }[] = [
+    const notes: {
+      id: string;
+      zettelId: string;
+      title: string;
+      content: string;
+      type: string;
+      tags: string[];
+      noteDate?: string;
+      reviewDue?: string | null;
+      reviewEase?: number;
+      reviewInterval?: number;
+      reviewReps?: number;
+    }[] = [
       { id: "a", zettelId: "1", title: "Atomic Habits", content: "Small changes compound. #habits", type: "fleeting", tags: [] },
       { id: "b", zettelId: "2", title: "Systems", content: "See [[Atomic Habits]].", type: "permanent", tags: ["method"] },
     ];
@@ -18,6 +30,21 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
       [...new Set([...n.tags, ...Array.from(n.content.matchAll(/(?<![#\w])#([a-zA-Z][\w/-]*)/g), (m) => m[1].toLowerCase())])].sort();
     const templates: { id: string; name: string; content: string; isDefaultForDailyNote: boolean }[] = [];
     let nextTemplate = 1;
+    // "Atomic Habits" starts with one earlier version, as if it had been
+    // edited before — enough for specs to exercise the version list and
+    // diff view without simulating the real 5-minute coalescing window.
+    const versions: { id: string; noteId: string; title: string; content: string; createdAt: string }[] = [
+      { id: "ver1", noteId: "a", title: "Atomic Habits", content: "Small changes compound.\nStart tiny.", createdAt: "2026-09-20T12:00:00.000Z" },
+    ];
+    let nextVersion = 2;
+    const canvases: {
+      id: string;
+      title: string;
+      cards: { id: string; kind: "note" | "text"; noteId?: string; text?: string; x: number; y: number; width: number; height: number }[];
+      createdAt: string;
+      updatedAt: string;
+    }[] = [];
+    let nextCanvas = 1;
     const stamp = "2026-09-21T00:00:00.000Z";
     // "Atomic Habits" starts with one photo and one voice note, as if they'd
     // been added on mobile. Files are served as data: URLs below.
@@ -35,7 +62,26 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
       const contents =
         id === "b" ? [{ noteId: "a", title: "Atomic Habits", zettelId: "1", resolved: true }] : [];
       const own = attachments.filter((a) => a.noteId === id);
-      return { ...n, createdAt: stamp, updatedAt: stamp, tagNames: tagsOf(n), assignedTags: n.tags, attachments: own, backlinks, contents };
+      return {
+        ...n,
+        createdAt: stamp,
+        updatedAt: stamp,
+        tagNames: tagsOf(n),
+        assignedTags: n.tags,
+        attachments: own,
+        backlinks,
+        contents,
+        reviewDue: n.reviewDue ?? null,
+        reviewEase: n.reviewEase ?? 2.5,
+        reviewInterval: n.reviewInterval ?? 0,
+        reviewReps: n.reviewReps ?? 0,
+      };
+    };
+    // Same date-only arithmetic as srs.ts's addDays, kept self-contained here
+    // since addInitScript's function body can't import from the app.
+    const addDays = (date: string, days: number) => {
+      const [y, m, d] = date.split("-").map(Number);
+      return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
     };
     (window as unknown as { simplekasten: unknown }).simplekasten = {
       settings: { get: async () => s, set: async () => {} },
@@ -121,6 +167,79 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
           const expanded = template.content.replaceAll("{{title}}", note.title);
           note.content = note.content ? `${note.content}\n\n${expanded}` : expanded;
           return detail(note.id);
+        },
+        addToReviewQueue: async (noteId: string, today: string) => {
+          const note = notes.find((n) => n.id === noteId)!;
+          note.reviewDue = today;
+          note.reviewEase = 2.5;
+          note.reviewInterval = 0;
+          note.reviewReps = 0;
+          return detail(noteId);
+        },
+        removeFromReviewQueue: async (noteId: string) => {
+          const note = notes.find((n) => n.id === noteId)!;
+          note.reviewDue = null;
+          note.reviewEase = 2.5;
+          note.reviewInterval = 0;
+          note.reviewReps = 0;
+          return detail(noteId);
+        },
+        listDueForReview: async (date: string) =>
+          notes
+            .filter((n) => n.reviewDue != null && n.reviewDue <= date)
+            .slice()
+            .sort((a, b) => (a.reviewDue as string).localeCompare(b.reviewDue as string))
+            .map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type, updatedAt: stamp })),
+        submitReview: async (input: { noteId: string; rating: "again" | "hard" | "good" | "easy"; today: string }) => {
+          const note = notes.find((n) => n.id === input.noteId)!;
+          const interval = input.rating === "again" ? 1 : (note.reviewInterval ?? 0) + 3;
+          note.reviewReps = input.rating === "again" ? 0 : (note.reviewReps ?? 0) + 1;
+          note.reviewInterval = interval;
+          note.reviewDue = addDays(input.today, interval);
+          return detail(note.id);
+        },
+        listNoteVersions: async (noteId: string) =>
+          versions
+            .filter((v) => v.noteId === noteId)
+            .slice()
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .map(({ id, createdAt, title }) => ({ id, createdAt, title })),
+        getNoteVersion: async (noteId: string, versionId: string) => {
+          const v = versions.find((x) => x.noteId === noteId && x.id === versionId)!;
+          return { title: v.title, content: v.content, createdAt: v.createdAt };
+        },
+        restoreNoteVersion: async (noteId: string, versionId: string) => {
+          const note = notes.find((n) => n.id === noteId)!;
+          const target = versions.find((v) => v.noteId === noteId && v.id === versionId)!;
+          versions.push({ id: `ver${nextVersion++}`, noteId, title: note.title, content: note.content, createdAt: "2026-09-25T00:00:00.000Z" });
+          note.title = target.title;
+          note.content = target.content;
+          return detail(noteId);
+        },
+        listCanvases: async () =>
+          canvases
+            .slice()
+            .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+            .map(({ id, title, updatedAt }) => ({ id, title, updatedAt })),
+        createCanvas: async (input: { title: string }) => {
+          const canvas = { id: `canvas${nextCanvas++}`, title: input.title, cards: [], createdAt: stamp, updatedAt: stamp };
+          canvases.push(canvas);
+          return canvas;
+        },
+        getCanvas: async (id: string) => {
+          const canvas = canvases.find((c) => c.id === id)!;
+          return { title: canvas.title, cards: canvas.cards };
+        },
+        updateCanvas: async (input: { id: string; title?: string; cards?: typeof canvases[number]["cards"] }) => {
+          const canvas = canvases.find((c) => c.id === input.id)!;
+          if (input.title !== undefined) canvas.title = input.title;
+          if (input.cards !== undefined) canvas.cards = input.cards;
+          canvas.updatedAt = stamp;
+          return canvas;
+        },
+        deleteCanvas: async (id: string) => {
+          const idx = canvases.findIndex((c) => c.id === id);
+          if (idx !== -1) canvases.splice(idx, 1);
         },
       },
     };

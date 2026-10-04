@@ -122,4 +122,56 @@ describe("QuickSwitcher", () => {
     await user.click(container.firstElementChild as HTMLElement);
     expect(onClose).toHaveBeenCalled();
   });
+
+  describe("command mode", () => {
+    const COMMANDS = [
+      { id: "new-note", icon: "plus" as const, label: "New note", description: "Create a note", run: vi.fn() },
+      { id: "today", icon: "calendar" as const, label: "Today", description: "Open today's note", run: vi.fn() },
+    ];
+
+    it("switches from notes to commands when the query starts with '>'", async () => {
+      const user = userEvent.setup();
+      renderSwitcher({ commands: COMMANDS });
+      expect(screen.getByText("Atomicity")).toBeInTheDocument();
+
+      await user.type(screen.getByPlaceholderText(/search notes/i), ">");
+      expect(screen.queryByText("Atomicity")).not.toBeInTheDocument();
+      expect(screen.getByText("New note")).toBeInTheDocument();
+      expect(screen.getByText("Today")).toBeInTheDocument();
+    });
+
+    it("filters commands by label after '>'", async () => {
+      const user = userEvent.setup();
+      renderSwitcher({ commands: COMMANDS });
+
+      await user.type(screen.getByPlaceholderText(/search notes/i), ">today");
+      expect(screen.getByText("Today")).toBeInTheDocument();
+      expect(screen.queryByText("New note")).not.toBeInTheDocument();
+    });
+
+    it("runs the highlighted command and closes on Enter, without calling onSelect", async () => {
+      const user = userEvent.setup();
+      const { onSelect, onClose } = renderSwitcher({ commands: COMMANDS });
+
+      await user.type(screen.getByPlaceholderText(/search notes/i), ">today");
+      await user.keyboard("{Enter}");
+
+      expect(COMMANDS[1].run).toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+      expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it("returns to note search when backspacing '>' away", async () => {
+      const user = userEvent.setup();
+      renderSwitcher({ commands: COMMANDS });
+
+      const input = screen.getByPlaceholderText(/search notes/i);
+      await user.type(input, ">");
+      expect(screen.getByText("New note")).toBeInTheDocument();
+
+      await user.type(input, "{Backspace}");
+      expect(screen.queryByText("New note")).not.toBeInTheDocument();
+      expect(screen.getByText("Atomicity")).toBeInTheDocument();
+    });
+  });
 });

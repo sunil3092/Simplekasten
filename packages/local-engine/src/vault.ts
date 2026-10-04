@@ -1,8 +1,14 @@
 import { extractHashtags, extractWikiLinkTitles, normalizeTagName } from "@simplekasten/core";
+import { parseCanvasFile, serializeCanvasFile } from "./canvas-file";
+import { parseHistorySnapshot, serializeHistorySnapshot, type HistorySnapshot } from "./history-file";
 import { parseNoteFile, serializeNoteFile } from "./note-file";
+import { addDays, nextReviewState, type ReviewRating } from "./srs";
 import { parseTemplateFile, serializeTemplateFile } from "./template-file";
 import type {
   Attachment,
+  CanvasData,
+  CanvasListItem,
+  CreateCanvasInput,
   CreateNoteInput,
   CreateTemplateInput,
   FileSystemAdapter,
@@ -13,6 +19,7 @@ import type {
   SearchResultItem,
   TagItem,
   Template,
+  UpdateCanvasInput,
   UpdateNoteInput,
   UpdateTemplateInput,
   VaultNote,
@@ -20,6 +27,12 @@ import type {
 
 const NOTES_DIR = "notes";
 const TEMPLATES_DIR = "templates";
+const CANVASES_DIR = "canvases";
+const HISTORY_DIR = ".history";
+// One snapshot per this many milliseconds of active editing, not one per
+// autosave tick — see version-history.md's "Scope decision" for why.
+const SNAPSHOT_COALESCE_MS = 5 * 60 * 1000;
+const MAX_VERSIONS_PER_NOTE = 100;
 
 // Sentinel characters wrapped around matches in a search snippet.
 // QuickSwitcher's Snippet component splits on these to highlight them without
@@ -157,6 +170,10 @@ export async function getNoteById(fs: FileSystemAdapter, id: string): Promise<No
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
     noteDate: note.noteDate,
+    reviewDue: note.reviewDue,
+    reviewEase: note.reviewEase,
+    reviewInterval: note.reviewInterval,
+    reviewReps: note.reviewReps,
     tagNames,
     assignedTags: note.tags,
     attachments: await listAttachments(fs, id),
@@ -195,6 +212,10 @@ export async function createNote(fs: FileSystemAdapter, input: CreateNoteInput):
     attachmentIds: [],
     tags: [],
     noteDate: null,
+    reviewDue: null,
+    reviewEase: 2.5,
+    reviewInterval: 0,
+    reviewReps: 0,
   };
 
   await fs.ensureDir(NOTES_DIR);
@@ -206,6 +227,14 @@ export async function updateNote(fs: FileSystemAdapter, input: UpdateNoteInput):
   const notes = await loadAllNotes(fs);
   const existing = notes.find((n) => n.id === input.id && !n.deletedAt);
   if (!existing) throw new Error(`Note "${input.id}" not found`);
+
+  const contentChanged = input.content !== undefined && input.content !== existing.content;
+  if (contentChanged) {
+    const versions = await listNoteVersions(fs, existing.id);
+    const last = versions[0];
+    const dueForSnapshot = !last || Date.now() - Date.parse(last.createdAt) > SNAPSHOT_COALESCE_MS;
+    if (dueForSnapshot) await writeSnapshot(fs, existing.id, { title: existing.title, content: existing.content });
+  }
 
   const updated: VaultNote = {
     ...existing,
@@ -253,6 +282,10 @@ export async function getOrCreateDailyNote(fs: FileSystemAdapter, date: string):
     updatedAt: now,
     deletedAt: null,
     attachmentIds: [],
+    reviewDue: null,
+    reviewEase: 2.5,
+    reviewInterval: 0,
+    reviewReps: 0,
   };
 
   await fs.ensureDir(NOTES_DIR);
@@ -572,4 +605,183 @@ export async function getAttachmentFilePath(fs: FileSystemAdapter, id: string): 
   const attachment = manifest[id];
   if (!attachment) throw new Error(`Attachment "${id}" not found`);
   return fs.resolvePath(`${ATTACHMENTS_DIR}/${attachmentFilename(attachment)}`);
+}
+
+// Any note can be added to the review queue — restricting by type (e.g.
+// permanent-only) would be arbitrary, since the queue is opt-in per note
+// either way. Due immediately (today) so a freshly-added note shows up in
+// the very next review session rather than waiting.
+export async function addToReviewQueue(fs: FileSystemAdapter, noteId: string, today: string): Promise<VaultNote> {
+  const notes = await loadAllNotes(fs);
+  const note = notes.find((n) => n.id === noteId && !n.deletedAt);
+  if (!note) throw new Error(`Note "${noteId}" not found`);
+
+  const updated: VaultNote = { ...note, reviewDue: today, reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 };
+  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  return updated;
+}
+
+// Resets to the "never reviewed" defaults — re-adding later starts fresh,
+// not from wherever progress left off. Simplest correct behavior for v1.
+export async function removeFromReviewQueue(fs: FileSystemAdapter, noteId: string): Promise<VaultNote> {
+  const notes = await loadAllNotes(fs);
+  const note = notes.find((n) => n.id === noteId && !n.deletedAt);
+  if (!note) throw new Error(`Note "${noteId}" not found`);
+
+  const updated: VaultNote = { ...note, reviewDue: null, reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 };
+  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  return updated;
+}
+
+export async function listDueForReview(fs: FileSystemAdapter, date: string): Promise<NoteListItem[]> {
+  const notes = (await loadAllNotes(fs)).filter((n) => !n.deletedAt && n.reviewDue !== null && n.reviewDue <= date);
+  return notes
+    .slice()
+    .sort((a, b) => (a.reviewDue as string).localeCompare(b.reviewDue as string))
+    .map(({ id, zettelId, title, type, updatedAt }) => ({ id, zettelId, title, type, updatedAt }));
+}
+
+export interface SubmitReviewInput {
+  noteId: string;
+  rating: ReviewRating;
+  today: string;
+}
+
+export async function submitReview(fs: FileSystemAdapter, input: SubmitReviewInput): Promise<VaultNote> {
+  const notes = await loadAllNotes(fs);
+  const note = notes.find((n) => n.id === input.noteId && !n.deletedAt);
+  if (!note) throw new Error(`Note "${input.noteId}" not found`);
+
+  const next = nextReviewState({ ease: note.reviewEase, interval: note.reviewInterval, reps: note.reviewReps }, input.rating);
+  const updated: VaultNote = {
+    ...note,
+    reviewEase: next.ease,
+    reviewInterval: next.interval,
+    reviewReps: next.reps,
+    reviewDue: addDays(input.today, next.interval),
+  };
+  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  return updated;
+}
+
+function historyDir(noteId: string): string {
+  return `${HISTORY_DIR}/${noteId}`;
+}
+
+function historyFilePath(noteId: string, versionId: string): string {
+  return `${historyDir(noteId)}/${versionId}.md`;
+}
+
+export interface NoteVersion {
+  id: string;
+  createdAt: string;
+  title: string;
+}
+
+export async function listNoteVersions(fs: FileSystemAdapter, noteId: string): Promise<NoteVersion[]> {
+  await fs.ensureDir(historyDir(noteId));
+  const files = await fs.listFiles(historyDir(noteId));
+  const versions: NoteVersion[] = [];
+  for (const file of files) {
+    if (!file.endsWith(".md")) continue;
+    const id = file.slice(0, -3);
+    const snapshot = parseHistorySnapshot(await fs.readFile(historyFilePath(noteId, id)));
+    versions.push({ id, createdAt: snapshot.createdAt, title: snapshot.title });
+  }
+  // Newest first — versionId (generateId()'s base36 timestamp prefix) sorts
+  // lexically by creation time, but createdAt is the source of truth.
+  return versions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getNoteVersion(fs: FileSystemAdapter, noteId: string, versionId: string): Promise<HistorySnapshot> {
+  return parseHistorySnapshot(await fs.readFile(historyFilePath(noteId, versionId)));
+}
+
+async function writeSnapshot(fs: FileSystemAdapter, noteId: string, snapshot: { title: string; content: string }): Promise<void> {
+  await fs.ensureDir(historyDir(noteId));
+  const id = generateId();
+  await fs.writeFile(historyFilePath(noteId, id), serializeHistorySnapshot({ ...snapshot, createdAt: new Date().toISOString() }));
+
+  // Prune past the cap, oldest first — a safety bound against pathological
+  // cases, not a real-world limit under the 5-minute coalescing window.
+  const versions = await listNoteVersions(fs, noteId);
+  for (const stale of versions.slice(MAX_VERSIONS_PER_NOTE)) {
+    await fs.deleteFile(historyFilePath(noteId, stale.id));
+  }
+}
+
+export async function restoreNoteVersion(fs: FileSystemAdapter, noteId: string, versionId: string): Promise<VaultNote> {
+  const notes = await loadAllNotes(fs);
+  const existing = notes.find((n) => n.id === noteId && !n.deletedAt);
+  if (!existing) throw new Error(`Note "${noteId}" not found`);
+
+  const target = await getNoteVersion(fs, noteId, versionId);
+
+  // Restoring is a deliberate, infrequent action, not an autosave tick, so
+  // the 5-minute coalescing window doesn't apply — always snapshot the
+  // current state first, so restoring is itself reversible.
+  await writeSnapshot(fs, noteId, { title: existing.title, content: existing.content });
+
+  const updated: VaultNote = { ...existing, title: target.title, content: target.content, updatedAt: new Date().toISOString() };
+  await fs.writeFile(noteFilePath(updated.id), serializeNoteFile(updated));
+  return updated;
+}
+
+function canvasFilePath(id: string): string {
+  return `${CANVASES_DIR}/${id}.json`;
+}
+
+async function loadAllCanvases(fs: FileSystemAdapter): Promise<CanvasData[]> {
+  await fs.ensureDir(CANVASES_DIR);
+  const files = await fs.listFiles(CANVASES_DIR);
+  const canvases: CanvasData[] = [];
+  for (const file of files) {
+    if (!file.endsWith(".json")) continue;
+    const id = file.slice(0, -5);
+    const raw = await fs.readFile(canvasFilePath(id));
+    canvases.push(parseCanvasFile(raw, id));
+  }
+  return canvases;
+}
+
+export async function listCanvases(fs: FileSystemAdapter): Promise<CanvasListItem[]> {
+  const canvases = await loadAllCanvases(fs);
+  return canvases
+    .slice()
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    .map(({ id, title, updatedAt }) => ({ id, title, updatedAt }));
+}
+
+export async function createCanvas(fs: FileSystemAdapter, input: CreateCanvasInput): Promise<CanvasData> {
+  const now = new Date().toISOString();
+  const canvas: CanvasData = { id: generateId(), title: input.title, cards: [], createdAt: now, updatedAt: now };
+  await fs.ensureDir(CANVASES_DIR);
+  await fs.writeFile(canvasFilePath(canvas.id), serializeCanvasFile(canvas));
+  return canvas;
+}
+
+export async function getCanvas(fs: FileSystemAdapter, id: string): Promise<CanvasData> {
+  const raw = await fs.readFile(canvasFilePath(id));
+  return parseCanvasFile(raw, id);
+}
+
+// cards is replaced wholesale, not diffed/merged — same "the debounced save
+// writes the full current state" model note content already uses; a
+// canvas is small enough that this is never a real cost.
+export async function updateCanvas(fs: FileSystemAdapter, input: UpdateCanvasInput): Promise<CanvasData> {
+  const existing = await getCanvas(fs, input.id);
+  const updated: CanvasData = {
+    ...existing,
+    title: input.title ?? existing.title,
+    cards: input.cards ?? existing.cards,
+    updatedAt: new Date().toISOString(),
+  };
+  await fs.writeFile(canvasFilePath(updated.id), serializeCanvasFile(updated));
+  return updated;
+}
+
+export async function deleteCanvas(fs: FileSystemAdapter, id: string): Promise<void> {
+  const canvases = await loadAllCanvases(fs);
+  if (!canvases.some((c) => c.id === id)) throw new Error(`Canvas "${id}" not found`);
+  await fs.deleteFile(canvasFilePath(id));
 }

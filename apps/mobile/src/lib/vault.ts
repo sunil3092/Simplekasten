@@ -22,6 +22,17 @@ export const vault = {
   getOrCreateDailyNote: (date: string) => engine.getOrCreateDailyNote(fs, date),
   listTemplates: () => engine.listTemplates(fs),
   applyTemplate: (input: { noteId: string; templateId: string }) => engine.applyTemplate(fs, input),
+  addToReviewQueue: (noteId: string, today: string) => engine.addToReviewQueue(fs, noteId, today),
+  removeFromReviewQueue: (noteId: string) => engine.removeFromReviewQueue(fs, noteId),
+  listDueForReview: (date: string) => engine.listDueForReview(fs, date),
+  submitReview: (input: engine.SubmitReviewInput) => engine.submitReview(fs, input),
+  listNoteVersions: (noteId: string) => engine.listNoteVersions(fs, noteId),
+  getNoteVersion: (noteId: string, versionId: string) => engine.getNoteVersion(fs, noteId, versionId),
+  restoreNoteVersion: (noteId: string, versionId: string) => engine.restoreNoteVersion(fs, noteId, versionId),
+  // View-only on mobile in v1 — no create/update call, see canvas.md's
+  // desktop-authors/mobile-views split.
+  listCanvases: () => engine.listCanvases(fs),
+  getCanvas: (id: string) => engine.getCanvas(fs, id),
   createAttachment: (input: engine.CreateAttachmentInput) => engine.createAttachment(fs, input),
   listAttachments: (noteId: string) => engine.listAttachments(fs, noteId),
   deleteAttachment: (id: string) => engine.deleteAttachment(fs, id),

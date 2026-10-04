@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMemoryFs } from "./memory-fs.test-helper";
 import {
   createNote,
@@ -21,6 +21,18 @@ import {
   listTemplates,
   setDefaultForDailyNote,
   updateTemplate,
+  addToReviewQueue,
+  listDueForReview,
+  removeFromReviewQueue,
+  submitReview,
+  listNoteVersions,
+  getNoteVersion,
+  restoreNoteVersion,
+  listCanvases,
+  createCanvas,
+  getCanvas,
+  updateCanvas,
+  deleteCanvas,
 } from "./vault";
 
 describe("vault engine", () => {
@@ -425,6 +437,256 @@ describe("attachments", () => {
 
       const daily = await getOrCreateDailyNote(fs, "2026-09-23");
       expect(daily.content).toBe("");
+    });
+  });
+
+  describe("review queue", () => {
+    it("adds a note to the queue due immediately, with fresh SM-2 defaults", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "" });
+
+      const updated = await addToReviewQueue(fs, note.id, "2026-09-23");
+      expect(updated.reviewDue).toBe("2026-09-23");
+      expect(updated.reviewEase).toBe(2.5);
+      expect(updated.reviewInterval).toBe(0);
+      expect(updated.reviewReps).toBe(0);
+    });
+
+    it("throws adding a note that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(addToReviewQueue(fs, "nope", "2026-09-23")).rejects.toThrow(/not found/);
+    });
+
+    it("removes a note from the queue, resetting to the never-reviewed defaults", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "" });
+      await addToReviewQueue(fs, note.id, "2026-09-23");
+      await submitReview(fs, { noteId: note.id, rating: "good", today: "2026-09-23" });
+
+      const removed = await removeFromReviewQueue(fs, note.id);
+      expect(removed).toMatchObject({ reviewDue: null, reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 });
+    });
+
+    it("lists only notes due on or before the given date, oldest-due-first, excluding notes not in the queue", async () => {
+      const fs = createMemoryFs();
+      await createNote(fs, { title: "Not in queue", content: "" });
+      const dueToday = await createNote(fs, { title: "Due today", content: "" });
+      const overdue = await createNote(fs, { title: "Overdue", content: "" });
+      const dueTomorrow = await createNote(fs, { title: "Due tomorrow", content: "" });
+
+      await addToReviewQueue(fs, dueToday.id, "2026-09-23");
+      await addToReviewQueue(fs, overdue.id, "2026-09-20");
+      await addToReviewQueue(fs, dueTomorrow.id, "2026-09-24");
+
+      const due = await listDueForReview(fs, "2026-09-23");
+      expect(due.map((n) => n.id)).toEqual([overdue.id, dueToday.id]);
+    });
+
+    it("excludes a deleted note from the due list even if it was in the queue", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Gone", content: "" });
+      await addToReviewQueue(fs, note.id, "2026-09-23");
+      await deleteNote(fs, note.id);
+
+      expect(await listDueForReview(fs, "2026-09-23")).toEqual([]);
+    });
+
+    it("submitReview advances ease/interval/reps via the SM-2 algorithm and sets the next due date", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "" });
+      await addToReviewQueue(fs, note.id, "2026-09-23");
+
+      const first = await submitReview(fs, { noteId: note.id, rating: "good", today: "2026-09-23" });
+      expect(first).toMatchObject({ reviewEase: 2.5, reviewInterval: 1, reviewReps: 1, reviewDue: "2026-09-24" });
+
+      const second = await submitReview(fs, { noteId: note.id, rating: "good", today: "2026-09-24" });
+      expect(second).toMatchObject({ reviewEase: 2.5, reviewInterval: 6, reviewReps: 2, reviewDue: "2026-09-30" });
+    });
+
+    it("throws submitting a review for a note that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(submitReview(fs, { noteId: "nope", rating: "good", today: "2026-09-23" })).rejects.toThrow(/not found/);
+    });
+  });
+
+  describe("version history", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-09-25T00:00:00.000Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("has no versions before any content-changing edit", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "first draft" });
+      expect(await listNoteVersions(fs, note.id)).toEqual([]);
+    });
+
+    it("snapshots the pre-edit content on the very first content-changing update", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "first draft" });
+
+      await updateNote(fs, { id: note.id, content: "second draft" });
+
+      const versions = await listNoteVersions(fs, note.id);
+      expect(versions).toHaveLength(1);
+      const snapshot = await getNoteVersion(fs, note.id, versions[0].id);
+      expect(snapshot).toMatchObject({ title: "Atomicity", content: "first draft" });
+    });
+
+    it("does not snapshot on a title-only edit", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "first draft" });
+
+      await updateNote(fs, { id: note.id, title: "Renamed" });
+
+      expect(await listNoteVersions(fs, note.id)).toEqual([]);
+    });
+
+    it("coalesces edits within 5 minutes into a single version", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "v1" });
+
+      await updateNote(fs, { id: note.id, content: "v2" });
+      vi.advanceTimersByTime(4 * 60 * 1000);
+      await updateNote(fs, { id: note.id, content: "v3" });
+
+      expect(await listNoteVersions(fs, note.id)).toHaveLength(1);
+    });
+
+    it("creates a new version once the 5-minute coalescing window has passed", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "v1" });
+
+      await updateNote(fs, { id: note.id, content: "v2" });
+      vi.advanceTimersByTime(6 * 60 * 1000);
+      await updateNote(fs, { id: note.id, content: "v3" });
+
+      expect(await listNoteVersions(fs, note.id)).toHaveLength(2);
+    });
+
+    it("lists versions newest-first", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "v1" });
+      await updateNote(fs, { id: note.id, content: "v2" });
+      vi.advanceTimersByTime(6 * 60 * 1000);
+      await updateNote(fs, { id: note.id, content: "v3" });
+      vi.advanceTimersByTime(6 * 60 * 1000);
+      await updateNote(fs, { id: note.id, content: "v4" });
+
+      const versions = await listNoteVersions(fs, note.id);
+      const contents = await Promise.all(versions.map((v) => getNoteVersion(fs, note.id, v.id)));
+      expect(contents.map((c) => c.content)).toEqual(["v3", "v2", "v1"]);
+    });
+
+    it("prunes versions past the 100-version cap, oldest first", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "v0" });
+
+      for (let i = 1; i <= 105; i++) {
+        vi.advanceTimersByTime(6 * 60 * 1000);
+        await updateNote(fs, { id: note.id, content: `v${i}` });
+      }
+
+      const versions = await listNoteVersions(fs, note.id);
+      expect(versions).toHaveLength(100);
+      const contents = await Promise.all(versions.map((v) => getNoteVersion(fs, note.id, v.id)));
+      // The oldest surviving snapshot is "v5" (v0..v4 pruned) — the newest
+      // snapshot is always the second-to-last edit, since a snapshot
+      // captures pre-edit content.
+      expect(contents.map((c) => c.content)).toContain("v5");
+      expect(contents.map((c) => c.content)).not.toContain("v0");
+    });
+
+    it("restoreNoteVersion restores the note's title and content, snapshotting the current state first", async () => {
+      const fs = createMemoryFs();
+      const note = await createNote(fs, { title: "Atomicity", content: "original" });
+      await updateNote(fs, { id: note.id, title: "Renamed", content: "edited" });
+
+      const [onlyVersion] = await listNoteVersions(fs, note.id);
+      // Advance the clock so the pre-restore snapshot below has a strictly
+      // later createdAt than the one just captured, making the newest-first
+      // ordering asserted below unambiguous.
+      vi.advanceTimersByTime(1000);
+      const restored = await restoreNoteVersion(fs, note.id, onlyVersion.id);
+
+      expect(restored).toMatchObject({ title: "Atomicity", content: "original" });
+
+      const versionsAfterRestore = await listNoteVersions(fs, note.id);
+      expect(versionsAfterRestore).toHaveLength(2);
+      const preRestoreSnapshot = await getNoteVersion(fs, note.id, versionsAfterRestore[0].id);
+      expect(preRestoreSnapshot).toMatchObject({ title: "Renamed", content: "edited" });
+    });
+
+    it("throws restoring a version for a note that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(restoreNoteVersion(fs, "nope", "v1")).rejects.toThrow(/not found/);
+    });
+  });
+
+  describe("canvas", () => {
+    it("creates a canvas with no cards", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Project layout" });
+      expect(canvas).toMatchObject({ title: "Project layout", cards: [] });
+    });
+
+    it("lists canvases newest-updated-first", async () => {
+      const fs = createMemoryFs();
+      const a = await createCanvas(fs, { title: "A" });
+      const b = await createCanvas(fs, { title: "B" });
+      await updateCanvas(fs, { id: a.id, title: "A (touched)" });
+
+      const list = await listCanvases(fs);
+      expect(list.map((c) => c.id)).toEqual([a.id, b.id]);
+    });
+
+    it("gets a canvas by id", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Project layout" });
+      expect(await getCanvas(fs, canvas.id)).toEqual(canvas);
+    });
+
+    it("replaces cards wholesale on update", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Project layout" });
+      const cards = [
+        { id: "card1", kind: "note" as const, noteId: "n1", x: 0, y: 0, width: 200, height: 120 },
+        { id: "card2", kind: "text" as const, text: "Scratch thought", x: 250, y: 0, width: 180, height: 100 },
+      ];
+
+      const updated = await updateCanvas(fs, { id: canvas.id, cards });
+      expect(updated.cards).toEqual(cards);
+
+      const reloaded = await getCanvas(fs, canvas.id);
+      expect(reloaded.cards).toEqual(cards);
+    });
+
+    it("updates only the given fields, leaving others untouched", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Original" });
+      const renamed = await updateCanvas(fs, { id: canvas.id, title: "Renamed" });
+      expect(renamed).toMatchObject({ title: "Renamed", cards: [] });
+    });
+
+    it("deletes a canvas", async () => {
+      const fs = createMemoryFs();
+      const canvas = await createCanvas(fs, { title: "Temporary" });
+      await deleteCanvas(fs, canvas.id);
+      expect(await listCanvases(fs)).toEqual([]);
+    });
+
+    it("throws deleting a canvas that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(deleteCanvas(fs, "nope")).rejects.toThrow(/not found/);
+    });
+
+    it("throws getting a canvas that doesn't exist", async () => {
+      const fs = createMemoryFs();
+      await expect(getCanvas(fs, "nope")).rejects.toThrow();
     });
   });
 });
