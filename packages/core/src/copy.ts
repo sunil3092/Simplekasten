@@ -28,4 +28,12 @@ export const COPY = {
   tagFromTextHint: "Comes from a #hashtag in the note — edit the text to remove it.",
   invalidTag: "Tags start with a letter and use only letters, digits, _, / or -.",
   noteCount: (count: number, tag: string | null) => `${count} note${count === 1 ? "" : "s"}${tag ? ` · #${tag}` : ""}`,
+  reviewTitle: "Review",
+  reviewCommandDescription: "Sort your fleeting notes",
+  reviewProgress: (current: number, total: number) => `${current} of ${total}`,
+  reviewSkip: "Skip",
+  reviewDelete: "Delete",
+  reviewClose: "Close",
+  reviewCaughtUp: "You're all caught up.",
+  reviewActionFailed: "That didn't go through — the note is unchanged. Try again.",
 } as const;
