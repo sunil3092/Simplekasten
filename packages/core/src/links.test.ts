@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractHashtags, extractWikiLinkTitles, normalizeTagName } from "./links";
+import { extractHashtags, extractWikiLinkTitles, hashtagLine, JOURNAL_TAG, normalizeTagName } from "./links";
 
 describe("extractWikiLinkTitles", () => {
   it("pulls a single [[Title]] reference", () => {
@@ -75,5 +75,22 @@ describe("normalizeTagName", () => {
     for (const bad of ["", "#", "2fast", "two words", "tag!", "##x"]) {
       expect(normalizeTagName(bad), bad).toBeNull();
     }
+  });
+});
+
+describe("hashtagLine", () => {
+  it("writes each tag as a #hashtag that reads back as the same tags", () => {
+    const line = hashtagLine(["method", "area/sub-topic"]);
+    expect(line).toBe("#method #area/sub-topic");
+    expect(extractHashtags(line)).toEqual(["method", "area/sub-topic"]);
+  });
+
+  it("leaves out the journal tag, which only a journal note's type grants", () => {
+    expect(hashtagLine([JOURNAL_TAG, "method"])).toBe("#method");
+  });
+
+  it("is empty when there are no tags to carry over", () => {
+    expect(hashtagLine([])).toBe("");
+    expect(hashtagLine([JOURNAL_TAG])).toBe("");
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { JOURNAL_TAG } from "@simplekasten/core";
+import { hashtagLine, JOURNAL_TAG } from "@simplekasten/core";
 import { layoutFlow, routeFlowEdge, type FlowPoint, type FlowRect } from "@simplekasten/local-engine";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../lib/ThemeProvider";
@@ -29,7 +29,8 @@ interface FlowViewProps {
   onLoadNote: (id: string) => Promise<{ title: string; content: string; tags?: string[] }>;
   /** Resolves with the note's tags as saved, so the tag filter stays current. */
   onSaveNote: (input: { id: string; title?: string; content?: string; type?: NoteType }) => Promise<{ tags?: string[] } | void>;
-  onCreateNote: () => Promise<{ id: string }>;
+  /** With no input, makes a blank "Untitled" note. */
+  onCreateNote: (input?: { title: string; content: string }) => Promise<{ id: string }>;
   onDeleteNote: (id: string) => Promise<void>;
   /** Identifies the vault, so each vault remembers its own card arrangement. */
   storageKey?: string;
@@ -253,24 +254,28 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
   const loadedIdsRef = useRef(new Set<string>());
   const saveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const pendingSavesRef = useRef(new Map<string, { title: string; content: string }>());
+  const creatingLinksRef = useRef(new Set<string>());
 
-  function flushSave(id: string) {
+  /** Settles once the save is done, with the note's tags if the save changed them. */
+  function flushSave(id: string): Promise<string[] | undefined> {
     const timer = saveTimersRef.current.get(id);
     if (timer) clearTimeout(timer);
     saveTimersRef.current.delete(id);
     const pending = pendingSavesRef.current.get(id);
     pendingSavesRef.current.delete(id);
-    if (!pending) return;
-    onSaveNote({ id, ...pending })
+    if (!pending) return Promise.resolve(undefined);
+    return onSaveNote({ id, ...pending })
       .then((saved) => applySavedTags(id, saved))
       .catch(() => {
         // The text stays in the card; the next edit retries the save.
+        return undefined;
       });
   }
 
   function applySavedTags(id: string, saved: { tags?: string[] } | void) {
     const tags = saved?.tags;
     if (tags && mountedRef.current) setNoteTags((prev) => new Map(prev).set(id, tags));
+    return tags;
   }
 
   function changeType(id: string, type: NoteType) {
@@ -434,11 +439,30 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
     }
   }
 
-  // Ctrl/Cmd+click on a [[link]] in a card opens that note, like the main editor.
-  function followLink(title: string) {
+  // Ctrl/Cmd+click on a [[link]] in a card opens that note, like the main
+  // editor. A link to a note that doesn't exist yet makes it right here on the
+  // flow, as the next card in the branch: it starts with the tags of the card
+  // the link was clicked in, so it stays in the same tag-filtered view.
+  async function followLink(fromId: string, title: string) {
     const wanted = title.toLowerCase();
     const target = nodes.find((n) => (cardText.get(n.id)?.title ?? n.title).toLowerCase() === wanted);
-    if (target) openInEditor(target.id);
+    if (target) {
+      openInEditor(target.id);
+      return;
+    }
+    // A second click before the first note lands must not make a twin.
+    if (creatingLinksRef.current.has(wanted)) return;
+    creatingLinksRef.current.add(wanted);
+    try {
+      // The link itself may still be waiting to be saved; it has to be in the
+      // vault before the new note is, or no arrow would join the two.
+      const tags = (await flushSave(fromId)) ?? noteTags.get(fromId) ?? [];
+      const { id } = await onCreateNote({ title, content: hashtagLine(tags) });
+      // Pinned as "being edited" so it shows even under a filter it doesn't match.
+      if (mountedRef.current) setEditingId(id);
+    } finally {
+      creatingLinksRef.current.delete(wanted);
+    }
   }
 
   // Put the cursor in a newly created card's title once the card is on screen.
@@ -808,7 +832,7 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
                           compact
                           initialValue={text.content}
                           onChange={(value) => onContentChange(l.id, value)}
-                          onNavigateLink={followLink}
+                          onNavigateLink={(title) => followLink(l.id, title)}
                           onTagClick={(tag) => changeFilter(filterTags.includes(tag) ? filterTags : [...filterTags, tag])}
                           noteTitles={nodes.filter((n) => n.id !== l.id).map((n) => cardText.get(n.id)?.title ?? n.title)}
                           tagNames={allTagNames}

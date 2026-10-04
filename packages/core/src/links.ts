@@ -35,7 +35,18 @@ export function extractHashtags(content: string): string[] {
  */
 export const JOURNAL_TAG = "journalentry";
 
-const TAG_NAME_PATTERN = /^[a-z][\w/-]*$/;
+/**
+ * The body text that gives a note these tags: one `#hashtag` each. The journal
+ * tag is left out — it comes from a note being a journal entry, not from text.
+ */
+export function hashtagLine(tags: string[]): string {
+  return tags
+    .filter((tag) => tag !== JOURNAL_TAG)
+    .map((tag) => `#${tag}`)
+    .join(" ");
+}
+
+const TAG_NAME_PATTERN =/^[a-z][\w/-]*$/;
 
 /**
  * Normalises a tag typed into a tag picker to the form a #hashtag would

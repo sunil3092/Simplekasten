@@ -256,3 +256,47 @@ test("Down from a card's title moves into its text, and Up from the first line m
   await expect(body).toBeFocused();
   await expect(title).toHaveValue("Atomic Habits");
 });
+
+test("Ctrl+click on a link to a note that doesn't exist makes it on the flow, carrying the card's tags", async ({ page }) => {
+  await stubBridge(page, { theme: "classic", themeMode: "light" }, [
+    // One tag typed as a #hashtag, one assigned — both belong to the card.
+    { id: "a", zettelId: "1", title: "Linking Over Filing", content: "Connections matter. #method\n\n[[Test Method]]", type: "permanent", tags: ["zettel"] },
+    { id: "b", zettelId: "2", title: "Plain", content: "Leads to [[No Tags Note]].", type: "fleeting", tags: [] },
+  ]);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Flow view" }).click();
+
+  const flow = page.getByTestId("flow-view");
+  const cards = page.getByTestId("flow-card");
+  const edges = page.getByTestId("flow-edge");
+  const cardTitled = (title: string) => page.locator(`[data-testid="flow-card"]:has(input[value="${title}"])`);
+  await expect(cards).toHaveCount(2);
+  await expect(edges).toHaveCount(0);
+
+  // Narrow to #method first: the new card must still show, since it shares the tag.
+  const filter = page.getByRole("combobox", { name: "Filter by tag" });
+  await filter.fill("meth");
+  await filter.press("Enter");
+  await expect(cards).toHaveCount(1);
+
+  await cards.first().locator(".cm-wikilink").click({ modifiers: ["ControlOrMeta"] });
+  await expect(flow).toBeVisible();
+  await expect(cards).toHaveCount(2);
+  await expect(edges).toHaveCount(1);
+  const created = cardTitled("Test Method");
+  await expect(created.locator(".cm-content")).toHaveText("#method #zettel");
+
+  await filter.press("Backspace");
+  await expect(cards).toHaveCount(3);
+
+  // A card with no tags still gets its linked note — just an empty one.
+  await cardTitled("Plain").locator(".cm-wikilink").click({ modifiers: ["ControlOrMeta"] });
+  await expect(cards).toHaveCount(4);
+  await expect(edges).toHaveCount(2);
+  await expect(cardTitled("No Tags Note").locator(".cm-placeholder")).toBeVisible();
+
+  await flow.getByRole("button", { name: "Close" }).click();
+  const sidebar = page.locator("aside").first();
+  await expect(sidebar.getByText("4 notes")).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "#method 2" })).toBeVisible();
+});

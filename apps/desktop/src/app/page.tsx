@@ -519,8 +519,13 @@ function Vault() {
     return { tags: fresh.tagNames };
   }
 
-  async function createNoteFromFlow() {
-    const note = await createNoteForCanvas("Untitled");
+  async function createNoteFromFlow(
+    input: { title: string; content: string } = { title: "Untitled", content: "" },
+  ) {
+    const note = await vaultClient.createNote({ ...input, type: "fleeting" });
+    refreshNotes(activeTag);
+    // The note may arrive already carrying #hashtags.
+    refreshTags();
     await refreshFlow();
     return note;
   }
