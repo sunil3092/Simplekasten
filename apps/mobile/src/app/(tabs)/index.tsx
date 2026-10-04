@@ -46,7 +46,7 @@ export default function VaultScreen() {
   const [results, setResults] = useState<SearchResultItem[] | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [dueCount, setDueCount] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -59,14 +59,14 @@ export default function VaultScreen() {
   }, [params.tag, router]);
 
   const load = useCallback(async (tag?: string | null) => {
-    const [noteList, tagList, due] = await Promise.all([
+    const [noteList, tagList, inbox] = await Promise.all([
       vault.listNotes(tag ?? undefined),
       vault.listTags(),
-      vault.listDueForReview(new Date().toLocaleDateString("en-CA")),
+      vault.listReviewInbox(),
     ]);
     setNotes(noteList);
     setTags(tagList);
-    setDueCount(due.length);
+    setReviewCount(inbox.length);
   }, []);
 
   // A plain effect only fires on mount/dep-change, not when navigating back
@@ -145,7 +145,7 @@ export default function VaultScreen() {
   const commands: CommandRow[] = [
     { kind: "command", id: "new-note", icon: "plus", label: "New note", description: "Create a new fleeting note", run: () => createNote() },
     { kind: "command", id: "today", icon: "calendar", label: "Today", description: "Open or create today's daily note", run: openToday },
-    { kind: "command", id: "review", icon: "repeat", label: "Review", description: "Start a spaced-repetition review session", run: () => { setQuery(""); router.push("/review"); } },
+    { kind: "command", id: "review", icon: "repeat", label: "Review", description: COPY.reviewCommandDescription, run: () => { setQuery(""); router.push("/review"); } },
     { kind: "command", id: "graph", icon: "network", label: "Graph view", description: "Visualize how notes link together", run: () => { setQuery(""); router.push("/graph"); } },
     { kind: "command", id: "canvases", icon: "layout", label: "Canvases", description: "View canvases made on desktop", run: () => { setQuery(""); router.push("/canvas"); } },
     { kind: "command", id: "settings", icon: "settings", label: "Settings", description: "Theme and appearance settings", run: () => { setQuery(""); router.push("/settings"); } },
@@ -198,7 +198,7 @@ export default function VaultScreen() {
             <Button icon="calendar" label="Today" onPress={openToday} disabled={creating} style={styles.actionButton} />
             <Button
               icon="repeat"
-              label={dueCount > 0 ? `Review · ${dueCount}` : "Review"}
+              label={reviewCount > 0 ? `Review · ${reviewCount}` : "Review"}
               onPress={() => router.push("/review")}
               style={styles.actionButton}
             />

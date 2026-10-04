@@ -25,6 +25,7 @@ export const vault = {
   addToReviewQueue: (noteId: string, today: string) => engine.addToReviewQueue(fs, noteId, today),
   removeFromReviewQueue: (noteId: string) => engine.removeFromReviewQueue(fs, noteId),
   listDueForReview: (date: string) => engine.listDueForReview(fs, date),
+  listReviewInbox: () => engine.listReviewInbox(fs),
   submitReview: (input: engine.SubmitReviewInput) => engine.submitReview(fs, input),
   listNoteVersions: (noteId: string) => engine.listNoteVersions(fs, noteId),
   getNoteVersion: (noteId: string, versionId: string) => engine.getNoteVersion(fs, noteId, versionId),
