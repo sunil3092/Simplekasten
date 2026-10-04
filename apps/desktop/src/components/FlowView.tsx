@@ -1,7 +1,19 @@
 "use client";
 
 import { hashtagLine, JOURNAL_TAG } from "@simplekasten/core";
-import { layoutFlow, routeFlowEdge, type FlowPoint, type FlowRect } from "@simplekasten/local-engine";
+import {
+  filterFlowNodes,
+  FLOW_CARD,
+  FLOW_UNTAGGED,
+  flowAutoPositions,
+  flowRoutes,
+  flowTagOptions,
+  layoutFlow,
+  placeFlowCards,
+  type FlowPoint,
+  type FlowPositions,
+  type FlowTagOption,
+} from "@simplekasten/local-engine";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../lib/ThemeProvider";
 import { NOTE_TYPES, noteTypeInfo, type NoteType } from "../lib/noteTypes";
@@ -36,18 +48,15 @@ interface FlowViewProps {
   storageKey?: string;
 }
 
-// Gaps between cards (80 across, 100 down) are wide enough for an arrow to
-// pass between two neighbours with clearance on both sides.
-const LAYER_HEIGHT = 270;
-const COLUMN_WIDTH = 340;
-const CARD_WIDTH = 260;
-const CARD_HEIGHT = 170;
-const EDGE_CORNER_RADIUS = 18;
+// Card geometry, layout and arrow routing are shared with mobile — see
+// packages/local-engine/src/flow-view.ts.
+const CARD_WIDTH = FLOW_CARD.width;
+const CARD_HEIGHT = FLOW_CARD.height;
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 2;
 const SAVE_DEBOUNCE_MS = 600;
 
-type Positions = Map<string, FlowPoint>;
+type Positions = FlowPositions;
 
 const positionsKey = (storageKey: string) => `simplekasten.flow-positions:${storageKey}`;
 
@@ -76,40 +85,7 @@ function savePositions(storageKey: string, positions: Positions) {
   }
 }
 
-const cardRect = (p: FlowPoint): FlowRect => ({ x: p.x, y: p.y, width: CARD_WIDTH, height: CARD_HEIGHT });
-
-function overlaps(a: FlowPoint, b: FlowPoint): boolean {
-  return Math.abs(a.x - b.x) < CARD_WIDTH && Math.abs(a.y - b.y) < CARD_HEIGHT;
-}
-
-/** SVG path through the points, with the bends rounded off. */
-function roundedPath(points: FlowPoint[]): string {
-  let d = `M ${points[0].x} ${points[0].y}`;
-  for (let i = 1; i < points.length - 1; i++) {
-    const prev = points[i - 1];
-    const corner = points[i];
-    const next = points[i + 1];
-    const inLength = Math.hypot(corner.x - prev.x, corner.y - prev.y);
-    const outLength = Math.hypot(next.x - corner.x, next.y - corner.y);
-    const r = Math.min(EDGE_CORNER_RADIUS, inLength / 2, outLength / 2);
-    if (r === 0) continue;
-    const before = { x: corner.x - ((corner.x - prev.x) / inLength) * r, y: corner.y - ((corner.y - prev.y) / inLength) * r };
-    const after = { x: corner.x + ((next.x - corner.x) / outLength) * r, y: corner.y + ((next.y - corner.y) / outLength) * r };
-    d += ` L ${before.x} ${before.y} Q ${corner.x} ${corner.y} ${after.x} ${after.y}`;
-  }
-  const last = points[points.length - 1];
-  return `${d} L ${last.x} ${last.y}`;
-}
-
-// Filter value for notes carrying no tag at all. Not a valid tag name, so it
-// can never collide with a real one.
-const UNTAGGED = "\u0000untagged";
-
-interface TagOption {
-  value: string;
-  label: string;
-  count: number;
-}
+type TagOption = FlowTagOption;
 
 /** Tag search box: pick any number of tags; suggestions fill in as you type. */
 function TagFilter({ options, selected, onChange }: { options: TagOption[]; selected: string[]; onChange: (next: string[]) => void }) {
@@ -475,35 +451,17 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
     setFocusId(null);
   });
 
-  const tagOptions = useMemo(() => {
-    const counts = new Map<string, number>();
-    let untagged = 0;
-    for (const tags of noteTags.values()) {
-      if (tags.length === 0) untagged++;
-      for (const tag of tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
-    }
-    const options: TagOption[] = Array.from(counts)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([tag, count]) => ({ value: tag, label: `#${tag}`, count }));
-    if (untagged > 0) options.push({ value: UNTAGGED, label: "Untagged", count: untagged });
-    return options;
-  }, [noteTags]);
+  const tagOptions = useMemo(() => flowTagOptions(noteTags), [noteTags]);
 
   // A note shows when it carries any of the chosen tags; arrows are kept
   // only between notes that are both showing, so each tag reads as its own
   // set of branches.
   const journalCount = useMemo(() => nodes.filter((n) => n.type === "daily").length, [nodes]);
 
-  const visibleNodes = useMemo(() => {
-    if (filterTags.length === 0 && !hideJournal) return nodes;
-    return nodes.filter((n) => {
-      if (n.id === editingId) return true;
-      if (hideJournal && n.type === "daily") return false;
-      if (filterTags.length === 0) return true;
-      const tags = noteTags.get(n.id) ?? [];
-      return tags.length === 0 ? filterTags.includes(UNTAGGED) : tags.some((t) => filterTags.includes(t));
-    });
-  }, [nodes, noteTags, filterTags, hideJournal, editingId]);
+  const visibleNodes = useMemo(
+    () => filterFlowNodes(nodes, noteTags, { filterTags, hideJournal, keepId: editingId }),
+    [nodes, noteTags, filterTags, hideJournal, editingId],
+  );
 
   // Asking for the journal tag by name overrides "hide journal" — otherwise
   // the filter would promise journal entries and show none.
@@ -512,24 +470,12 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
     setFilterTags(next);
   }
 
-  const allTagNames = useMemo(() => tagOptions.filter((o) => o.value !== UNTAGGED).map((o) => o.value), [tagOptions]);
+  const allTagNames = useMemo(() => tagOptions.filter((o) => o.value !== FLOW_UNTAGGED).map((o) => o.value), [tagOptions]);
 
   const layout = useMemo(() => layoutFlow(visibleNodes, edges), [visibleNodes, edges]);
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
-  const autoPositions = useMemo(() => {
-    const layerCounts = new Map<number, number>();
-    for (const l of layout) layerCounts.set(l.layer, (layerCounts.get(l.layer) ?? 0) + 1);
-    const map: Positions = new Map();
-    for (const l of layout) {
-      const count = layerCounts.get(l.layer) ?? 1;
-      map.set(l.id, {
-        x: l.order * COLUMN_WIDTH - ((count - 1) * COLUMN_WIDTH) / 2,
-        y: l.layer * LAYER_HEIGHT,
-      });
-    }
-    return map;
-  }, [layout]);
+  const autoPositions = useMemo(() => flowAutoPositions(layout), [layout]);
 
   // Cards the user has dragged keep their spot; everything else follows the
   // automatic layout.
@@ -537,44 +483,11 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
   const movedRef = useRef(moved);
   movedRef.current = moved;
 
-  const positions = useMemo(() => {
-    const map: Positions = new Map();
-    const placed: FlowPoint[] = [];
-    for (const [id] of autoPositions) {
-      const spot = moved.get(id);
-      if (spot) {
-        map.set(id, spot);
-        placed.push(spot);
-      }
-    }
-    // An automatic slot may now be under a card the user parked there — step
-    // sideways until it is free rather than stacking two cards.
-    for (const [id, auto] of autoPositions) {
-      if (map.has(id)) continue;
-      let spot = auto;
-      for (let tries = 0; tries < 50 && placed.some((p) => overlaps(p, spot)); tries++) {
-        spot = { x: spot.x + COLUMN_WIDTH, y: spot.y };
-      }
-      map.set(id, spot);
-      placed.push(spot);
-    }
-    return map;
-  }, [autoPositions, moved]);
+  const positions = useMemo(() => placeFlowCards(autoPositions, moved), [autoPositions, moved]);
 
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const routes = useMemo(() => {
-    const rects = new Map(Array.from(positions, ([id, p]) => [id, cardRect(p)] as const));
-    return edges.flatMap((e) => {
-      const from = rects.get(e.source);
-      const to = rects.get(e.target);
-      if (!from || !to || e.source === e.target) return [];
-      const others = Array.from(rects)
-        .filter(([id]) => id !== e.source && id !== e.target)
-        .map(([, rect]) => rect);
-      return [{ source: e.source, target: e.target, d: roundedPath(routeFlowEdge(from, to, others)) }];
-    });
-  }, [edges, positions]);
+  const routes = useMemo(() => flowRoutes(edges, positions), [edges, positions]);
 
   function autoArrange() {
     setMoved(new Map());

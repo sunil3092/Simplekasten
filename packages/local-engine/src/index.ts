@@ -7,4 +7,5 @@ export * from "./diff";
 export * from "./canvas-file";
 export * from "./flow-layout";
 export * from "./flow-routing";
+export * from "./flow-view";
 export * from "./vault";
