@@ -167,6 +167,19 @@ npm run build -w @simplekasten/desktop  # 🖥️ installer only
 
 The desktop build has three steps: the Next.js static export, an esbuild bundle of the Electron main process (`build:main`), and electron-builder. The bundle matters — at dev time `main.js` loads the engine's TypeScript through `tsx`, but a packaged app can't, because `tsx` spawns an esbuild binary that isn't in the package. Bundling ahead of time inlines the TypeScript instead, so the shipped app needs nothing from `node_modules`. `e2e/packaged-build.e2e.ts` launches the packaged app to prove it still boots; it skips when there's no build.
 
+### 🚢 Releases
+
+Pushing a branch named `release/<version>` builds the desktop app on GitHub and publishes the installers as a GitHub Release, where anyone can download them:
+
+```bash
+git checkout -b release/0.2.0
+git push -u origin release/0.2.0
+```
+
+That produces the release `v0.2.0` with a Windows installer (`.exe`) and macOS disk images (`.dmg`, one for Apple silicon and one for Intel). The version comes from the branch name and must look like `1.2.3` or `1.2.3-beta.1`. Typecheck and unit tests run first, and pushing to the same branch again rebuilds and replaces the release. The workflow is [.github/workflows/release.yml](./.github/workflows/release.yml).
+
+The installers are not code-signed, so Windows SmartScreen and macOS Gatekeeper ask for confirmation on first launch; the release notes explain how to get past that. The macOS app carries an ad-hoc signature (`apps/desktop/scripts/adhoc-sign.js`), which Apple silicon Macs need before they will start an app at all.
+
 ---
 
 🧠 Built for people who'd rather *think* with their notes than just *store* them.

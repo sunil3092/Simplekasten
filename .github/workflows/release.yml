@@ -1,0 +1,143 @@
+# Builds the desktop app for Windows and macOS and publishes the installers
+# as a GitHub Release, every time a branch named release/<version> is pushed.
+#
+#   git checkout -b release/0.2.0 && git push -u origin release/0.2.0
+#
+# produces the release "v0.2.0" with a Windows installer (.exe) and macOS
+# disk images (.dmg, Apple silicon and Intel). Pushing to the same branch
+# again rebuilds and replaces that release.
+name: Release
+
+on:
+  push:
+    branches:
+      - "release/**"
+
+# A newer push to the same release branch supersedes a build still running.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Read version from branch name
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          version="${BRANCH#release/}"
+          # electron-builder refuses anything that isn't semver, so fail here
+          # with a clear message rather than deep inside the build.
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Branch '$BRANCH' must be named release/<version> with a version like 1.2.3 or 1.2.3-beta.1"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  checks:
+    name: Typecheck and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Only what goes into the desktop app; the mobile app isn't part of a desktop release.
+      - run: npm run typecheck -w @simplekasten/core -w @simplekasten/themes -w @simplekasten/local-engine -w @simplekasten/desktop
+      - run: npm run test -w @simplekasten/core -w @simplekasten/themes -w @simplekasten/local-engine -w @simplekasten/desktop
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: [version, checks]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            builder-args: --win
+            artifacts: |
+              apps/desktop/release/*.exe
+          - name: macOS
+            os: macos-latest
+            # One disk image per chip: Apple silicon (arm64) and Intel (x64).
+            builder-args: --mac dmg --arm64 --x64
+            artifacts: |
+              apps/desktop/release/*.dmg
+    runs-on: ${{ matrix.os }}
+    # bash everywhere: Windows' default shell carries on after a failed command in a multi-line step.
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      # There is no signing certificate; stop electron-builder searching the keychain for one.
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # The installer's version and file name come from package.json.
+      - name: Set app version
+        run: npm pkg set version="$VERSION" -w @simplekasten/desktop
+
+      - name: Build renderer and main process
+        run: |
+          npm run build:renderer -w @simplekasten/desktop
+          npm run build:main -w @simplekasten/desktop
+
+      # --publish never: the release job below publishes, once every platform has built.
+      - name: Package installer
+        working-directory: apps/desktop
+        run: npx electron-builder ${{ matrix.builder-args }} --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.name }}
+          path: ${{ matrix.artifacts }}
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: v${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: installers
+          pattern: installer-*
+          merge-multiple: true
+
+      - name: Publish
+        run: |
+          # A re-push to the branch replaces the earlier release and moves its tag to the new commit.
+          gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
+          gh release create "$TAG" installers/* \
+            --target "$GITHUB_SHA" \
+            --title "Simplekasten $TAG" \
+            --notes "$(cat <<'EOF'
+          Desktop installers built from this release branch.
+
+          - **Windows:** run `Simplekasten Setup <version>.exe`. Windows SmartScreen may warn that the publisher is unknown — choose **More info → Run anyway**.
+          - **macOS:** open the `.dmg` for your Mac — `arm64` for Apple silicon (M1 and later), the other for Intel — and drag Simplekasten to Applications. The app is not signed with an Apple developer certificate, so the first time, right-click it and choose **Open**. If macOS says the app is damaged, run `xattr -cr /Applications/Simplekasten.app` in Terminal and open it again.
+          EOF
+          )"
