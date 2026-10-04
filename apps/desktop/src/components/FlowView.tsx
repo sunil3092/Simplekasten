@@ -27,25 +27,14 @@ interface FlowViewProps {
   onSaveNote: (input: { id: string; title?: string; content?: string }) => Promise<void>;
 }
 
-const LAYER_HEIGHT = 200;
-const COLUMN_WIDTH = 280;
-const CARD_WIDTH = 180;
-const CARD_HEIGHT = 64;
-// An editing card grows in place, centered on the same point as its
-// collapsed size, so arrows (anchored to the collapsed box) still land
-// just inside its edge instead of visibly detaching.
-const EDIT_WIDTH = 260;
-const EDIT_HEIGHT = 170;
+const LAYER_HEIGHT = 230;
+const COLUMN_WIDTH = 300;
+const CARD_WIDTH = 260;
+const CARD_HEIGHT = 170;
 const MIN_SCALE = 0.3;
 const MAX_SCALE = 2;
 const SAVE_DEBOUNCE_MS = 600;
 
-// Prototype: the same nodes/edges Graph view already visualizes, read as a
-// top-to-bottom "function block diagram" instead of a force-directed
-// cluster — see packages/local-engine/src/flow-layout.ts for the layering
-// algorithm. Pan/zoom is hand-rolled plain mouse events, same approach
-// CanvasView already uses, since this needs real DOM cards (not SVG-only
-// nodes like Graph view's force-graph library draws).
 export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSaveNote }: FlowViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: 0, y: 60, scale: 1 });
@@ -54,71 +43,93 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
   const { colors } = useTheme().resolved;
   const typeColor = (type: string) => colors[noteTypeInfo(type).graphColor];
 
-  // Clicking a card expands it in place to show its full content, editable
-  // directly — no separate panel or window. "Open" still hands off to the
-  // full note screen when the links/backlinks/attachments panels are
-  // actually needed.
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState("");
-  const [editingContent, setEditingContent] = useState("");
-  // Mirrors edits onto a card's own label immediately, without waiting for
-  // the parent to refetch the whole graph after the debounced save.
-  const [overrides, setOverrides] = useState<Map<string, { title: string }>>(new Map());
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSaveRef = useRef<{ id: string; title: string; content: string } | null>(null);
+  const [cardText, setCardText] = useState<Map<string, { title: string; content: string }>>(new Map());
+  const saveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const pendingSavesRef = useRef(new Map<string, { title: string; content: string }>());
 
-  function flushSave() {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = null;
-    const pending = pendingSaveRef.current;
-    pendingSaveRef.current = null;
-    if (pending) onSaveNote(pending);
+  function flushSave(id: string) {
+    const timer = saveTimersRef.current.get(id);
+    if (timer) clearTimeout(timer);
+    saveTimersRef.current.delete(id);
+    const pending = pendingSavesRef.current.get(id);
+    pendingSavesRef.current.delete(id);
+    if (pending) onSaveNote({ id, ...pending });
   }
+
+  function flushAllSaves() {
+    for (const id of Array.from(pendingSavesRef.current.keys())) flushSave(id);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all(
+      nodes.map(async (n) => {
+        try {
+          const detail = await onLoadNote(n.id);
+          return [n.id, detail] as const;
+        } catch {
+          return [n.id, { title: n.title, content: "" }] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (!cancelled) setCardText(new Map(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes]);
+
+  useEffect(() => {
+    return () => flushAllSaves();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        if (editingId) {
-          flushSave();
-          setEditingId(null);
-        } else onClose();
+        flushAllSaves();
+        onClose();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onClose, editingId]);
-
-  async function startEditing(id: string) {
-    if (editingId) flushSave();
-    setEditingId(id);
-    const detail = await onLoadNote(id);
-    setEditingTitle(detail.title);
-    setEditingContent(detail.content);
-  }
-
-  function stopEditing() {
-    flushSave();
-    setEditingId(null);
-  }
+  }, [onClose]);
 
   function scheduleSave(id: string, next: { title: string; content: string }) {
-    setOverrides((prev) => new Map(prev).set(id, { title: next.title }));
-    pendingSaveRef.current = { id, ...next };
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(flushSave, SAVE_DEBOUNCE_MS);
+    pendingSavesRef.current.set(id, next);
+    const existing = saveTimersRef.current.get(id);
+    if (existing) clearTimeout(existing);
+    saveTimersRef.current.set(
+      id,
+      setTimeout(() => flushSave(id), SAVE_DEBOUNCE_MS),
+    );
   }
 
-  function onTitleChange(value: string) {
-    if (!editingId) return;
-    setEditingTitle(value);
-    scheduleSave(editingId, { title: value, content: editingContent });
+  function onTitleChange(id: string, value: string) {
+    setCardText((prev) => {
+      const next = new Map(prev);
+      const current = next.get(id) ?? { title: "", content: "" };
+      next.set(id, { ...current, title: value });
+      scheduleSave(id, { ...current, title: value });
+      return next;
+    });
   }
 
-  function onContentChange(value: string) {
-    if (!editingId) return;
-    setEditingContent(value);
-    scheduleSave(editingId, { title: editingTitle, content: value });
+  function onContentChange(id: string, value: string) {
+    setCardText((prev) => {
+      const next = new Map(prev);
+      const current = next.get(id) ?? { title: "", content: "" };
+      next.set(id, { ...current, content: value });
+      scheduleSave(id, { ...current, content: value });
+      return next;
+    });
+  }
+
+  function openInEditor(id: string) {
+    flushSave(id);
+    onSelectNode(id);
   }
 
   const layout = useMemo(() => layoutFlow(nodes, edges), [nodes, edges]);
@@ -138,7 +149,6 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
     return map;
   }, [layout]);
 
-  // Centers the diagram horizontally in the viewport on first layout.
   useEffect(() => {
     if (positions.size === 0 || !containerRef.current) return;
     const xs = Array.from(positions.values()).map((p) => p.x);
@@ -149,11 +159,9 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout.length]);
 
-  // ---- Pan & zoom -----------------------------------------------------
   const panRef = useRef<{ startX: number; startY: number; viewX: number; viewY: number } | null>(null);
 
   function onBackgroundMouseDown(e: React.MouseEvent) {
-    if (editingId) stopEditing();
     panRef.current = { startX: e.clientX, startY: e.clientY, viewX: viewRef.current.x, viewY: viewRef.current.y };
   }
 
@@ -193,7 +201,10 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
       <div className="flex items-center justify-between border-b-(length:--border-w) border-line px-5 py-3">
         <h2 className="font-display text-lg font-bold text-ink">Flow view</h2>
         <button
-          onClick={onClose}
+          onClick={() => {
+            flushAllSaves();
+            onClose();
+          }}
           className="flex items-center gap-1.5 rounded-lg border-(length:--border-w) border-line px-3 py-1.5 text-sm text-ink-muted transition-colors hover:border-accent/50 hover:text-ink"
         >
           <XIcon />
@@ -247,72 +258,50 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
                 const node = nodesById.get(l.id);
                 const pos = positions.get(l.id);
                 if (!node || !pos) return null;
-                const isEditing = l.id === editingId;
-                const centerX = pos.x + CARD_WIDTH / 2;
-                const centerY = pos.y + CARD_HEIGHT / 2;
-                const width = isEditing ? EDIT_WIDTH : CARD_WIDTH;
-                const height = isEditing ? EDIT_HEIGHT : CARD_HEIGHT;
-                const left = centerX - width / 2;
-                const top = centerY - height / 2;
-                const title = overrides.get(l.id)?.title ?? node.title;
-
-                if (isEditing) {
-                  return (
-                    <div
-                      key={l.id}
-                      data-testid="flow-card"
-                      data-editing="true"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      className="absolute z-10 flex flex-col overflow-hidden rounded-lg border-2 bg-surface shadow-lg"
-                      style={{ left, top, width, height, borderColor: typeColor(node.type) }}
-                    >
-                      <div className="flex items-center justify-between border-b-(length:--border-w) border-line-soft bg-surface-2 px-2 py-1">
-                        <span className="font-mono text-[10px] text-ink-faint">{node.zettelId}</span>
-                        <div className="flex items-center gap-0.5">
-                          <button
-                            onClick={() => onSelectNode(l.id)}
-                            aria-label="Open in editor"
-                            title="Open in editor"
-                            className="rounded p-1 text-ink-faint transition-colors hover:bg-surface hover:text-ink"
-                          >
-                            <ExpandIcon width={12} height={12} />
-                          </button>
-                          <button
-                            onClick={stopEditing}
-                            aria-label="Done editing"
-                            title="Done editing"
-                            className="rounded p-1 text-ink-faint transition-colors hover:bg-surface hover:text-ink"
-                          >
-                            <XIcon width={12} height={12} />
-                          </button>
-                        </div>
-                      </div>
-                      <input
-                        value={editingTitle}
-                        onChange={(e) => onTitleChange(e.target.value)}
-                        placeholder="Untitled"
-                        className="font-display w-full border-none bg-transparent px-3 pt-2 text-base font-bold text-ink outline-none"
-                      />
-                      <textarea
-                        value={editingContent}
-                        onChange={(e) => onContentChange(e.target.value)}
-                        placeholder="Start writing…"
-                        className="min-h-0 flex-1 resize-none border-none bg-transparent px-3 pt-1 pb-2 text-xs leading-relaxed text-ink outline-none"
-                      />
-                    </div>
-                  );
-                }
+                const text = cardText.get(l.id) ?? { title: node.title, content: "" };
 
                 return (
-                  <button
+                  <div
                     key={l.id}
                     data-testid="flow-card"
-                    onClick={() => startEditing(l.id)}
-                    className="absolute flex flex-col items-start justify-center overflow-hidden rounded-lg border-(length:--border-w) bg-surface px-3 py-2 text-left shadow-sm transition-shadow hover:shadow-md"
-                    style={{ left, top, width, height, borderColor: typeColor(node.type) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="absolute flex flex-col overflow-hidden rounded-lg border-2 bg-surface shadow-lg"
+                    style={{ left: pos.x, top: pos.y, width: CARD_WIDTH, height: CARD_HEIGHT, borderColor: typeColor(node.type) }}
                   >
-                    <span className="line-clamp-3 text-sm text-ink">{title}</span>
-                  </button>
+                    <div className="flex items-center justify-between border-b-(length:--border-w) border-line-soft bg-surface-2 px-2 py-1">
+                      <span className="font-mono text-[10px] text-ink-faint">{node.zettelId}</span>
+                      <div className="flex items-center gap-0.5">
+                        <button
+                          onClick={() => openInEditor(l.id)}
+                          aria-label="Open in editor"
+                          title="Open in editor"
+                          className="rounded p-1 text-ink-faint transition-colors hover:bg-surface hover:text-ink"
+                        >
+                          <ExpandIcon width={12} height={12} />
+                        </button>
+                        <button
+                          onClick={() => (document.activeElement as HTMLElement | null)?.blur()}
+                          aria-label="Done editing"
+                          title="Done editing"
+                          className="rounded p-1 text-ink-faint transition-colors hover:bg-surface hover:text-ink"
+                        >
+                          <XIcon width={12} height={12} />
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      value={text.title}
+                      onChange={(e) => onTitleChange(l.id, e.target.value)}
+                      placeholder="Untitled"
+                      className="font-display w-full border-none bg-transparent px-3 pt-2 text-base font-bold text-ink outline-none"
+                    />
+                    <textarea
+                      value={text.content}
+                      onChange={(e) => onContentChange(l.id, e.target.value)}
+                      placeholder="Start writing…"
+                      className="min-h-0 flex-1 resize-none border-none bg-transparent px-3 pt-1 pb-2 text-xs leading-relaxed text-ink outline-none"
+                    />
+                  </div>
                 );
               })}
             </div>
