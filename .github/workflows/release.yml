@@ -6,6 +6,10 @@
 # produces the release "v0.2.0" with a Windows installer (.exe) and macOS
 # disk images (.dmg, Apple silicon and Intel). Pushing to the same branch
 # again rebuilds and replaces that release.
+#
+# The files are published under names without a version in them, so the
+# README's download links (…/releases/latest/download/<name>) always fetch
+# the newest release and never need editing.
 name: Release
 
 on:
@@ -127,6 +131,16 @@ jobs:
           pattern: installer-*
           merge-multiple: true
 
+      # Order matters: the Apple silicon image is the one with "arm64" in its
+      # name, and what is left after renaming it is the Intel one.
+      - name: Give the files stable names
+        working-directory: installers
+        run: |
+          mv -- *arm64.dmg Simplekasten-macOS-Apple-Silicon.dmg
+          mv -- Simplekasten-[0-9]*.dmg Simplekasten-macOS-Intel.dmg
+          mv -- *.exe Simplekasten-Windows-Setup.exe
+          ls -l
+
       - name: Publish
         run: |
           # A re-push to the branch replaces the earlier release and moves its tag to the new commit.
@@ -137,7 +151,7 @@ jobs:
             --notes "$(cat <<'EOF'
           Desktop installers built from this release branch.
 
-          - **Windows:** run `Simplekasten Setup <version>.exe`. Windows SmartScreen may warn that the publisher is unknown — choose **More info → Run anyway**.
-          - **macOS:** open the `.dmg` for your Mac — `arm64` for Apple silicon (M1 and later), the other for Intel — and drag Simplekasten to Applications. The app is not signed with an Apple developer certificate, so the first time, right-click it and choose **Open**. If macOS says the app is damaged, run `xattr -cr /Applications/Simplekasten.app` in Terminal and open it again.
+          - **Windows:** run `Simplekasten-Windows-Setup.exe`. Windows SmartScreen may warn that the publisher is unknown — choose **More info → Run anyway**.
+          - **macOS:** open the `.dmg` for your Mac — `Apple-Silicon` for M1 and later, `Intel` for older Macs — and drag Simplekasten to Applications. The app is not signed with an Apple developer certificate, so the first time, right-click it and choose **Open**. If macOS says the app is damaged, run `xattr -cr /Applications/Simplekasten.app` in Terminal and open it again.
           EOF
           )"

@@ -13,6 +13,19 @@ Simplekasten is a **Zettelkasten**-based memory management app. It takes Niklas 
 | 🏷️ tag once, forget forever | 🔗 resurfaces connections between ideas |
 | 🔒 lock you into their format | 📤 exports to plain markdown, always |
 
+## ⬇️ Download
+
+| Your computer | Download |
+|---|---|
+| 🪟 Windows | [Simplekasten-Windows-Setup.exe](https://github.com/sunil3092/Simplekasten/releases/latest/download/Simplekasten-Windows-Setup.exe) |
+| 🍎 Mac with Apple silicon (M1 and later) | [Simplekasten-macOS-Apple-Silicon.dmg](https://github.com/sunil3092/Simplekasten/releases/latest/download/Simplekasten-macOS-Apple-Silicon.dmg) |
+| 🍎 Mac with an Intel chip | [Simplekasten-macOS-Intel.dmg](https://github.com/sunil3092/Simplekasten/releases/latest/download/Simplekasten-macOS-Intel.dmg) |
+
+These links always fetch the newest release; older versions are on the [releases page](https://github.com/sunil3092/Simplekasten/releases). The installers aren't code-signed yet, so the first launch needs one extra step:
+
+- **Windows:** if SmartScreen says the publisher is unknown, choose **More info → Run anyway**.
+- **Mac:** right-click the app and choose **Open** the first time. If macOS says the app is damaged, run `xattr -cr /Applications/Simplekasten.app` in Terminal and open it again.
+
 ## 🎬 Quick tour
 
 ![A ten-step walkthrough of the desktop app](./docs/demo/tour.gif)
@@ -176,7 +189,7 @@ git checkout -b release/0.2.0
 git push -u origin release/0.2.0
 ```
 
-That produces the release `v0.2.0` with a Windows installer (`.exe`) and macOS disk images (`.dmg`, one for Apple silicon and one for Intel). The version comes from the branch name and must look like `1.2.3` or `1.2.3-beta.1`. Typecheck and unit tests run first, and pushing to the same branch again rebuilds and replaces the release. The workflow is [.github/workflows/release.yml](./.github/workflows/release.yml).
+That produces the release `v0.2.0` with a Windows installer (`.exe`) and macOS disk images (`.dmg`, one for Apple silicon and one for Intel). The files are published under version-free names, which is what lets the Download links at the top of this README always point at the newest release. The version comes from the branch name and must look like `1.2.3` or `1.2.3-beta.1`. Typecheck and unit tests run first, and pushing to the same branch again rebuilds and replaces the release. The workflow is [.github/workflows/release.yml](./.github/workflows/release.yml).
 
 The installers are not code-signed, so Windows SmartScreen and macOS Gatekeeper ask for confirmation on first launch; the release notes explain how to get past that. The macOS app carries an ad-hoc signature (`apps/desktop/scripts/adhoc-sign.js`), which Apple silicon Macs need before they will start an app at all.
 
