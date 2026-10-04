@@ -52,6 +52,7 @@ export const ICONS = {
     path("M12 12H7v4"),
     path("M12 12h5v4"),
   ],
+  expand: [path("M9 3H3v6"), path("M15 21h6v-6"), path("M21 3l-8 8"), path("M3 21l8-8")],
 } satisfies Record<string, IconShape[]>;
 
 export type IconName = keyof typeof ICONS;

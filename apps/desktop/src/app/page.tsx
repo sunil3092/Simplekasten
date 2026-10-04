@@ -930,6 +930,14 @@ function Vault() {
             openNote(id);
           }}
           onClose={() => setFlowData(null)}
+          onLoadNote={async (id) => {
+            const note = (await vaultClient.getNoteById(id)) as NoteDetail;
+            return { title: note.title, content: note.content };
+          }}
+          onSaveNote={async (input) => {
+            await vaultClient.updateNote(input);
+            refreshNotes(activeTag);
+          }}
         />
       )}
 
