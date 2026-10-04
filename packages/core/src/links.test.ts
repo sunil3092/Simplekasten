@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { extractHashtags, extractWikiLinkTitles, hashtagLine, JOURNAL_TAG, normalizeTagName } from "./links";
+import {
+  applyTypingSuggestion,
+  extractHashtags,
+  extractWikiLinkTitles,
+  hashtagLine,
+  JOURNAL_TAG,
+  matchingSuggestions,
+  normalizeTagName,
+  typingSuggestion,
+} from "./links";
 
 describe("extractWikiLinkTitles", () => {
   it("pulls a single [[Title]] reference", () => {
@@ -92,5 +101,62 @@ describe("hashtagLine", () => {
   it("is empty when there are no tags to carry over", () => {
     expect(hashtagLine([])).toBe("");
     expect(hashtagLine([JOURNAL_TAG])).toBe("");
+  });
+});
+
+describe("typingSuggestion", () => {
+  it("finds an open [[ link before the cursor", () => {
+    expect(typingSuggestion("See [[Ato", 9)).toEqual({ kind: "link", query: "Ato", from: 6 });
+    expect(typingSuggestion("See [[", 6)).toEqual({ kind: "link", query: "", from: 6 });
+  });
+
+  it("ignores a link that is already closed or has an alias", () => {
+    expect(typingSuggestion("See [[Atomic]] and", 18)).toBeNull();
+    expect(typingSuggestion("See [[Atomic|al", 15)).toBeNull();
+  });
+
+  it("finds a #hashtag being typed, but not a heading or a # inside a word", () => {
+    expect(typingSuggestion("About #me", 9)).toEqual({ kind: "tag", query: "me", from: 7 });
+    expect(typingSuggestion("About #", 7)).toEqual({ kind: "tag", query: "", from: 7 });
+    expect(typingSuggestion("# Heading", 9)).toBeNull();
+    expect(typingSuggestion("C#sharp", 7)).toBeNull();
+    expect(typingSuggestion("## sub", 2)).toBeNull();
+  });
+
+  it("only looks at the text before the cursor", () => {
+    expect(typingSuggestion("See [[Ato later", 9)).toEqual({ kind: "link", query: "Ato", from: 6 });
+    expect(typingSuggestion("plain text", 5)).toBeNull();
+  });
+});
+
+describe("applyTypingSuggestion", () => {
+  it("completes a link, closes it, and puts the cursor after it", () => {
+    const s = typingSuggestion("See [[Ato", 9)!;
+    expect(applyTypingSuggestion("See [[Ato", 9, s, "Atomic Habits")).toEqual({ text: "See [[Atomic Habits]]", cursor: 21 });
+  });
+
+  it("reuses closing brackets that are already there", () => {
+    const s = typingSuggestion("See [[Ato]] too", 9)!;
+    expect(applyTypingSuggestion("See [[Ato]] too", 9, s, "Atomic Habits")).toEqual({ text: "See [[Atomic Habits]] too", cursor: 21 });
+  });
+
+  it("completes a tag in place", () => {
+    const s = typingSuggestion("About #me and more", 9)!;
+    expect(applyTypingSuggestion("About #me and more", 9, s, "method")).toEqual({ text: "About #method and more", cursor: 13 });
+  });
+});
+
+describe("matchingSuggestions", () => {
+  it("offers titles containing the query, whatever the case", () => {
+    expect(matchingSuggestions({ kind: "link", query: "hab", from: 0 }, ["Atomic Habits", "Systems"], [])).toEqual(["Atomic Habits"]);
+  });
+
+  it("offers tags containing the query, but not the tag already typed in full", () => {
+    expect(matchingSuggestions({ kind: "tag", query: "me", from: 0 }, [], ["method", "me", "habits"])).toEqual(["method"]);
+  });
+
+  it("caps the list", () => {
+    const many = Array.from({ length: 30 }, (_, i) => `Note ${i}`);
+    expect(matchingSuggestions({ kind: "link", query: "", from: 0 }, many, [], 8)).toHaveLength(8);
   });
 });

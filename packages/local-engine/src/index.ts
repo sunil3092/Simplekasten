@@ -8,4 +8,5 @@ export * from "./canvas-file";
 export * from "./flow-layout";
 export * from "./flow-routing";
 export * from "./flow-view";
+export * from "./canvas-view";
 export * from "./vault";

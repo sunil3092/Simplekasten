@@ -4,6 +4,7 @@ import { NOTE_TYPES, type NoteTypeInfo } from "@simplekasten/themes";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { NoteTextInput } from "@/components/NoteTextInput";
 import { Button, ErrorText, fontFamily, useDisplayText } from "@/components/ui";
 import { vault } from "@/lib/vault";
 import { useTheme } from "@/theme";
@@ -33,6 +34,9 @@ export default function ReviewScreen() {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [failed, setFailed] = useState(false);
+  // What the text field offers after [[ and #.
+  const [allTitles, setAllTitles] = useState<{ id: string; title: string }[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   // One action at a time, and a moment's pause after each (see SETTLE_MS).
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -52,6 +56,11 @@ export default function ReviewScreen() {
   // are sorted out of it.
   useFocusEffect(
     useCallback(() => {
+      vault.listNotes().then(setAllTitles).catch(() => {});
+      vault
+        .listTags()
+        .then((list) => setTags(list.map((t) => t.name)))
+        .catch(() => {});
       vault.listReviewInbox().then(async (inbox) => {
         setQueue(inbox);
         setIndex(0);
@@ -123,6 +132,8 @@ export default function ReviewScreen() {
     ]);
   }
 
+  const titles = allTitles.filter((n) => n.id !== note?.id).map((n) => n.title);
+
   if (!queue) return <View style={[styles.container, { backgroundColor: colors.bg }]} />;
 
   return (
@@ -145,17 +156,14 @@ export default function ReviewScreen() {
               placeholderTextColor={colors.inkFaint}
               style={[styles.title, displayText, { color: colors.ink }]}
             />
-            <TextInput
-              accessibilityLabel="Note text"
+            <NoteTextInput
               value={content}
               onChangeText={(value) => {
                 setContent(value);
                 edit({ title, content: value });
               }}
-              placeholder={COPY.editorPlaceholder}
-              placeholderTextColor={colors.inkFaint}
-              multiline
-              textAlignVertical="top"
+              titles={titles}
+              tags={tags}
               style={[styles.content, { color: colors.ink }]}
             />
           </View>

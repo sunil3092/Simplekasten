@@ -5,8 +5,9 @@ import { RecordingPresets, requestRecordingPermissionsAsync, useAudioRecorder } 
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type NativeSyntheticEvent, type TextInputSelectionChangeEventData } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Icon } from "@/components/Icon";
+import { NoteTextInput } from "@/components/NoteTextInput";
 import { PhotoThumbnail } from "@/components/PhotoThumbnail";
 import { TagSheet } from "@/components/TagSheet";
 import { Button, Chip, EmptyHint, ErrorText, fontFamily, IconButton, NoteLink, SaveStatus, SectionHeading, TypeBadge, useDisplayText } from "@/components/ui";
@@ -16,10 +17,6 @@ import { vault } from "@/lib/vault";
 import { useTheme } from "@/theme";
 
 type NoteType = NoteTypeInfo["value"];
-
-// Mirrors desktop NoteEditor's wikiLinkCompletionSource: an open `[[` with no
-// closing bracket or alias yet, right before the cursor.
-const OPEN_LINK = /\[\[([^\]|]*)$/;
 
 export default function NoteScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -36,11 +33,6 @@ export default function NoteScreen() {
   const [content, setContent] = useState("");
   const [type, setType] = useState<NoteType>("fleeting");
   const [status, setStatus] = useState<"idle" | "saving" | "saved">("idle");
-  const [selection, setSelection] = useState({ start: 0, end: 0 });
-  // Only set right after a suggestion is applied, to move the cursor past the
-  // inserted title; otherwise the input owns its cursor (a fully controlled
-  // selection makes Android's cursor jump while typing).
-  const [forcedSelection, setForcedSelection] = useState<{ start: number; end: number } | undefined>(undefined);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -63,8 +55,8 @@ export default function NoteScreen() {
     vault.listTemplates().then(setTemplates).catch(() => {});
   }, [id]);
 
-  // Templates are authored on desktop — mobile is a consumer, so an action
-  // sheet of names is enough; no editor is needed here.
+  // Inserting a template only needs its name, so an action sheet is enough;
+  // templates are made and edited on the Templates screen.
   function applyTemplateSheet() {
     if (templates.length === 0) return;
     Alert.alert(
@@ -194,29 +186,6 @@ export default function NoteScreen() {
   function onTypeChange(value: NoteType) {
     setType(value);
     scheduleSave({ title, content, type: value });
-  }
-
-  // ---- [[ link suggestions ------------------------------------------------
-  const beforeCursor = content.slice(0, selection.start);
-  const openLink = selection.start === selection.end ? OPEN_LINK.exec(beforeCursor) : null;
-  const suggestions = openLink
-    ? allNotes
-        .filter((n) => n.id !== id && n.title.toLowerCase().includes(openLink[1].toLowerCase()))
-        .slice(0, 8)
-    : [];
-
-  function applySuggestion(suggestion: string) {
-    if (!openLink) return;
-    const from = selection.start - openLink[1].length;
-    const after = content.slice(selection.start);
-    const hasClosing = after.startsWith("]]");
-    const insert = hasClosing ? suggestion : `${suggestion}]]`;
-    const next = content.slice(0, from) + insert + after;
-    const cursor = from + insert.length + (hasClosing ? 2 : 0);
-    setContent(next);
-    setSelection({ start: cursor, end: cursor });
-    setForcedSelection({ start: cursor, end: cursor });
-    scheduleSave({ title, content: next, type });
   }
 
   // ---- Tags ----------------------------------------------------------------
@@ -362,28 +331,13 @@ export default function NoteScreen() {
         style={[styles.titleInput, displayText]}
       />
 
-      <TextInput
+      <NoteTextInput
         value={content}
         onChangeText={onContentChange}
-        selection={forcedSelection}
-        onSelectionChange={(e: NativeSyntheticEvent<TextInputSelectionChangeEventData>) => {
-          setSelection(e.nativeEvent.selection);
-          setForcedSelection(undefined);
-        }}
-        placeholder={COPY.editorPlaceholder}
-        placeholderTextColor={colors.inkFaint}
-        multiline
-        textAlignVertical="top"
+        titles={allNotes.filter((n) => n.id !== id).map((n) => n.title)}
+        tags={vaultTags.map((t) => t.name)}
         style={[styles.contentInput, { color: colors.ink }]}
       />
-
-      {suggestions.length > 0 && (
-        <View style={styles.suggestions} accessibilityLabel="Link suggestions">
-          {suggestions.map((n) => (
-            <Chip key={n.id} label={n.title} onPress={() => applySuggestion(n.title)} />
-          ))}
-        </View>
-      )}
 
       <View style={styles.actionRow}>
         {Platform.OS !== "web" && <Button compact icon="camera" label="Camera" onPress={() => pickAndUploadPhoto("camera")} disabled={uploadingPhoto} />}

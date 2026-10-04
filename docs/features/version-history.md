@@ -193,3 +193,10 @@ Shipped 2026-09-25, implemented close to spec with one deviation:
 Full-suite final check: 170 unit tests (desktop 32, core 19, local-engine
 87, themes 32) + 26 desktop e2e tests, all green; `tsc --noEmit` clean
 across all five workspaces.
+
+## Mobile diff — added 2026-10-04
+
+Mobile's history screen now shows the same line diff desktop does (added
+lines since the chosen version, struck-through removed lines) in place of
+the plain preview, using the shared `diffLines`. Verified on the Android
+emulator.

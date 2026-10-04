@@ -153,3 +153,11 @@ needing a remount key bump to reflect an externally-applied template).
   `isDefaultForDailyNote: boolean` would become `defaultForType: NoteType |
   null` if this is wanted later. Flagging now so the v1 field choice is
   understood as provisional.
+
+## Mobile management — added 2026-10-04
+
+Mobile is no longer only a consumer. A Templates screen
+(`apps/mobile/src/app/templates.tsx`, in the vault tab's command list) lists
+templates and creates, edits, deletes and sets the daily default, matching
+desktop's Templates dialog. Inserting a template into a note is unchanged.
+Verified on the Android emulator.

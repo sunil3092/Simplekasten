@@ -200,3 +200,18 @@ deviation:
 Full-suite final check: 183 unit tests (desktop 32, core 19, local-engine
 100, themes 32) + 30 desktop e2e tests, all green; `tsc --noEmit` clean
 across all five workspaces.
+
+## Mobile authoring — added 2026-10-04
+
+The "desktop authors, mobile views" split above no longer holds. Mobile now
+creates canvases (from the Canvases list), adds note cards (a search-or-create
+picker) and text cards, moves a card by its header strip, resizes it from the
+corner, edits text cards in place and removes cards. The resize corner is a
+30pt target on mobile, since a fingertip has to land on it.
+
+Card sizes, the minimum size and the move/resize rules are shared with
+desktop in `packages/local-engine/src/canvas-view.ts` (unit tested), so a
+card behaves the same on both. Neither app has a way to delete a canvas yet.
+
+Verified on the Android emulator: create, add both card kinds, type, move,
+resize, reopen (cards persist), open a note from its card, remove.

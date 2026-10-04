@@ -2,6 +2,7 @@ import { COPY, extractWikiLinkTitles, hashtagLine, JOURNAL_TAG } from "@simpleka
 import {
   filterFlowNodes,
   FLOW_CARD,
+  FLOW_UNTAGGED,
   flowAutoPositions,
   flowRoutes,
   flowTagOptions,
@@ -31,6 +32,7 @@ import {
 } from "react-native";
 import { Defs, Marker, Path, Svg } from "react-native-svg";
 import { Icon } from "@/components/Icon";
+import { NoteTextInput } from "@/components/NoteTextInput";
 import { Button, Chip, EmptyHint, fontFamily, TypeBadge } from "@/components/ui";
 import { loadFlowPositions, saveFlowPositions } from "@/lib/settings";
 import { vault } from "@/lib/vault";
@@ -65,6 +67,9 @@ interface FlowCardProps {
   fresh: boolean;
   /** Titles that name an existing note, lowercased — a link to anything else is still to be made. */
   knownTitles: Set<string>;
+  /** Every note's title and the vault's tags, offered while typing [[ or #. */
+  titles: string[];
+  tags: string[];
   scaleRef: { current: number };
   registerTitle: (id: string, input: TextInput | null) => void;
   onTouch: (id: string) => void;
@@ -89,6 +94,8 @@ const FlowCard = memo(function FlowCard({
   active,
   fresh,
   knownTitles,
+  titles,
+  tags,
   scaleRef,
   registerTitle,
   onTouch,
@@ -183,19 +190,17 @@ const FlowCard = memo(function FlowCard({
             placeholderTextColor={colors.inkFaint}
             style={[styles.cardTitle, { color: colors.ink }]}
           />
-          <TextInput
-            accessibilityLabel="Note text"
+          <NoteTextInput
+            compact
             value={text.content}
             onChangeText={(value) => onContent(node.id, value)}
+            titles={titles}
+            tags={tags}
             onFocus={() => {
               onTouch(node.id);
               onEditing(node.id);
             }}
             onBlur={() => onEditing(null)}
-            placeholder={COPY.editorPlaceholder}
-            placeholderTextColor={colors.inkFaint}
-            multiline
-            textAlignVertical="top"
             style={[styles.cardBody, { color: colors.ink }]}
           />
           {links.length > 0 && (
@@ -503,6 +508,8 @@ export default function FlowScreen() {
   const positions = useMemo(() => placeFlowCards(autoPositions, moved), [autoPositions, moved]);
   const routes = useMemo(() => flowRoutes(edges, positions), [edges, positions]);
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+  const allTitles = useMemo(() => nodes.map((n) => cardText.get(n.id)?.title ?? n.title), [nodes, cardText]);
+  const allTags = useMemo(() => tagOptions.filter((o) => o.value !== FLOW_UNTAGGED).map((o) => o.value), [tagOptions]);
   const knownTitles = useMemo(() => new Set(nodes.map((n) => (cardText.get(n.id)?.title ?? n.title).toLowerCase())), [nodes, cardText]);
 
   // Android only delivers touches to children inside their parent's bounds,
@@ -689,6 +696,8 @@ export default function FlowScreen() {
                   active={activeId === l.id}
                   fresh={focusId === l.id}
                   knownTitles={knownTitles}
+                  titles={allTitles}
+                  tags={allTags}
                   scaleRef={scaleRef}
                   registerTitle={registerTitle}
                   onTouch={setActiveId}

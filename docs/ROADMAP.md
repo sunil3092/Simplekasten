@@ -123,11 +123,25 @@ dedicated e2e coverage; only the mobile UI is still missing.
 | Review (triage inbox) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-10-04 |
 | Command palette | ✅ | n/a (UI-only) | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Version history | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-25 |
-| Canvas | ✅ | ✅ | ✅ | ✅ (view-only) | ✅ | ✅ 2026-09-25 |
+| Canvas | ✅ | ✅ | ✅ | ✅ (authoring since 2026-10-04) | ✅ | ✅ 2026-09-25 |
 | Flow view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-10-04 |
-| Vault purge | n/a (README) | ✅ | ✅ | ❌ not started | ✅ | Desktop only, 2026-10-04 |
+| Vault purge | n/a (README) | ✅ | ✅ | ✅ | ✅ | ✅ 2026-10-04 |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
+
+### Mobile parity — 2026-10-04
+
+Mobile now has everything desktop has except what does not apply to a phone
+(choosing the vault folder, showing its location, keyboard shortcuts). Added
+the same day: Review as a triage inbox, Flow view, canvas authoring,
+template management, the version-history diff, a Journal list on the vault
+tab, vault purge in Settings, and `#tag` suggestions next to the existing
+`[[link]]` ones (in the note screen, Review and Flow cards). Each feature's
+own doc has the details. The earlier "desktop authors, mobile consumes"
+split is retired.
+
+On mobile, purge asks for the word "purge" where desktop asks for the vault
+folder's name: the phone has one fixed vault with no name of its own.
 
 ### Vault purge — shipped 2026-10-04
 
@@ -141,7 +155,7 @@ along with every note's `.history/` snapshots and every attachment.
 Two confirmations rather than one: the first step shows the actual counts of
 what will go, the second requires typing the vault's folder name. There is
 no trash to restore from, so the cost of an accidental click is the whole
-vault. Desktop only — mobile has no Settings surface for destructive vault
+vault. Desktop only when it shipped (mobile gained it later the same day, see above) — mobile had no Settings surface for destructive vault
 actions, the same authoring-vs-consuming split Templates established.
 
 No separate spec doc: the behaviour is small enough to live in the README's

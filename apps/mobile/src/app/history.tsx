@@ -1,25 +1,27 @@
-import type { NoteVersion } from "@simplekasten/local-engine";
+import { diffLines, type NoteVersion } from "@simplekasten/local-engine";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Button, useDisplayText } from "@/components/ui";
+import { Button, fontFamily, useDisplayText } from "@/components/ui";
 import { vault } from "@/lib/vault";
 import { useTheme } from "@/theme";
 
-// Pushed from the note screen's history icon. Mobile shows a read-only
-// preview of each version rather than a diff — matches Templates'
-// precedent: mobile is a simpler consumer of a desktop-authored feature,
-// not a second full implementation.
+const MONO = fontFamily("mono");
+
+// Pushed from the note screen's history icon. Picking a version shows what
+// has changed since it, line by line, as desktop's version history does.
 export default function HistoryScreen() {
   const { noteId } = useLocalSearchParams<{ noteId: string }>();
   const { colors, shape } = useTheme();
   const displayText = useDisplayText();
   const [versions, setVersions] = useState<NoteVersion[] | null>(null);
   const [selected, setSelected] = useState<{ id: string; title: string; content: string } | null>(null);
+  const [currentContent, setCurrentContent] = useState("");
 
   useFocusEffect(
     useCallback(() => {
       vault.listNoteVersions(noteId).then(setVersions);
+      vault.getNoteById(noteId).then((note) => setCurrentContent(note?.content ?? ""));
       setSelected(null);
     }, [noteId]),
   );
@@ -37,7 +39,8 @@ export default function HistoryScreen() {
         text: "Restore",
         style: "destructive",
         onPress: async () => {
-          await vault.restoreNoteVersion(noteId, selected.id);
+          const restored = await vault.restoreNoteVersion(noteId, selected.id);
+          setCurrentContent(restored.content);
           setSelected(null);
           vault.listNoteVersions(noteId).then(setVersions);
         },
@@ -46,10 +49,32 @@ export default function HistoryScreen() {
   }
 
   if (selected) {
+    const diff = diffLines(selected.content, currentContent);
     return (
       <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={styles.container}>
         <Text style={[styles.title, displayText]}>{selected.title}</Text>
-        <Text style={{ fontSize: 15, lineHeight: 22, color: colors.inkMuted, marginBottom: 20 }}>{selected.content || "(empty note)"}</Text>
+        {/* The selected (older) version against the note as it is now: added
+            lines were written since that snapshot, struck-through lines were
+            removed since — so restoring would bring them back. */}
+        <View accessibilityLabel="Changes since this version" style={[styles.diff, { borderWidth: shape.borderWidth, borderRadius: shape.radius, borderColor: colors.line, backgroundColor: colors.surface }]}>
+          {diff.length === 0 && <Text style={{ color: colors.inkFaint, fontSize: 13 }}>No changes since this version.</Text>}
+          {diff.map((line, i) => (
+            <Text
+              key={i}
+              style={[
+                styles.diffLine,
+                line.op === "insert"
+                  ? { backgroundColor: colors.accentSoft, color: colors.accentInk }
+                  : line.op === "delete"
+                    ? { backgroundColor: colors.dangerSoft, color: colors.danger, textDecorationLine: "line-through" }
+                    : { color: colors.inkMuted },
+              ]}
+            >
+              {line.op === "insert" ? "+ " : line.op === "delete" ? "- " : "  "}
+              {line.text || " "}
+            </Text>
+          ))}
+        </View>
         <View style={styles.row}>
           <Button label="Back to list" onPress={() => setSelected(null)} style={{ flex: 1 }} />
           <Button variant="danger" label="Restore" onPress={confirmRestore} style={{ flex: 1 }} />
@@ -75,5 +100,7 @@ const styles = StyleSheet.create({
   container: { padding: 16, paddingBottom: 48 },
   title: { fontSize: 22, marginBottom: 10 },
   row: { flexDirection: "row", gap: 8 },
+  diff: { padding: 10, marginBottom: 20 },
+  diffLine: { fontFamily: MONO, fontSize: 12, lineHeight: 19 },
   versionRow: { marginBottom: 8 },
 });

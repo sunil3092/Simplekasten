@@ -1,6 +1,6 @@
 "use client";
 
-import type { CanvasCard, NoteListItem } from "@simplekasten/local-engine";
+import { CANVAS_CARD, moveCanvasCard, newCanvasCard, resizeCanvasCard, type CanvasCard, type NoteListItem } from "@simplekasten/local-engine";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileTextIcon, PlusIcon, XIcon } from "./icons";
 import { QuickSwitcher } from "./QuickSwitcher";
@@ -26,12 +26,9 @@ interface CanvasViewProps {
 
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
-const DEFAULT_CARD = { width: 220, height: 140 };
-const HEADER_HEIGHT = 26;
-
-function generateCardId(): string {
-  return `card${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-}
+// Card sizes and the move/resize rules are shared with mobile — see
+// packages/local-engine/src/canvas-view.ts.
+const HEADER_HEIGHT = CANVAS_CARD.headerHeight;
 
 // A corkboard, not a diagramming tool — freely positioned/resizable cards,
 // no connecting lines in v1 (see canvas.md's "Scope decision"). Pan/zoom is
@@ -106,8 +103,9 @@ export function CanvasView({ canvasId, notes, onClose, onOpenNote, onLoad, onSav
       setCards((current) =>
         (current ?? []).map((c) => {
           if (c.id !== drag.cardId) return c;
-          if (drag.mode === "move") return { ...c, x: drag.card.x + dx, y: drag.card.y + dy };
-          return { ...c, width: Math.max(140, drag.card.width + dx), height: Math.max(90, drag.card.height + dy) };
+          // Text typed since the drag began lives on `c`, so only the geometry is taken from the drag.
+          const { x, y, width, height } = drag.mode === "move" ? moveCanvasCard(drag.card, dx, dy) : resizeCanvasCard(drag.card, dx, dy);
+          return { ...c, x, y, width, height };
         }),
       );
     }
@@ -147,7 +145,7 @@ export function CanvasView({ canvasId, notes, onClose, onOpenNote, onLoad, onSav
   async function addNoteCard(noteId: string) {
     if (!cards) return;
     const center = viewportCenter();
-    const card: CanvasCard = { id: generateCardId(), kind: "note", noteId, x: center.x - DEFAULT_CARD.width / 2, y: center.y - DEFAULT_CARD.height / 2, ...DEFAULT_CARD };
+    const card = newCanvasCard({ kind: "note", noteId }, center);
     const next = [...cards, card];
     setCards(next);
     await persist(next);
@@ -156,7 +154,7 @@ export function CanvasView({ canvasId, notes, onClose, onOpenNote, onLoad, onSav
   function addTextCard() {
     if (!cards) return;
     const center = viewportCenter();
-    const card: CanvasCard = { id: generateCardId(), kind: "text", text: "", x: center.x - DEFAULT_CARD.width / 2, y: center.y - DEFAULT_CARD.height / 2, ...DEFAULT_CARD };
+    const card = newCanvasCard({ kind: "text", text: "" }, center);
     const next = [...cards, card];
     setCards(next);
     persist(next);

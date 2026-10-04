@@ -2,7 +2,7 @@ import { COPY, type IconName } from "@simplekasten/core";
 import type { NoteListItem, SearchResultItem, TagItem } from "@simplekasten/local-engine";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Icon } from "@/components/Icon";
 import { Button, Chip, fontFamily, SectionHeading } from "@/components/ui";
 import { vault } from "@/lib/vault";
@@ -47,6 +47,7 @@ export default function VaultScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [reviewCount, setReviewCount] = useState(0);
+  const [dailyNotes, setDailyNotes] = useState<NoteListItem[]>([]);
   const requestIdRef = useRef(0);
 
   useEffect(() => {
@@ -59,11 +60,13 @@ export default function VaultScreen() {
   }, [params.tag, router]);
 
   const load = useCallback(async (tag?: string | null) => {
-    const [noteList, tagList, inbox] = await Promise.all([
+    const [noteList, tagList, inbox, journal] = await Promise.all([
       vault.listNotes(tag ?? undefined),
       vault.listTags(),
       vault.listReviewInbox(),
+      vault.listDailyNotes(),
     ]);
+    setDailyNotes(journal);
     setNotes(noteList);
     setTags(tagList);
     setReviewCount(inbox.length);
@@ -146,9 +149,10 @@ export default function VaultScreen() {
     { kind: "command", id: "new-note", icon: "plus", label: "New note", description: "Create a new fleeting note", run: () => createNote() },
     { kind: "command", id: "today", icon: "calendar", label: "Today", description: "Open or create today's daily note", run: openToday },
     { kind: "command", id: "review", icon: "repeat", label: "Review", description: COPY.reviewCommandDescription, run: () => { setQuery(""); router.push("/review"); } },
+    { kind: "command", id: "templates", icon: "fileText", label: "Templates…", description: "Create and manage note templates", run: () => { setQuery(""); router.push("/templates"); } },
     { kind: "command", id: "graph", icon: "network", label: "Graph view", description: "Visualize how notes link together", run: () => { setQuery(""); router.push("/graph"); } },
     { kind: "command", id: "flow", icon: "flow", label: "Flow view", description: "See related notes as a top-to-bottom flow diagram", run: () => { setQuery(""); router.push("/flow"); } },
-    { kind: "command", id: "canvases", icon: "layout", label: "Canvases", description: "View canvases made on desktop", run: () => { setQuery(""); router.push("/canvas"); } },
+    { kind: "command", id: "canvases", icon: "layout", label: "Canvases", description: "Arrange notes and text on a board", run: () => { setQuery(""); router.push("/canvas"); } },
     { kind: "command", id: "settings", icon: "settings", label: "Settings", description: "Theme and appearance settings", run: () => { setQuery(""); router.push("/settings"); } },
   ];
   const commandQuery = commandMode ? trimmed.slice(1).trim().toLowerCase() : "";
@@ -228,6 +232,18 @@ export default function VaultScreen() {
                   </Text>
                 </Pressable>
               ))}
+            </View>
+          )}
+
+          {dailyNotes.length > 0 && (
+            // Recent journal entries, newest first — desktop's sidebar "Journal" section.
+            <View style={styles.maps}>
+              <SectionHeading icon="calendar">Journal</SectionHeading>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.journalRow} accessibilityLabel="Journal entries">
+                {dailyNotes.map((n) => (
+                  <Chip key={n.id} label={n.title} onPress={() => router.push(`/vault/${n.id}`)} />
+                ))}
+              </ScrollView>
             </View>
           )}
 
@@ -317,6 +333,7 @@ const styles = StyleSheet.create({
   actionButton: { flex: 1 },
   tagRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 12 },
   maps: { marginBottom: 12 },
+  journalRow: { flexDirection: "row", gap: 6 },
   mapRow: { borderStyle: "dashed", paddingHorizontal: 12, paddingVertical: 9, marginBottom: 6 },
   countRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4, marginBottom: 2 },
   count: { fontFamily: MONO, fontSize: 10, letterSpacing: 0.8 },

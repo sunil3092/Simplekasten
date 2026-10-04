@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { RESERVED_THEME_IDS, type ModePreference } from "@simplekasten/themes";
 import { HardShadow } from "@/components/HardShadow";
+import { PurgeVault } from "@/components/PurgeVault";
 import { useTheme } from "@/components/ThemeProvider";
 import { SectionHeading } from "@/components/ui";
 
@@ -155,6 +156,11 @@ export default function SettingsScreen() {
           ))}
         </View>
       )}
+
+      <View style={{ marginTop: 20 }}>
+        <SectionHeading>Vault</SectionHeading>
+      </View>
+      <PurgeVault />
 
       {/* Required by the icon's licence (CC BY 4.0) — see assets/icon/glyph.svg. */}
       <Text style={{ marginTop: 24, color: colors.inkFaint, fontSize: 11 }}>

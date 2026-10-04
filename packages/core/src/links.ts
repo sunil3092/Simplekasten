@@ -57,3 +57,47 @@ export function normalizeTagName(input: string): string | null {
   const name = input.trim().replace(/^#/, "").toLowerCase();
   return TAG_NAME_PATTERN.test(name) ? name : null;
 }
+
+// ---- Suggestions while typing ----------------------------------------------
+// What mobile's plain text fields use to offer note titles after `[[` and
+// existing tags after `#`. Desktop's editor has its own completion sources
+// (CodeMirror needs them in its shape); the patterns are the same.
+
+const OPEN_LINK_PATTERN = /\[\[([^\]|]*)$/;
+const OPEN_TAG_PATTERN = /(?<![#\w])#([\w/-]*)$/;
+
+export interface TypingSuggestion {
+  kind: "link" | "tag";
+  /** What has been typed so far after the `[[` or `#`. */
+  query: string;
+  /** Where the query starts in the text. */
+  from: number;
+}
+
+/** The `[[link` or `#tag` being typed just before the cursor, if any. */
+export function typingSuggestion(text: string, cursor: number): TypingSuggestion | null {
+  const before = text.slice(0, cursor);
+  const link = OPEN_LINK_PATTERN.exec(before);
+  if (link) return { kind: "link", query: link[1], from: cursor - link[1].length };
+  const tag = OPEN_TAG_PATTERN.exec(before);
+  if (tag) return { kind: "tag", query: tag[1], from: cursor - tag[1].length };
+  return null;
+}
+
+/** Titles or tags to offer for what is being typed, best `limit` of them. */
+export function matchingSuggestions(suggestion: TypingSuggestion, titles: string[], tags: string[], limit = 8): string[] {
+  const query = suggestion.query.toLowerCase();
+  const pool = suggestion.kind === "link" ? titles : tags.filter((tag) => tag.toLowerCase() !== query);
+  return pool.filter((item) => item.toLowerCase().includes(query)).slice(0, limit);
+}
+
+/** The text with the suggestion filled in, and where the cursor belongs afterwards. */
+export function applyTypingSuggestion(text: string, cursor: number, suggestion: TypingSuggestion, value: string): { text: string; cursor: number } {
+  const after = text.slice(cursor);
+  if (suggestion.kind === "tag") {
+    return { text: text.slice(0, suggestion.from) + value + after, cursor: suggestion.from + value.length };
+  }
+  const hasClosing = after.startsWith("]]");
+  const insert = hasClosing ? value : `${value}]]`;
+  return { text: text.slice(0, suggestion.from) + insert + after, cursor: suggestion.from + insert.length + (hasClosing ? 2 : 0) };
+}
