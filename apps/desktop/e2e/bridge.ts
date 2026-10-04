@@ -117,7 +117,10 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
         getNoteById: async (id: string) => detail(id),
         createNote: async (input: { title: string; content: string; type?: string }) => {
           const id = `new${nextNote++}`;
-          notes.push({ id, zettelId: String(notes.length + 1), title: input.title, content: input.content, type: input.type ?? "fleeting", tags: [] });
+          const type = input.type ?? "fleeting";
+          // Like the engine: a new fleeting note is queued for review, due today.
+          const reviewDue = type === "fleeting" ? new Date().toLocaleDateString("en-CA") : null;
+          notes.push({ id, zettelId: String(notes.length + 1), title: input.title, content: input.content, type, tags: [], reviewDue });
           return detail(id);
         },
         updateNote: async (input: { id: string; title?: string; content?: string; type?: string; tags?: string[] }) => {

@@ -518,6 +518,37 @@ describe("attachments", () => {
   });
 
   describe("review queue", () => {
+    describe("new notes", () => {
+      // Local time, like the clock on the user's device.
+      beforeEach(() => vi.useFakeTimers({ now: new Date(2026, 9, 4, 23, 30), toFake: ["Date"] }));
+      afterEach(() => vi.useRealTimers());
+
+      it("queues a new fleeting note for review, due the day it was made", async () => {
+        const fs = createMemoryFs();
+        const explicit = await createNote(fs, { title: "Passing thought", content: "", type: "fleeting" });
+        const defaulted = await createNote(fs, { title: "Another", content: "" });
+
+        expect(explicit).toMatchObject({ reviewDue: "2026-10-04", reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 });
+        expect(defaulted.reviewDue).toBe("2026-10-04");
+        expect((await listDueForReview(fs, "2026-10-04")).map((n) => n.id).sort()).toEqual([explicit.id, defaulted.id].sort());
+      });
+
+      it("leaves new notes of every other type out of the queue", async () => {
+        const fs = createMemoryFs();
+        for (const type of ["literature", "permanent", "structure"] as const) {
+          expect((await createNote(fs, { title: type, content: "", type })).reviewDue, type).toBeNull();
+        }
+        expect((await getOrCreateDailyNote(fs, "2026-10-04")).reviewDue).toBeNull();
+        expect(await listDueForReview(fs, "2026-10-04")).toEqual([]);
+      });
+
+      it("does not queue a note that only becomes fleeting later", async () => {
+        const fs = createMemoryFs();
+        const note = await createNote(fs, { title: "Settled", content: "", type: "permanent" });
+        expect((await updateNote(fs, { id: note.id, type: "fleeting" })).reviewDue).toBeNull();
+      });
+    });
+
     it("adds a note to the queue due immediately, with fresh SM-2 defaults", async () => {
       const fs = createMemoryFs();
       const note = await createNote(fs, { title: "Atomicity", content: "" });

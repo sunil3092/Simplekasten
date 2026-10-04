@@ -2,7 +2,7 @@ import { extractHashtags, extractWikiLinkTitles, JOURNAL_TAG, normalizeTagName }
 import { parseCanvasFile, serializeCanvasFile } from "./canvas-file";
 import { parseHistorySnapshot, serializeHistorySnapshot, type HistorySnapshot } from "./history-file";
 import { parseNoteFile, serializeNoteFile } from "./note-file";
-import { addDays, nextReviewState, type ReviewRating } from "./srs";
+import { addDays, localToday, nextReviewState, type ReviewRating } from "./srs";
 import { parseTemplateFile, serializeTemplateFile } from "./template-file";
 import type {
   Attachment,
@@ -240,19 +240,23 @@ export async function getNoteById(fs: FileSystemAdapter, id: string): Promise<No
 export async function createNote(fs: FileSystemAdapter, input: CreateNoteInput): Promise<VaultNote> {
   const notes = (await loadAllNotes(fs)).filter((n) => !n.deletedAt);
   const now = new Date().toISOString();
+  const type = input.type ?? "fleeting";
   const note: VaultNote = {
     id: generateId(),
     zettelId: nextZettelId(notes),
     title: sanitizeTitle(input.title),
     content: input.content,
-    type: input.type ?? "fleeting",
+    type,
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
     attachmentIds: [],
     tags: [],
     noteDate: null,
-    reviewDue: null,
+    // A fleeting note is a thought still to be worked out, so it goes straight
+    // into the review queue — otherwise it is only ever seen again by luck.
+    // Other types join the queue when the user adds them.
+    reviewDue: type === "fleeting" ? localToday() : null,
     reviewEase: 2.5,
     reviewInterval: 0,
     reviewReps: 0,
@@ -627,8 +631,8 @@ export async function getAttachmentFilePath(fs: FileSystemAdapter, id: string): 
 }
 
 // Any note can be added to the review queue — restricting by type (e.g.
-// permanent-only) would be arbitrary, since the queue is opt-in per note
-// either way. Due immediately (today) so a freshly-added note shows up in
+// permanent-only) would be arbitrary. New fleeting notes are queued as they
+// are made (see createNote); every other note is opt-in. Due immediately (today) so a freshly-added note shows up in
 // the very next review session rather than waiting.
 export async function addToReviewQueue(fs: FileSystemAdapter, noteId: string, today: string): Promise<VaultNote> {
   const note = await requireNote(fs, noteId);

@@ -41,3 +41,25 @@ test("a review session rates through the due queue and ends in the all-caught-up
   await session.getByRole("button", { name: "Close" }).first().click();
   await expect(reviewButton.getByTestId("review-due-count")).toHaveCount(0);
 });
+
+test("a new note is fleeting, so it lands in the review queue without being added by hand", async ({ page }) => {
+  const sidebar = page.locator("aside").first();
+  const reviewButton = sidebar.getByRole("button", { name: "Review" });
+  await expect(reviewButton.getByTestId("review-due-count")).toHaveCount(0);
+
+  await sidebar.getByRole("button", { name: "New note" }).click();
+  await expect(reviewButton.getByTestId("review-due-count")).toHaveText("1");
+  // The open note shows it is queued, and can be taken back out.
+  await expect(page.getByRole("button", { name: "Remove from review queue" })).toBeVisible();
+
+  // Notes made on the flow are queued too.
+  await page.getByRole("button", { name: "Flow view" }).click();
+  const flow = page.getByTestId("flow-view");
+  await flow.getByRole("button", { name: "New note" }).click();
+  await expect(page.getByTestId("flow-card")).toHaveCount(4);
+  await flow.getByRole("button", { name: "Close" }).click();
+  await expect(reviewButton.getByTestId("review-due-count")).toHaveText("2");
+
+  await reviewButton.click();
+  await expect(page.getByTestId("review-session").getByText("1 of 2")).toBeVisible();
+});

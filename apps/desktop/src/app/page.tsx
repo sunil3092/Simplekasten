@@ -526,6 +526,8 @@ function Vault() {
     refreshNotes(activeTag);
     // The note may arrive already carrying #hashtags.
     refreshTags();
+    // A new fleeting note goes straight into the review queue.
+    refreshDueCount();
     await refreshFlow();
     return note;
   }
@@ -605,6 +607,7 @@ function Vault() {
       type: "fleeting",
     });
     await refreshNotes();
+    refreshDueCount();
     return note;
   }
 
@@ -617,6 +620,7 @@ function Vault() {
       type: "fleeting",
     });
     await refreshNotes();
+    refreshDueCount();
     justCreatedIdRef.current = note.id;
     setSelected(await loadNote(note.id));
     setSaveStatus("saved");
