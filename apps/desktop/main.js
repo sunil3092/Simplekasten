@@ -32,15 +32,28 @@ function saveSettings(settings) {
   fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
+// A development run (`npm run dev`, i.e. not a packaged build) keeps its
+// notes in dev-vault/ at the repo root, which is gitignored — so trying
+// things out, including purging, never touches the vault in Documents that
+// the installed app uses. The folder chosen in Settings is remembered under
+// its own key for the same reason: a dev run must not inherit, or change,
+// the real vault's location. SIMPLEKASTEN_VAULT points a dev run somewhere
+// else for one launch.
+const IS_DEV = !app.isPackaged;
+const DEV_VAULT_PATH = path.join(__dirname, "..", "..", "dev-vault");
+const VAULT_SETTING = IS_DEV ? "devVaultPath" : "vaultPath";
+
 // Single active vault folder for now — same "default vault only" scope the
 // mobile app already has, not a full multi-vault switcher.
 function getVaultPath() {
-  const settings = loadSettings();
-  if (settings.vaultPath) return settings.vaultPath;
+  if (IS_DEV && process.env.SIMPLEKASTEN_VAULT) return process.env.SIMPLEKASTEN_VAULT;
 
-  const defaultPath = path.join(app.getPath("documents"), "Simplekasten");
+  const settings = loadSettings();
+  if (settings[VAULT_SETTING]) return settings[VAULT_SETTING];
+
+  const defaultPath = IS_DEV ? DEV_VAULT_PATH : path.join(app.getPath("documents"), "Simplekasten");
   fs.mkdirSync(defaultPath, { recursive: true });
-  saveSettings({ ...settings, vaultPath: defaultPath });
+  saveSettings({ ...settings, [VAULT_SETTING]: defaultPath });
   return defaultPath;
 }
 
@@ -143,7 +156,7 @@ function registerIpcHandlers() {
     const result = await dialog.showOpenDialog({ properties: ["openDirectory", "createDirectory"] });
     if (result.canceled || result.filePaths.length === 0) return getVaultPath();
 
-    saveSettings({ ...loadSettings(), vaultPath: result.filePaths[0] });
+    saveSettings({ ...loadSettings(), [VAULT_SETTING]: result.filePaths[0] });
     return result.filePaths[0];
   });
 

@@ -15,6 +15,13 @@ This starts the Next.js dev server on `localhost:3000` and opens it in a
 native Electron window once the dev server is ready. Requires a display —
 this won't render anything over a headless remote session.
 
+A development run keeps its notes in `dev-vault/` at the repo root, which is
+gitignored, so nothing you try there — including **Purge vault** — touches the
+vault the installed app uses (`Documents/Simplekasten` by default). A folder
+picked in Settings during a dev run is remembered separately from the
+installed app's. To point one launch at another folder, set
+`SIMPLEKASTEN_VAULT=/path/to/vault`.
+
 ## Finding your way around
 
 - **Sidebar:** Create, Navigate, Views, Tags, Maps of Content, Canvases,

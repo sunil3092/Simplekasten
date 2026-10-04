@@ -9,6 +9,9 @@ out/
 .env.local
 .DS_Store
 
+# Notes written by development runs of the desktop app (see apps/desktop/main.js)
+dev-vault/
+
 # Electron
 apps/desktop/out/
 apps/desktop/release/
