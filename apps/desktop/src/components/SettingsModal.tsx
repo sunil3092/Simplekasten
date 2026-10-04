@@ -153,6 +153,11 @@ export function SettingsModal({ onClose, vault }: { onClose: () => void; vault?:
             ))}
           </ul>
         )}
+
+        {/* Required by the icon's licence (CC BY 4.0) — see assets/icon/glyph.svg. */}
+        <p data-testid="credits" className="mt-6 border-t border-line-soft pt-3 text-xs text-ink-faint">
+          App icon from Streamline (streamlinehq.com), used under CC BY 4.0.
+        </p>
       </div>
     </Modal>
   );

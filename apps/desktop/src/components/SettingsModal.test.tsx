@@ -99,6 +99,12 @@ describe("SettingsModal", () => {
     expect(vault.onShow).toHaveBeenCalledOnce();
   });
 
+  it("credits the app icon's source, as its licence requires", () => {
+    renderModal();
+    expect(screen.getByTestId("credits")).toHaveTextContent("streamlinehq.com");
+    expect(screen.getByTestId("credits")).toHaveTextContent("CC BY 4.0");
+  });
+
   it("shows the fallback notice when present", () => {
     renderModal({
       notice: 'Theme "gone" could not be loaded, so Classic is being used.',

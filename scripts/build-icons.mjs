@@ -1,45 +1,62 @@
-// Renders every app icon from the SVG sources in assets/icon/ — edit those,
-// then run `npm run build:icons`. Outputs are committed, so builds don't need
-// this step; it only has to be re-run when the artwork changes.
-//
-//   mark.svg        full mark (two linked slips), transparent 512x512
-//   mark-small.svg  the same mark simplified for 32px and below
-//   mark-mono.svg   single-colour outline for Android themed icons
+// Renders every app icon from assets/icon/glyph.svg — a white glyph on an
+// emerald gradient tile. Edit the glyph or the constants below, then run
+// `npm run build:icons`. Outputs are committed, so builds don't need this
+// step; it only has to be re-run when the artwork changes.
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const src = (name) => readFileSync(join(root, "assets/icon", name));
 const out = (path) => join(root, path);
 
-// Memphis purple — the tile behind the mark everywhere it has a background.
-const TILE = "#672394";
+// The Classic theme's emerald, light to deep, top-left to bottom-right.
+const TILE_FROM = "#34d399";
+const TILE_TO = "#047857";
+// Flat stand-in for the gradient where only one colour is possible (the
+// Android adaptive-icon fallback and the mobile splash screen in app.json).
+export const TILE_FLAT = "#059669";
 
-const mark = src("mark.svg");
-const markSmall = src("mark-small.svg");
-const markMono = src("mark-mono.svg");
+// Everything is drawn on a 1024-unit canvas and rasterised at the size needed.
+const CANVAS = 1024;
 
-/** The mark (scaled to `scale` of the canvas) centred on a `size` canvas. */
-async function render(svg, size, { scale = 1, background = null } = {}) {
-  const inner = Math.round(size * scale);
-  // Rasterise at the target size (not scaled down from 512) so thin strokes stay sharp.
-  const art = await sharp(svg, { density: Math.max(72, (72 * inner) / 512) })
-    .resize(inner, inner)
-    .png()
-    .toBuffer();
-  const offset = Math.round((size - inner) / 2);
-  return sharp({
-    create: { width: size, height: size, channels: 4, background: background ?? { r: 0, g: 0, b: 0, alpha: 0 } },
-  })
-    .composite([{ input: art, left: offset, top: offset }])
-    .png()
-    .toBuffer();
+// The glyph file is a 14x14 SVG holding one <path>; only that path is reused.
+const glyphPath = readFileSync(join(root, "assets/icon/glyph.svg"), "utf8").match(/<path[^>]*\/>/)[0];
+
+/** The glyph, `scale` of the canvas wide, centred. */
+function glyph(scale) {
+  const size = CANVAS * scale;
+  const offset = (CANVAS - size) / 2;
+  return `<svg x="${offset}" y="${offset}" width="${size}" height="${size}" viewBox="0 0 14 14">${glyphPath}</svg>`;
 }
 
-/** The app icon proper: the mark on the purple tile. Small sizes use the simplified mark. */
-const tile = (size) => render(size <= 32 ? markSmall : mark, size, { background: TILE, scale: size <= 32 ? 1 : 0.94 });
+/**
+ * The gradient tile. `inset` leaves transparent space around it and `radius`
+ * rounds its corners, both in canvas units.
+ */
+function tile({ inset = 0, radius = 0 } = {}) {
+  const side = CANVAS - inset * 2;
+  return `<defs><linearGradient id="tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${TILE_FROM}"/><stop offset="1" stop-color="${TILE_TO}"/></linearGradient></defs>
+    <rect x="${inset}" y="${inset}" width="${side}" height="${side}" rx="${radius}" fill="url(#tile)"/>`;
+}
+
+const svg = (body) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS}" height="${CANVAS}" viewBox="0 0 ${CANVAS} ${CANVAS}">${body}</svg>`);
+
+/** Rasterises at the target size (not scaled down from 1024) so edges stay sharp. */
+const render = (body, size) =>
+  sharp(svg(body), { density: (72 * size) / CANVAS })
+    .resize(size, size)
+    .png()
+    .toBuffer();
+
+// Windows and Linux draw the icon as given: a rounded tile filling the canvas.
+// The glyph is a little larger at the smallest sizes, where it would otherwise blur.
+const rounded = (size) => render(tile({ radius: 230 }) + glyph(size <= 32 ? 0.62 : 0.54), size);
+// macOS expects the tile to sit inside the canvas with room for its shadow
+// (Apple's icon grid: an 824-unit rounded square in 1024).
+const macTile = (size) => render(tile({ inset: 100, radius: 185 }) + glyph(size <= 32 ? 0.5 : 0.44), size);
+// iOS rounds the corners itself, so the tile goes edge to edge.
+const fullBleed = (size) => render(tile() + glyph(0.54), size);
 
 // ICO: a directory of PNG-encoded images (supported since Windows Vista).
 function buildIco(images) {
@@ -81,27 +98,29 @@ function buildIcns(images) {
   return Buffer.concat([head, body]);
 }
 
+const sized = (sizes, draw) => Promise.all(sizes.map(async (size) => ({ size, data: await draw(size) })));
+
 async function main() {
   // ---- Desktop (electron-builder: win .ico, mac .icns, linux .png) --------
-  const icoSizes = [16, 24, 32, 48, 64, 128, 256];
-  writeFileSync(out("apps/desktop/icons/icon.ico"), buildIco(await Promise.all(icoSizes.map(async (size) => ({ size, data: await tile(size) })))));
-
-  const icnsSizes = [16, 32, 64, 128, 256, 512, 1024];
-  writeFileSync(out("apps/desktop/icons/icon.icns"), buildIcns(await Promise.all(icnsSizes.map(async (size) => ({ size, data: await tile(size) })))));
-
-  writeFileSync(out("apps/desktop/icons/icon.png"), await tile(512));
+  writeFileSync(out("apps/desktop/icons/icon.ico"), buildIco(await sized([16, 24, 32, 48, 64, 128, 256], rounded)));
+  writeFileSync(out("apps/desktop/icons/icon.icns"), buildIcns(await sized([16, 32, 64, 128, 256, 512, 1024], macTile)));
+  writeFileSync(out("apps/desktop/icons/icon.png"), await rounded(512));
 
   // ---- Mobile (Expo) ------------------------------------------------------
   const images = "apps/mobile/assets/images";
-  // iOS masks its own rounded corners, so the tile goes full-bleed.
-  writeFileSync(out(`${images}/icon.png`), await tile(1024));
+  writeFileSync(out(`${images}/icon.png`), await fullBleed(1024));
   // Android adaptive icon: the launcher crops the layers to a shape that can
-  // be as small as the central 66% circle, so the mark sits well inside it.
-  writeFileSync(out(`${images}/android-icon-foreground.png`), await render(mark, 1024, { scale: 0.68 }));
-  writeFileSync(out(`${images}/android-icon-background.png`), await render(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>'), 1024, { background: TILE }));
-  writeFileSync(out(`${images}/android-icon-monochrome.png`), await render(markMono, 1024, { scale: 0.68 }));
-  writeFileSync(out(`${images}/splash-icon.png`), await render(mark, 1024));
-  writeFileSync(out(`${images}/favicon.png`), await tile(48));
+  // be as small as the central 66% circle, so the glyph sits well inside it.
+  writeFileSync(out(`${images}/android-icon-foreground.png`), await render(glyph(0.4), 1024));
+  writeFileSync(out(`${images}/android-icon-background.png`), await render(tile(), 1024));
+  // Themed icons use only the alpha channel; the launcher tints it.
+  writeFileSync(out(`${images}/android-icon-monochrome.png`), await render(glyph(0.4), 1024));
+  // Shown on the flat emerald splash background set in app.json.
+  writeFileSync(out(`${images}/splash-icon.png`), await render(glyph(0.72), 1024));
+  writeFileSync(out(`${images}/favicon.png`), await rounded(48));
+
+  // ---- README ---------------------------------------------------------------
+  writeFileSync(out("assets/icon/icon-preview.png"), await rounded(256));
 
   console.log("Icons written.");
 }

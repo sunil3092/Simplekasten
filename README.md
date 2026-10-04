@@ -1,3 +1,5 @@
+<img src="./assets/icon/icon-preview.png" alt="Simplekasten app icon" width="96" align="right" />
+
 # 🗃️ Simplekasten
 
 > Turn scattered notes into a living network of atomic, permanently linked ideas.
@@ -169,7 +171,9 @@ The Playwright suite (`apps/desktop/e2e`) runs the real renderer against a stubb
 
 ## 🖼️ App icon
 
-The icon (two linked slips from the slip-box, on a purple tile) is drawn once as SVG in `assets/icon/`, with a simplified version for 32px and below and a monochrome outline for Android themed icons. `npm run build:icons` renders every platform's file from those: desktop `icon.ico`, `icon.icns` and `icon.png`, and the mobile app icon, Android adaptive layers, splash and favicon. The outputs are committed, so re-run it only when the artwork changes.
+The icon is a white glyph of three linked cards — notes branching out of notes — on an emerald gradient tile that matches the default Classic theme. The glyph lives in `assets/icon/glyph.svg`; `npm run build:icons` draws the tile around it and renders every platform's file: desktop `icon.ico`, `icon.icns` and `icon.png`, and the mobile app icon, Android adaptive layers, splash and favicon. The outputs are committed, so re-run it only when the artwork changes.
+
+**Credit:** the glyph is "Hierarchy 4" from [Streamline](https://streamlinehq.com)'s free Core icon set, used under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) and recoloured white. That licence requires this credit to stay wherever the icon is used; it is also shown at the bottom of the app's Settings.
 
 ## 📦 Build
 

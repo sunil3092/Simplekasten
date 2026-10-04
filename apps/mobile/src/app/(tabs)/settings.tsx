@@ -155,6 +155,11 @@ export default function SettingsScreen() {
           ))}
         </View>
       )}
+
+      {/* Required by the icon's licence (CC BY 4.0) — see assets/icon/glyph.svg. */}
+      <Text style={{ marginTop: 24, color: colors.inkFaint, fontSize: 11 }}>
+        App icon from Streamline (streamlinehq.com), used under CC BY 4.0.
+      </Text>
     </ScrollView>
   );
 }
