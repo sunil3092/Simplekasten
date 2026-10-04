@@ -1,4 +1,4 @@
-import { COPY } from "@simplekasten/core";
+import { COPY, createPendingSaver } from "@simplekasten/core";
 import type { NoteDetail, NoteListItem } from "@simplekasten/local-engine";
 import { NOTE_TYPES, type NoteTypeInfo } from "@simplekasten/themes";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -42,7 +42,9 @@ export default function ReviewScreen() {
   const busyRef = useRef(false);
   const settleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (settleRef.current && clearTimeout(settleRef.current)), []);
-  const pendingRef = useRef<{ id: string; title: string; content: string } | null>(null);
+  // Saves for the note go one after another, and every action waits for them
+  // — see createPendingSaver for what goes wrong otherwise.
+  const saver = useRef(createPendingSaver((pending: { id: string; title: string; content: string }) => vault.updateNote(pending))).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function show(next: NoteDetail | null) {
@@ -72,9 +74,7 @@ export default function ReviewScreen() {
   async function flush() {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = null;
-    const pending = pendingRef.current;
-    pendingRef.current = null;
-    if (pending) await vault.updateNote(pending);
+    await saver.flush();
   }
 
   // Leaving within the debounce would otherwise drop the last edit.
@@ -82,7 +82,7 @@ export default function ReviewScreen() {
 
   function edit(next: { title: string; content: string }) {
     if (!note) return;
-    pendingRef.current = { id: note.id, ...next };
+    saver.set({ id: note.id, ...next });
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => void flush().catch(() => setFailed(true)), SAVE_DEBOUNCE_MS);
   }
@@ -125,7 +125,7 @@ export default function ReviewScreen() {
           // The note is going; an edit waiting to be saved must not land after it.
           if (timerRef.current) clearTimeout(timerRef.current);
           timerRef.current = null;
-          pendingRef.current = null;
+          saver.clear();
           void act(() => vault.deleteNote(id));
         },
       },
@@ -145,8 +145,12 @@ export default function ReviewScreen() {
           </Text>
           <View style={[styles.card, { borderWidth: shape.borderWidth, borderRadius: shape.radius, borderColor: colors.line, backgroundColor: colors.surface }]}>
             <Text style={{ fontFamily: MONO, fontSize: 11, color: colors.inkFaint, marginBottom: 8 }}>{note.zettelId}</Text>
+            {/* Keyed by note, and locked while an action is on its way, so a
+                keystroke can never be saved against the note that is leaving. */}
             <TextInput
+              key={`title-${note.id}`}
               accessibilityLabel="Title"
+              editable={!busy}
               value={title}
               onChangeText={(value) => {
                 setTitle(value);
@@ -157,6 +161,8 @@ export default function ReviewScreen() {
               style={[styles.title, displayText, { color: colors.ink }]}
             />
             <NoteTextInput
+              key={`text-${note.id}`}
+              editable={!busy}
               value={content}
               onChangeText={(value) => {
                 setContent(value);

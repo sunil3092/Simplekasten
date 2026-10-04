@@ -63,7 +63,11 @@ export function normalizeTagName(input: string): string | null {
 // existing tags after `#`. Desktop's editor has its own completion sources
 // (CodeMirror needs them in its shape); the patterns are the same.
 
-const OPEN_LINK_PATTERN = /\[\[([^\]|]*)$/;
+// The query can't run past a line break or another bracket: an unclosed [[
+// further up would otherwise swallow everything typed after it.
+const OPEN_LINK_PATTERN = /\[\[([^\][|\n]*)$/;
+// The rest of a tag after the cursor, when a suggestion is applied mid-tag.
+const TAG_TAIL_PATTERN = /^[\w/-]*/;
 const OPEN_TAG_PATTERN = /(?<![#\w])#([\w/-]*)$/;
 
 export interface TypingSuggestion {
@@ -95,7 +99,8 @@ export function matchingSuggestions(suggestion: TypingSuggestion, titles: string
 export function applyTypingSuggestion(text: string, cursor: number, suggestion: TypingSuggestion, value: string): { text: string; cursor: number } {
   const after = text.slice(cursor);
   if (suggestion.kind === "tag") {
-    return { text: text.slice(0, suggestion.from) + value + after, cursor: suggestion.from + value.length };
+    const rest = after.replace(TAG_TAIL_PATTERN, "");
+    return { text: text.slice(0, suggestion.from) + value + rest, cursor: suggestion.from + value.length };
   }
   const hasClosing = after.startsWith("]]");
   const insert = hasClosing ? value : `${value}]]`;

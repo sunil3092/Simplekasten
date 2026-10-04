@@ -1,6 +1,6 @@
 import type { CanvasListItem } from "@simplekasten/local-engine";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Icon } from "@/components/Icon";
 import { Button } from "@/components/ui";
@@ -22,12 +22,19 @@ export default function CanvasListScreen() {
     }, []),
   );
 
+  // Create and the keyboard's Done can both fire; only one canvas is made.
+  const creatingRef = useRef(false);
   async function create() {
-    if (naming === null) return;
-    // Same fallback name desktop gives an unnamed canvas.
-    const canvas = await vault.createCanvas({ title: naming.trim() || "Untitled canvas" });
-    setNaming(null);
-    router.push(`/canvas/${canvas.id}`);
+    if (naming === null || creatingRef.current) return;
+    creatingRef.current = true;
+    try {
+      // Same fallback name desktop gives an unnamed canvas.
+      const canvas = await vault.createCanvas({ title: naming.trim() || "Untitled canvas" });
+      setNaming(null);
+      router.push(`/canvas/${canvas.id}`);
+    } finally {
+      creatingRef.current = false;
+    }
   }
 
   const box = { borderWidth: shape.borderWidth, borderRadius: shape.radius, borderColor: colors.line };

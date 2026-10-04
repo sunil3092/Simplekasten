@@ -1,6 +1,6 @@
 "use client";
 
-import { COPY } from "@simplekasten/core";
+import { COPY, createPendingSaver } from "@simplekasten/core";
 import { useEffect, useRef, useState } from "react";
 import { NOTE_TYPES, type NoteType } from "../lib/noteTypes";
 import { CheckIcon, XIcon } from "./icons";
@@ -50,7 +50,11 @@ export function ReviewSession({ note, current, total, noteTitles, tagNames, onSa
   const settleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (settleRef.current && clearTimeout(settleRef.current)), []);
   const textRef = useRef({ title: note?.title ?? "", content: note?.content ?? "" });
-  const pendingRef = useRef<{ id: string; title: string; content: string } | null>(null);
+  // Saves for the note go one after another, and every action waits for them
+  // — see createPendingSaver for what goes wrong otherwise.
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+  const saver = useRef(createPendingSaver((pending: { id: string; title: string; content: string }) => onSaveRef.current(pending))).current;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const confirmingRef = useRef(confirmingDelete);
   confirmingRef.current = confirmingDelete;
@@ -65,15 +69,13 @@ export function ReviewSession({ note, current, total, noteTitles, tagNames, onSa
   async function flush() {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = null;
-    const pending = pendingRef.current;
-    pendingRef.current = null;
-    if (pending) await onSave(pending);
+    await saver.flush();
   }
 
   function edit(next: Partial<{ title: string; content: string }>) {
     if (!note) return;
     textRef.current = { ...textRef.current, ...next };
-    pendingRef.current = { id: note.id, ...textRef.current };
+    saver.set({ id: note.id, ...textRef.current });
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => void flush().catch(() => setFailed(true)), SAVE_DEBOUNCE_MS);
   }
@@ -140,6 +142,8 @@ export function ReviewSession({ note, current, total, noteTitles, tagNames, onSa
               <input
                 aria-label="Title"
                 value={title}
+                // Typing while an action is on its way would be saved against a note that is leaving.
+                readOnly={busy}
                 onChange={(e) => {
                   setTitle(e.target.value);
                   edit({ title: e.target.value });
@@ -204,7 +208,7 @@ export function ReviewSession({ note, current, total, noteTitles, tagNames, onSa
             // The note is going; an edit waiting to be saved must not land after it.
             if (timerRef.current) clearTimeout(timerRef.current);
             timerRef.current = null;
-            pendingRef.current = null;
+            saver.clear();
             void act(() => onDelete(note.id));
           }}
         />

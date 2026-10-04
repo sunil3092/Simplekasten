@@ -1,4 +1,4 @@
-import { COPY, extractWikiLinkTitles, hashtagLine, JOURNAL_TAG } from "@simplekasten/core";
+import { COPY, createPendingSaver, extractWikiLinkTitles, hashtagLine, JOURNAL_TAG, type PendingSaver } from "@simplekasten/core";
 import {
   filterFlowNodes,
   FLOW_CARD,
@@ -30,7 +30,7 @@ import {
   type GestureResponderEvent,
   type LayoutChangeEvent,
 } from "react-native";
-import { Defs, Marker, Path, Svg } from "react-native-svg";
+import { Defs, G, Marker, Path, Svg } from "react-native-svg";
 import { Icon } from "@/components/Icon";
 import { NoteTextInput } from "@/components/NoteTextInput";
 import { Button, Chip, EmptyHint, fontFamily, TypeBadge } from "@/components/ui";
@@ -73,7 +73,7 @@ interface FlowCardProps {
   scaleRef: { current: number };
   registerTitle: (id: string, input: TextInput | null) => void;
   onTouch: (id: string) => void;
-  onEditing: (id: string | null) => void;
+  onEditing: (id: string, focused: boolean) => void;
   onTitle: (id: string, value: string) => void;
   onContent: (id: string, value: string) => void;
   onDrag: (id: string, spot: FlowPoint) => void;
@@ -183,9 +183,9 @@ const FlowCard = memo(function FlowCard({
             onChangeText={(value) => onTitle(node.id, value)}
             onFocus={() => {
               onTouch(node.id);
-              onEditing(node.id);
+              onEditing(node.id, true);
             }}
-            onBlur={() => onEditing(null)}
+            onBlur={() => onEditing(node.id, false)}
             placeholder={COPY.titlePlaceholder}
             placeholderTextColor={colors.inkFaint}
             style={[styles.cardTitle, { color: colors.ink }]}
@@ -198,9 +198,9 @@ const FlowCard = memo(function FlowCard({
             tags={tags}
             onFocus={() => {
               onTouch(node.id);
-              onEditing(node.id);
+              onEditing(node.id, true);
             }}
-            onBlur={() => onEditing(null)}
+            onBlur={() => onEditing(node.id, false)}
             style={[styles.cardBody, { color: colors.ink }]}
           />
           {links.length > 0 && (
@@ -273,7 +273,13 @@ export default function FlowScreen() {
   const centredRef = useRef(false);
   const titleInputs = useRef(new Map<string, TextInput>());
   const saveTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  const pendingSaves = useRef(new Map<string, CardText>());
+  // One line of saves per note — see createPendingSaver.
+  const savers = useRef(new Map<string, PendingSaver<CardText, string[] | undefined>>());
+  // Cards typed in since the last full reload began; the reload leaves them alone.
+  const editedSinceLoad = useRef(new Set<string>());
+  const reloading = useRef(false);
+  // The card holding the keyboard, if any.
+  const focusedCard = useRef<string | null>(null);
   const creatingLinks = useRef(new Set<string>());
 
   useEffect(() => {
@@ -290,56 +296,86 @@ export default function FlowScreen() {
     return next;
   }, []);
 
-  // Loads the text and tags of notes not on the flow yet. A card that is
-  // already showing is left alone: reloading it would overwrite what is being
-  // typed in it.
+  // Loads cards' text and tags. Normally only for notes not on the flow yet;
+  // `replace` re-reads every card (the tab has come back into view). Either
+  // way a card that has been typed in since the load began, or has a save
+  // waiting, is left alone: the reload would overwrite the text under the
+  // cursor, and the next keystroke would save that older text.
   const loadCards = useCallback(async (nodes: GraphNode[], replace: boolean) => {
     const wanted = replace ? nodes : nodes.filter((n) => !cardTextRef.current.has(n.id));
     if (wanted.length === 0 && !replace) return;
-    const entries = await Promise.all(
-      wanted.map(async (n) => {
-        const detail = await vault.getNoteById(n.id).catch(() => null);
-        return [n.id, { title: detail?.title ?? n.title, content: detail?.content ?? "" }, detail?.tagNames ?? []] as const;
-      }),
-    );
-    if (!mountedRef.current) return;
-    setCardText((prev) => {
-      const next = new Map(replace ? [] : prev);
-      for (const [id, text] of entries) next.set(id, text);
-      return next;
-    });
-    setNoteTags((prev) => {
-      const next = new Map(replace ? [] : prev);
-      for (const [id, , tags] of entries) next.set(id, tags);
-      return next;
-    });
+    if (replace) {
+      reloading.current = true;
+      editedSinceLoad.current = new Set();
+    }
+    try {
+      const entries = await Promise.all(
+        wanted.map(async (n) => {
+          const detail = await vault.getNoteById(n.id).catch(() => null);
+          return [n.id, { title: detail?.title ?? n.title, content: detail?.content ?? "" }, detail?.tagNames ?? []] as const;
+        }),
+      );
+      if (!mountedRef.current) return;
+      const keep = (id: string) => cardTextRef.current.has(id) && (editedSinceLoad.current.has(id) || !!savers.current.get(id)?.hasPending());
+      const merge = <V,>(prev: Map<string, V>, pick: (entry: (typeof entries)[number]) => V) => {
+        const next = new Map<string, V>();
+        if (!replace) for (const [id, value] of prev) next.set(id, value);
+        for (const entry of entries) {
+          const id = entry[0];
+          if (keep(id) && prev.has(id)) next.set(id, prev.get(id)!);
+          else next.set(id, pick(entry));
+        }
+        return next;
+      };
+      setCardText((prev) => merge(prev, (entry) => entry[1]));
+      setNoteTags((prev) => merge(prev, (entry) => entry[2]));
+    } finally {
+      if (replace) reloading.current = false;
+    }
   }, []);
 
+  const saverFor = useCallback(
+    (id: string) => {
+      let saver = savers.current.get(id);
+      if (!saver) {
+        saver = createPendingSaver(async (text: CardText) => {
+          await vault.updateNote({ id, ...text });
+          const fresh = await vault.getNoteById(id);
+          const tags = fresh?.tagNames;
+          if (tags && mountedRef.current) setNoteTags((prev) => new Map(prev).set(id, tags));
+          // A saved [[link]] is a new arrow.
+          await refreshGraph();
+          return tags;
+        });
+        savers.current.set(id, saver);
+      }
+      return saver;
+    },
+    [refreshGraph],
+  );
+
+  // Resolves once the note's text is in the vault — including a save that
+  // was already on its way — with the note's tags if this call saved it.
   const flushSave = useCallback(
     async (id: string): Promise<string[] | undefined> => {
       const timer = saveTimers.current.get(id);
       if (timer) clearTimeout(timer);
       saveTimers.current.delete(id);
-      const pending = pendingSaves.current.get(id);
-      pendingSaves.current.delete(id);
-      if (!pending) return undefined;
       try {
-        await vault.updateNote({ id, ...pending });
-        const fresh = await vault.getNoteById(id);
-        const tags = fresh?.tagNames;
-        if (tags && mountedRef.current) setNoteTags((prev) => new Map(prev).set(id, tags));
-        // A saved [[link]] is a new arrow.
-        await refreshGraph();
-        return tags;
+        return await saverFor(id).flush();
       } catch {
-        // The text stays in the card; the next edit retries the save.
+        // The text stays in the card and goes back to waiting; the next edit,
+        // action or leaving the tab tries the save again.
         return undefined;
       }
     },
-    [refreshGraph],
+    [saverFor],
   );
 
-  const flushAllSaves = useCallback(() => Promise.all(Array.from(pendingSaves.current.keys(), (id) => flushSave(id))), [flushSave]);
+  const flushAllSaves = useCallback(
+    () => Promise.all(Array.from(savers.current, ([id, saver]) => (saver.hasPending() ? flushSave(id) : undefined))),
+    [flushSave],
+  );
 
   // Notes can change while another tab or a note screen is in front, so
   // everything is read again on the way back in — nothing is being typed
@@ -356,11 +392,13 @@ export default function FlowScreen() {
   // Cards created while the flow is open (New note, a link chip) arrive in
   // the graph first; their text follows.
   useEffect(() => {
-    if (graph) void loadCards(graph.nodes, false);
+    // A full reload already covers every card; loading them twice doubles the reads.
+    if (graph && !reloading.current) void loadCards(graph.nodes, false);
   }, [graph, loadCards]);
 
   function scheduleSave(id: string, next: CardText) {
-    pendingSaves.current.set(id, next);
+    editedSinceLoad.current.add(id);
+    saverFor(id).set(next);
     const existing = saveTimers.current.get(id);
     if (existing) clearTimeout(existing);
     saveTimers.current.set(
@@ -376,7 +414,7 @@ export default function FlowScreen() {
       setCardText((prev) => new Map(prev).set(id, next));
       scheduleSave(id, next);
     },
-    [flushSave], // eslint-disable-line react-hooks/exhaustive-deps
+    [flushSave, saverFor], // eslint-disable-line react-hooks/exhaustive-deps
   );
   const onTitle = useCallback((id: string, value: string) => editCard(id, { title: value }), [editCard]);
   const onContent = useCallback((id: string, value: string) => editCard(id, { content: value }), [editCard]);
@@ -430,7 +468,11 @@ export default function FlowScreen() {
             const timer = saveTimers.current.get(id);
             if (timer) clearTimeout(timer);
             saveTimers.current.delete(id);
-            pendingSaves.current.delete(id);
+            // A save already on its way finishes before the delete, or it
+            // would write the note straight back.
+            saverFor(id).clear();
+            await flushSave(id);
+            savers.current.delete(id);
             await vault.deleteNote(id);
             if (!mountedRef.current) return;
             setCardText((prev) => {
@@ -449,7 +491,7 @@ export default function FlowScreen() {
         },
       ]);
     },
-    [forgetPosition, refreshGraph],
+    [forgetPosition, refreshGraph, saverFor, flushSave],
   );
 
   // A link chip opens the note it names. A link to a note that doesn't exist
@@ -489,6 +531,22 @@ export default function FlowScreen() {
     input.focus();
     setFocusId(null);
   });
+
+  // Moving from a card's title to its text blurs one field just before the
+  // other gains focus. Unpinning the card in between would let a tag filter
+  // it doesn't match take it off screen mid-edit, so the unpin waits a
+  // moment and is skipped if the same card has the keyboard again.
+  const onEditing = useCallback((id: string, focused: boolean) => {
+    if (focused) {
+      focusedCard.current = id;
+      setEditingId(id);
+      return;
+    }
+    if (focusedCard.current === id) focusedCard.current = null;
+    setTimeout(() => {
+      if (mountedRef.current && focusedCard.current !== id) setEditingId((current) => (current === id ? null : current));
+    }, 80);
+  }, []);
 
   const registerTitle = useCallback((id: string, input: TextInput | null) => {
     if (input) titleInputs.current.set(id, input);
@@ -649,25 +707,21 @@ export default function FlowScreen() {
             <EmptyHint>{nodes.length === 0 ? COPY.emptyGraph : "No notes match the chosen tags."}</EmptyHint>
           </View>
         ) : (
-          <View
-            style={{
-              position: "absolute",
-              left: 0,
-              top: 0,
-              width: bounds.width,
-              height: bounds.height,
-              transform: [{ translateX }, { translateY }, { scale: view.scale }],
-            }}
-          >
-            <Svg width={bounds.width} height={bounds.height} viewBox={`${bounds.x} ${bounds.y} ${bounds.width} ${bounds.height}`} pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <Defs>
-                <Marker id="flow-arrow" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={7} markerHeight={7} orient="auto">
-                  <Path d="M 0 0 L 10 5 L 0 10 z" fill={colors.inkFaint} />
-                </Marker>
-                <Marker id="flow-arrow-active" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={7} markerHeight={7} orient="auto">
-                  <Path d="M 0 0 L 10 5 L 0 10 z" fill={colors.accent} />
-                </Marker>
-              </Defs>
+          <>
+          {/* The arrows are drawn on a layer the size of the screen and moved
+              with a transform inside it. Sized to hold the whole flow, as the
+              cards' container is, it would be one bitmap that big — too large
+              for Android to draw once a vault has a few dozen notes. */}
+          <Svg width={size.width} height={size.height} pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <Defs>
+              <Marker id="flow-arrow" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={7} markerHeight={7} orient="auto">
+                <Path d="M 0 0 L 10 5 L 0 10 z" fill={colors.inkFaint} />
+              </Marker>
+              <Marker id="flow-arrow-active" viewBox="0 0 10 10" refX={9} refY={5} markerWidth={7} markerHeight={7} orient="auto">
+                <Path d="M 0 0 L 10 5 L 0 10 z" fill={colors.accent} />
+              </Marker>
+            </Defs>
+            <G transform={`translate(${view.x} ${view.y}) scale(${view.scale})`}>
               {routes.map((r) => {
                 const lit = activeId !== null && (r.source === activeId || r.target === activeId);
                 return (
@@ -681,7 +735,18 @@ export default function FlowScreen() {
                   />
                 );
               })}
-            </Svg>
+            </G>
+          </Svg>
+          <View
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: bounds.width,
+              height: bounds.height,
+              transform: [{ translateX }, { translateY }, { scale: view.scale }],
+            }}
+          >
             {layout.map((l) => {
               const node = nodesById.get(l.id);
               const position = positions.get(l.id);
@@ -701,7 +766,7 @@ export default function FlowScreen() {
                   scaleRef={scaleRef}
                   registerTitle={registerTitle}
                   onTouch={setActiveId}
-                  onEditing={setEditingId}
+                  onEditing={onEditing}
                   onTitle={onTitle}
                   onContent={onContent}
                   onDrag={onDrag}
@@ -714,6 +779,7 @@ export default function FlowScreen() {
               );
             })}
           </View>
+          </>
         )}
       </View>
 

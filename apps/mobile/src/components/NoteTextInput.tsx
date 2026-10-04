@@ -14,6 +14,7 @@ interface NoteTextInputProps {
   /** One scrolling row of small chips rather than a wrapping block — for a card with little room. */
   compact?: boolean;
   style?: StyleProp<TextStyle>;
+  editable?: boolean;
   onFocus?: () => void;
   onBlur?: () => void;
 }
@@ -21,7 +22,7 @@ interface NoteTextInputProps {
 // A note's body field. Offers note titles while a `[[link` is being typed
 // and existing tags while a `#tag` is — what desktop's editor does with its
 // suggestion list, as tappable chips under the text.
-export function NoteTextInput({ value, onChangeText, titles, tags, compact, style, onFocus, onBlur }: NoteTextInputProps) {
+export function NoteTextInput({ value, onChangeText, titles, tags, compact, style, editable, onFocus, onBlur }: NoteTextInputProps) {
   const { colors, shape } = useTheme();
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   // Only set right after a suggestion is applied, to move the cursor past the
@@ -52,6 +53,7 @@ export function NoteTextInput({ value, onChangeText, titles, tags, compact, styl
     <>
       <TextInput
         accessibilityLabel="Note text"
+        editable={editable}
         value={value}
         onChangeText={onChangeText}
         selection={forcedSelection}

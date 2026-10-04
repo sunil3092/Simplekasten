@@ -117,6 +117,8 @@ test("sorting the note that is open in the editor updates the editor", async ({ 
   await reviewButton(page).click();
   await session(page).getByRole("button", { name: "Structure" }).click();
   await session(page).getByRole("button", { name: "Close" }).last().click();
+  // The editor behind Review shows the new type, not the one it loaded with.
+  await expect(page.locator("main select").first()).toHaveValue("structure");
   // Structure notes are listed as Maps of Content.
   await expect(sidebar(page).getByText("Maps of content")).toBeVisible();
   await expect(count(page)).toHaveCount(0);

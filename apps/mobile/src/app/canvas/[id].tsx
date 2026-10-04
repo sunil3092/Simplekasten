@@ -168,10 +168,20 @@ export default function CanvasScreen() {
 
   const notesById = useMemo(() => new Map(notes.map((n) => [n.id, n])), [notes]);
 
+  // Writes go one after another, so an older arrangement can't land on top
+  // of a newer one. A failed write leaves the board marked as unsaved, and
+  // the next change or leaving the screen tries again.
+  const writing = useRef<Promise<unknown>>(Promise.resolve());
   const persist = useCallback(
-    async (next: CanvasCard[]) => {
+    (next: CanvasCard[]) => {
       dirtyRef.current = false;
-      await vault.updateCanvas({ id, cards: next });
+      writing.current = writing.current
+        .catch(() => {})
+        .then(() => vault.updateCanvas({ id, cards: next }))
+        .catch(() => {
+          dirtyRef.current = true;
+        });
+      return writing.current;
     },
     [id],
   );
@@ -190,18 +200,25 @@ export default function CanvasScreen() {
     // Text typed since the drag began lives on the current card, so only the
     // geometry is taken from the drag.
     const { x, y, width, height } = change(start);
-    setCards((current) => current.map((c) => (c.id === cardId ? { ...c, x, y, width, height } : c)));
+    // The ref is updated here, not on the next render, so the release that
+    // follows the last move saves that move too.
+    const next = cardsRef.current.map((c) => (c.id === cardId ? { ...c, x, y, width, height } : c));
+    cardsRef.current = next;
+    setCards(next);
   }, []);
   const onCommit = useCallback(() => {
     if (dirtyRef.current) void persist(cardsRef.current);
   }, [persist]);
   const onText = useCallback((cardId: string, text: string) => {
     dirtyRef.current = true;
-    setCards((current) => current.map((c) => (c.id === cardId && c.kind === "text" ? { ...c, text } : c)));
+    const next = cardsRef.current.map((c) => (c.id === cardId && c.kind === "text" ? { ...c, text } : c));
+    cardsRef.current = next;
+    setCards(next);
   }, []);
   const onRemove = useCallback(
     (cardId: string) => {
       const next = cardsRef.current.filter((c) => c.id !== cardId);
+      cardsRef.current = next;
       setCards(next);
       void persist(next);
     },
@@ -223,6 +240,7 @@ export default function CanvasScreen() {
 
   function addCard(content: { kind: "note"; noteId: string } | { kind: "text"; text: string }) {
     const next = [...cardsRef.current, newCanvasCard(content, viewportCentre())];
+    cardsRef.current = next;
     setCards(next);
     void persist(next);
   }

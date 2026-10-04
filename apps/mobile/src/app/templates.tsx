@@ -1,6 +1,6 @@
 import type { Template } from "@simplekasten/local-engine";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Button, EmptyHint, fontFamily, IconButton, SectionHeading } from "@/components/ui";
 import { vault } from "@/lib/vault";
@@ -36,13 +36,20 @@ export default function TemplatesScreen() {
     setEditing(next);
   }
 
+  // A second tap on Save before the first finishes must not make a twin.
+  const savingRef = useRef(false);
   async function save() {
     const trimmed = name.trim();
-    if (!trimmed) return;
-    if (editing === "new") await vault.createTemplate({ name: trimmed, content });
-    else if (editing) await vault.updateTemplate({ id: editing, name: trimmed, content });
-    setEditing(null);
-    await refresh();
+    if (!trimmed || savingRef.current) return;
+    savingRef.current = true;
+    try {
+      if (editing === "new") await vault.createTemplate({ name: trimmed, content });
+      else if (editing) await vault.updateTemplate({ id: editing, name: trimmed, content });
+      setEditing(null);
+      await refresh();
+    } finally {
+      savingRef.current = false;
+    }
   }
 
   function confirmDelete(template: Template) {

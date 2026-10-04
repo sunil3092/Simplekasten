@@ -160,3 +160,19 @@ describe("matchingSuggestions", () => {
     expect(matchingSuggestions({ kind: "link", query: "", from: 0 }, many, [], 8)).toHaveLength(8);
   });
 });
+
+describe("typing suggestions: edge cases", () => {
+  it("does not let an unclosed [[ on an earlier line swallow a #tag typed later", () => {
+    expect(typingSuggestion("Intro [[draft\n\nLater #pro", 25)).toEqual({ kind: "tag", query: "pro", from: 22 });
+  });
+
+  it("starts the link query at the nearest [[", () => {
+    expect(typingSuggestion("[[One]] and [[Tw", 16)).toEqual({ kind: "link", query: "Tw", from: 14 });
+    expect(typingSuggestion("a [[b [[c", 9)).toEqual({ kind: "link", query: "c", from: 8 });
+  });
+
+  it("replaces the whole tag when the cursor is in the middle of one", () => {
+    const s = typingSuggestion("About #mexyz end", 9)!;
+    expect(applyTypingSuggestion("About #mexyz end", 9, s, "method")).toEqual({ text: "About #method end", cursor: 13 });
+  });
+});
