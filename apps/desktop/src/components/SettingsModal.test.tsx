@@ -1,5 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { builtInThemes, memphisTheme, resolveTheme, type Theme } from "@simplekasten/themes";
+import {
+  builtInThemes,
+  memphisTheme,
+  resolveTheme,
+  type Theme,
+} from "@simplekasten/themes";
 import { describe, expect, it, vi } from "vitest";
 import { ThemeContext, type ThemeContextValue } from "../lib/ThemeProvider";
 import { SettingsModal } from "./SettingsModal";
@@ -15,7 +20,11 @@ function renderModal(overrides: Partial<ThemeContextValue> = {}) {
     notice: null,
     setTheme: vi.fn(async () => {}),
     setMode: vi.fn(async () => {}),
-    installFromFile: vi.fn(async () => ({ ok: false as const, errors: [], canceled: true as const })),
+    installFromFile: vi.fn(async () => ({
+      ok: false as const,
+      errors: [],
+      canceled: true as const,
+    })),
     installFromText: vi.fn(async () => ({ ok: true as const, theme: sunset })),
     remove: vi.fn(async () => {}),
     ...overrides,
@@ -34,6 +43,7 @@ describe("SettingsModal", () => {
     renderModal();
     expect(screen.getByRole("radio", { name: /memphis/i })).toBeChecked();
     expect(screen.getByRole("radio", { name: /classic/i })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: /snowui/i })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /sunset/i })).toBeInTheDocument();
   });
 
@@ -58,17 +68,28 @@ describe("SettingsModal", () => {
 
   it("installs pasted JSON and shows validation errors inline", async () => {
     const { value } = renderModal({
-      installFromText: vi.fn(async () => ({ ok: false as const, errors: ["colors.light.accent: must be a #rgb or #rrggbb colour"] })),
+      installFromText: vi.fn(async () => ({
+        ok: false as const,
+        errors: ["colors.light.accent: must be a #rgb or #rrggbb colour"],
+      })),
     });
     fireEvent.click(screen.getByRole("button", { name: /paste json/i }));
-    fireEvent.change(screen.getByRole("textbox", { name: /theme json/i }), { target: { value: "{}" } });
+    fireEvent.change(screen.getByRole("textbox", { name: /theme json/i }), {
+      target: { value: "{}" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /^install$/i }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("colors.light.accent"));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "colors.light.accent",
+      ),
+    );
     expect(value.installFromText).toHaveBeenCalledWith("{}");
   });
 
   it("shows the fallback notice when present", () => {
-    renderModal({ notice: 'Theme "gone" could not be loaded, so Memphis is being used.' });
+    renderModal({
+      notice: 'Theme "gone" could not be loaded, so Classic is being used.',
+    });
     expect(screen.getByRole("status")).toHaveTextContent("could not be loaded");
   });
 

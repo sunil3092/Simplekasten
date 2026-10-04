@@ -28,6 +28,7 @@ describe("globals.css first-paint tokens", () => {
   it("match the default theme's shape", () => {
     const { borderWidth, shadow } = defaultTheme.shape;
     expect(css).toContain(`--border-w: ${borderWidth}px;`);
-    expect(css).toContain(`--shadow-md: ${shadow!.x}px ${shadow!.y}px 0 ${shadow!.color};`);
+    if (shadow) expect(css).toContain(`--shadow-md: ${shadow.x}px ${shadow.y}px 0 ${shadow.color};`);
+    else expect(css).not.toContain("--shadow-md:");
   });
 });

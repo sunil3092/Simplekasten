@@ -6,4 +6,5 @@ export * from "./history-file";
 export * from "./diff";
 export * from "./canvas-file";
 export * from "./flow-layout";
+export * from "./flow-routing";
 export * from "./vault";

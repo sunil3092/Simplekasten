@@ -50,23 +50,23 @@ async function paintedColors(page: Page): Promise<Map<string, string>> {
   return new Map(found);
 }
 
-test("with nothing saved and no JavaScript, first paint is already Memphis (no slate flash)", async ({ browser }) => {
-  for (const [scheme, bg] of [["light", "rgb(232, 230, 217)"], ["dark", "rgb(29, 10, 46)"]] as const) {
+test("with nothing saved and no JavaScript, first paint is already Classic (no palette flash)", async ({ browser }) => {
+  for (const [scheme, bg] of [["light", "rgb(248, 250, 252)"], ["dark", "rgb(11, 17, 32)"]] as const) {
     const context = await browser.newContext({ javaScriptEnabled: false, colorScheme: scheme });
     const page = await context.newPage();
     await page.goto("/");
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(bg);
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--border-w").trim())).toBe("3px");
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--border-w").trim())).toBe("1px");
     await context.close();
   }
 });
 
-test("Memphis is the default theme when the app has no saved settings", async ({ page }) => {
-  await stubBridge(page, { theme: "memphis", themeMode: "system" });
+test("Classic is the default theme when the app has no saved settings", async ({ page }) => {
+  await stubBridge(page, { theme: "classic", themeMode: "system" });
   await page.goto("/");
   await page.getByRole("button", { name: "Settings" }).click();
-  await expect(page.getByRole("radio", { name: /memphis/i })).toBeChecked();
-  await expect(page.getByRole("radio", { name: /classic/i })).not.toBeChecked();
+  await expect(page.getByRole("radio", { name: /classic/i })).toBeChecked();
+  await expect(page.getByRole("radio", { name: /memphis/i })).not.toBeChecked();
 });
 
 for (const mode of ["light", "dark"] as const) {
@@ -112,7 +112,7 @@ test("graph legend dots use theme colours, not the old slate/emerald map", async
   expect(dots).toContain("rgb(8, 112, 124)"); // fleeting → accent2
 });
 
-test("Classic is still available and switches the shape back", async ({ page }) => {
+test("Classic applies its palette and quiet shape", async ({ page }) => {
   await stubBridge(page, { theme: "classic", themeMode: "light" });
   await page.goto("/");
   await expect.poll(() => page.evaluate(cssVar("--color-accent"))).toBe("#059669");

@@ -204,6 +204,28 @@ function createWindow() {
     },
   });
 
+  // No File/Edit/View menu bar: everything is reachable from the sidebar and
+  // the command palette. macOS keeps its menu — it lives in the system bar,
+  // and Cmd+C/V/Q only work through it.
+  if (process.platform !== "darwin") {
+    win.removeMenu();
+    // The menu owned the reload and DevTools shortcuts; keep them for
+    // `npm run dev`, where they're still needed.
+    if (process.env.ELECTRON_START_URL) {
+      win.webContents.on("before-input-event", (event, input) => {
+        if (input.type !== "keyDown") return;
+        const key = input.key.toLowerCase();
+        if (key === "f12" || (input.control && input.shift && key === "i")) {
+          win.webContents.toggleDevTools();
+          event.preventDefault();
+        } else if (key === "f5" || (input.control && key === "r")) {
+          win.webContents.reload();
+          event.preventDefault();
+        }
+      });
+    }
+  }
+
   win.loadURL(START_URL);
 }
 

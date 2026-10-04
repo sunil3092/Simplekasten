@@ -31,9 +31,9 @@ folder, since Next's dev server watches it and would hot-reload mid-test.
 
 ## Theming
 
-Memphis is the default theme; Classic is the alternative (Settings → Theme).
+Classic is the default theme; Memphis and SnowUI are the alternatives (Settings → Theme).
 `ThemeProvider` applies the active theme as CSS variables on `<html>`
-(`src/lib/themeRuntime.ts`). `src/app/globals.css` carries the Memphis values as
+(`src/lib/themeRuntime.ts`). `src/app/globals.css` carries the Classic values as
 first-paint fallbacks — `globals.test.ts` fails if they drift from
 `packages/themes`. Use theme tokens (`bg-surface`, `text-ink`, `border-line`,
 `bg-accent`…) rather than raw colours; canvas code such as the graph reads

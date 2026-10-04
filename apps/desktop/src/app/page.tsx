@@ -2,7 +2,14 @@
 
 import { COPY } from "@simplekasten/core";
 import type { CanvasCard, ReviewRating } from "@simplekasten/local-engine";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Attachments, type AttachmentItem } from "../components/Attachments";
 import { GraphView } from "../components/GraphView";
 import {
@@ -35,10 +42,44 @@ import { NoteEditor } from "../components/NoteEditor";
 import { QuickSwitcher, type CommandItem } from "../components/QuickSwitcher";
 import { TagPicker } from "../components/TagPicker";
 import { SettingsModal } from "../components/SettingsModal";
-import { Button, Chip, ConfirmDialog, IconButton, Kbd, NoteLink, SaveStatusIndicator, SectionHeading } from "../components/ui";
+import {
+  Button,
+  Chip,
+  ConfirmDialog,
+  IconButton,
+  Kbd,
+  NoteLink,
+  SaveStatusIndicator,
+  SectionHeading,
+} from "../components/ui";
 import { badgeClasses, NOTE_TYPES, type NoteType } from "../lib/noteTypes";
 import { useTheme } from "../lib/ThemeProvider";
 import { showVaultLocation, vaultClient } from "../lib/vaultClient";
+
+function SidebarDisclosure({
+  title,
+  icon,
+  children,
+  className = "",
+}: {
+  title: string;
+  icon?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <details open className={`group ${className}`}>
+      <summary className="flex min-h-7 cursor-pointer list-none items-center justify-between gap-2 rounded-md px-2 font-mono text-[10px] font-medium tracking-wider text-ink-faint uppercase hover:text-ink-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50">
+        <span className="flex min-w-0 items-center gap-1.5 truncate">
+          {icon}
+          {title}
+        </span>
+        <ChevronDownIcon className="h-3.5 w-3.5 flex-none transition-transform duration-150 group-open:rotate-180" />
+      </summary>
+      <div className="pt-1">{children}</div>
+    </details>
+  );
+}
 
 interface NoteListItem {
   id: string;
@@ -59,7 +100,12 @@ interface NoteDetail {
   assignedTags: string[];
   attachments: AttachmentItem[];
   backlinks: { noteId: string; title: string; zettelId: string }[];
-  contents: { noteId: string | null; title: string; zettelId: string | null; resolved: boolean }[];
+  contents: {
+    noteId: string | null;
+    title: string;
+    zettelId: string | null;
+    resolved: boolean;
+  }[];
 }
 interface TagItem {
   id: string;
@@ -108,7 +154,9 @@ function Vault() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
-  const [canvases, setCanvases] = useState<{ id: string; title: string; updatedAt: string }[]>([]);
+  const [canvases, setCanvases] = useState<
+    { id: string; title: string; updatedAt: string }[]
+  >([]);
   const [openCanvasId, setOpenCanvasId] = useState<string | null>(null);
   const [dueCount, setDueCount] = useState(0);
   // Non-null while a review session is open; holds the due notes fetched at
@@ -134,7 +182,10 @@ function Vault() {
   // Surfacing them as a standing sidebar section is what makes folder-free
   // navigation actually work: without this, an index note is no different
   // from any other note once it scrolls out of the recent-notes list.
-  const mapsOfContent = useMemo(() => notes.filter((n) => n.type === "structure"), [notes]);
+  const mapsOfContent = useMemo(
+    () => notes.filter((n) => n.type === "structure"),
+    [notes],
+  );
   const titleInputRef = useRef<HTMLInputElement>(null);
   const pendingRef = useRef<PendingSave | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -160,7 +211,8 @@ function Vault() {
     refreshTags();
   }
 
-  const vaultName = vaultPath.split(/[\\/]/).filter(Boolean).pop() ?? "Simplekasten";
+  const vaultName =
+    vaultPath.split(/[\\/]/).filter(Boolean).pop() ?? "Simplekasten";
 
   async function refreshNotes(tag?: string | null) {
     setNotes((await vaultClient.listNotes(tag ?? undefined)) as NoteListItem[]);
@@ -179,11 +231,20 @@ function Vault() {
   }
 
   async function refreshDueCount() {
-    setDueCount(((await vaultClient.listDueForReview(todayLocal())) as NoteListItem[]).length);
+    setDueCount(
+      ((await vaultClient.listDueForReview(todayLocal())) as NoteListItem[])
+        .length,
+    );
   }
 
   async function refreshCanvases() {
-    setCanvases((await vaultClient.listCanvases()) as { id: string; title: string; updatedAt: string }[]);
+    setCanvases(
+      (await vaultClient.listCanvases()) as {
+        id: string;
+        title: string;
+        updatedAt: string;
+      }[],
+    );
   }
 
   useEffect(() => {
@@ -250,7 +311,9 @@ function Vault() {
   async function openDaily(date: string) {
     await flushPending();
     setAttachmentError(null);
-    const note = (await vaultClient.getOrCreateDailyNote(date)) as { id: string };
+    const note = (await vaultClient.getOrCreateDailyNote(date)) as {
+      id: string;
+    };
     setSelected((await vaultClient.getNoteById(note.id)) as NoteDetail);
     setSaveStatus("saved");
     refreshNotes(activeTag);
@@ -262,7 +325,11 @@ function Vault() {
     await refreshTemplates();
   }
 
-  async function updateTemplateEntry(input: { id: string; name?: string; content?: string }) {
+  async function updateTemplateEntry(input: {
+    id: string;
+    name?: string;
+    content?: string;
+  }) {
     await vaultClient.updateTemplate(input);
     await refreshTemplates();
   }
@@ -281,24 +348,34 @@ function Vault() {
     if (!selected) return;
     setTemplateMenuOpen(false);
     await flushPending();
-    const updated = (await vaultClient.applyTemplate({ noteId: selected.id, templateId })) as NoteDetail;
+    const updated = (await vaultClient.applyTemplate({
+      noteId: selected.id,
+      templateId,
+    })) as NoteDetail;
     setSelected(updated);
     setEditorNonce((n) => n + 1);
   }
 
   async function toggleReviewQueue() {
     if (!selected) return;
-    if (selected.reviewDue) await vaultClient.removeFromReviewQueue(selected.id);
+    if (selected.reviewDue)
+      await vaultClient.removeFromReviewQueue(selected.id);
     else await vaultClient.addToReviewQueue(selected.id, todayLocal());
     setSelected((await vaultClient.getNoteById(selected.id)) as NoteDetail);
     refreshDueCount();
   }
 
   async function openReview() {
-    const due = (await vaultClient.listDueForReview(todayLocal())) as NoteListItem[];
+    const due = (await vaultClient.listDueForReview(
+      todayLocal(),
+    )) as NoteListItem[];
     setReviewQueue(due);
     setReviewIndex(0);
-    setReviewNote(due.length > 0 ? ((await vaultClient.getNoteById(due[0].id)) as NoteDetail) : null);
+    setReviewNote(
+      due.length > 0
+        ? ((await vaultClient.getNoteById(due[0].id)) as NoteDetail)
+        : null,
+    );
   }
 
   function closeReview() {
@@ -308,12 +385,23 @@ function Vault() {
 
   async function rateReviewNote(rating: ReviewRating) {
     if (!reviewQueue || !reviewNote) return;
-    await vaultClient.submitReview({ noteId: reviewNote.id, rating, today: todayLocal() });
+    await vaultClient.submitReview({
+      noteId: reviewNote.id,
+      rating,
+      today: todayLocal(),
+    });
     const nextIndex = reviewIndex + 1;
     setReviewIndex(nextIndex);
-    setReviewNote(nextIndex < reviewQueue.length ? ((await vaultClient.getNoteById(reviewQueue[nextIndex].id)) as NoteDetail) : null);
+    setReviewNote(
+      nextIndex < reviewQueue.length
+        ? ((await vaultClient.getNoteById(
+            reviewQueue[nextIndex].id,
+          )) as NoteDetail)
+        : null,
+    );
     refreshDueCount();
-    if (selected && selected.id === reviewNote.id) setSelected((await vaultClient.getNoteById(selected.id)) as NoteDetail);
+    if (selected && selected.id === reviewNote.id)
+      setSelected((await vaultClient.getNoteById(selected.id)) as NoteDetail);
   }
 
   async function flushPending() {
@@ -337,7 +425,14 @@ function Vault() {
     const fresh = (await vaultClient.getNoteById(payload.id)) as NoteDetail;
     setSelected((current) =>
       current && current.id === payload.id
-        ? { ...current, backlinks: fresh.backlinks, tagNames: fresh.tagNames, assignedTags: fresh.assignedTags, contents: fresh.contents, attachments: fresh.attachments }
+        ? {
+            ...current,
+            backlinks: fresh.backlinks,
+            tagNames: fresh.tagNames,
+            assignedTags: fresh.assignedTags,
+            contents: fresh.contents,
+            attachments: fresh.attachments,
+          }
         : current,
     );
   }
@@ -366,7 +461,9 @@ function Vault() {
     await flushPending();
     const deletedId = selected.id;
     await vaultClient.deleteNote(deletedId);
-    const remaining = ((await vaultClient.listNotes(activeTag ?? undefined)) as NoteListItem[]).filter((n) => n.id !== deletedId);
+    const remaining = (
+      (await vaultClient.listNotes(activeTag ?? undefined)) as NoteListItem[]
+    ).filter((n) => n.id !== deletedId);
     setNotes(remaining);
     refreshTags();
     if (remaining.length > 0) await openNote(remaining[0].id);
@@ -378,20 +475,34 @@ function Vault() {
     const id = selected.id;
     // Optimistic, so the checkbox flips at once; the engine's answer (which
     // merges in #hashtags) replaces it right after.
-    setSelected((current) => (current && current.id === id ? { ...current, assignedTags } : current));
+    setSelected((current) =>
+      current && current.id === id ? { ...current, assignedTags } : current,
+    );
     await flushPending();
     setSaveStatus("saving");
     await vaultClient.updateNote({ id, tags: assignedTags });
     setSaveStatus("saved");
     const fresh = (await vaultClient.getNoteById(id)) as NoteDetail;
-    setSelected((current) => (current && current.id === id ? { ...current, tagNames: fresh.tagNames, assignedTags: fresh.assignedTags } : current));
+    setSelected((current) =>
+      current && current.id === id
+        ? {
+            ...current,
+            tagNames: fresh.tagNames,
+            assignedTags: fresh.assignedTags,
+          }
+        : current,
+    );
     refreshTags();
     refreshNotes(activeTag);
   }
 
   async function refreshAttachments(id: string) {
     const fresh = (await vaultClient.getNoteById(id)) as NoteDetail;
-    setSelected((current) => (current && current.id === id ? { ...current, attachments: fresh.attachments } : current));
+    setSelected((current) =>
+      current && current.id === id
+        ? { ...current, attachments: fresh.attachments }
+        : current,
+    );
   }
 
   async function addAttachment() {
@@ -402,7 +513,9 @@ function Vault() {
       await flushPending();
       if (await vaultClient.addAttachment(id)) await refreshAttachments(id);
     } catch {
-      setAttachmentError("Couldn't attach that file — only images and audio are supported.");
+      setAttachmentError(
+        "Couldn't attach that file — only images and audio are supported.",
+      );
     }
   }
 
@@ -429,7 +542,9 @@ function Vault() {
   async function createCanvas() {
     const title = window.prompt("Canvas title", "Untitled canvas");
     if (title === null) return;
-    const canvas = (await vaultClient.createCanvas({ title: title.trim() || "Untitled canvas" })) as { id: string };
+    const canvas = (await vaultClient.createCanvas({
+      title: title.trim() || "Untitled canvas",
+    })) as { id: string };
     await refreshCanvases();
     setOpenCanvasId(canvas.id);
   }
@@ -438,7 +553,11 @@ function Vault() {
   // it — createNote() below opens the note it makes, which would close the
   // canvas the user is still working in.
   async function createNoteForCanvas(title: string): Promise<{ id: string }> {
-    const note = (await vaultClient.createNote({ title, content: "", type: "fleeting" })) as { id: string };
+    const note = (await vaultClient.createNote({
+      title,
+      content: "",
+      type: "fleeting",
+    })) as { id: string };
     await refreshNotes();
     return note;
   }
@@ -446,7 +565,11 @@ function Vault() {
   async function createNote(title = "Untitled") {
     await flushPending();
     // createNote returns a VaultNote, not a NoteDetail — only .id is used here.
-    const note = (await vaultClient.createNote({ title, content: "", type: "fleeting" })) as { id: string };
+    const note = (await vaultClient.createNote({
+      title,
+      content: "",
+      type: "fleeting",
+    })) as { id: string };
     await refreshNotes();
     justCreatedIdRef.current = note.id;
     setSelected((await vaultClient.getNoteById(note.id)) as NoteDetail);
@@ -469,7 +592,9 @@ function Vault() {
   }, [selected]);
 
   async function navigateToTitle(title: string) {
-    const found = notes.find((n) => n.title.toLowerCase() === title.toLowerCase());
+    const found = notes.find(
+      (n) => n.title.toLowerCase() === title.toLowerCase(),
+    );
     if (found) await openNote(found.id);
     else await createNote(title);
   }
@@ -478,14 +603,24 @@ function Vault() {
     if (!selected) return;
     const next = { ...selected, title: value };
     setSelected(next);
-    scheduleSave({ id: next.id, title: next.title, content: next.content, type: next.type });
+    scheduleSave({
+      id: next.id,
+      title: next.title,
+      content: next.content,
+      type: next.type,
+    });
   }
 
   function updateContent(value: string) {
     if (!selected) return;
     const next = { ...selected, content: value };
     setSelected(next);
-    scheduleSave({ id: next.id, title: next.title, content: next.content, type: next.type });
+    scheduleSave({
+      id: next.id,
+      title: next.title,
+      content: next.content,
+      type: next.type,
+    });
   }
 
   async function updateType(value: NoteType) {
@@ -493,7 +628,12 @@ function Vault() {
     const next = { ...selected, type: value };
     setSelected(next);
     await flushPending();
-    await save({ id: next.id, title: next.title, content: next.content, type: next.type });
+    await save({
+      id: next.id,
+      title: next.title,
+      content: next.content,
+      type: next.type,
+    });
   }
 
   // Every command here already exists as a handler above — this only makes
@@ -501,192 +641,349 @@ function Vault() {
   // each render (not memoized) so its closures never go stale, same as the
   // inline handlers already passed to QuickSwitcher below.
   const commands: CommandItem[] = [
-    { id: "new-note", icon: "plus", label: "New note", description: "Create a new fleeting note", run: () => createNote() },
-    { id: "today", icon: "calendar", label: "Today", description: "Open or create today's daily note", run: () => openDaily(todayLocal()) },
-    { id: "review", icon: "repeat", label: "Review", description: "Start a spaced-repetition review session", run: openReview },
-    { id: "templates", icon: "fileText", label: "Templates…", description: "Manage note templates", run: () => setTemplatesOpen(true) },
-    { id: "graph", icon: "network", label: "Graph view", description: "Visualize how notes link together", run: openGraph },
-    { id: "flow", icon: "flow", label: "Flow view", description: "See related notes as a top-to-bottom flow diagram", run: openFlow },
-    { id: "settings", icon: "settings", label: "Settings", description: "Theme and appearance settings", run: () => setSettingsOpen(true) },
-    { id: "choose-vault", icon: "download", label: "Choose vault folder…", description: "Switch to a different vault", run: chooseFolder },
-    { id: "show-vault", icon: "download", label: "Show vault location", description: "Reveal the vault's folder on disk", run: showVault },
+    {
+      id: "new-note",
+      icon: "plus",
+      label: "New note",
+      description: "Create a new fleeting note",
+      run: () => createNote(),
+    },
+    {
+      id: "today",
+      icon: "calendar",
+      label: "Today",
+      description: "Open or create today's daily note",
+      run: () => openDaily(todayLocal()),
+    },
+    {
+      id: "review",
+      icon: "repeat",
+      label: "Review",
+      description: "Start a spaced-repetition review session",
+      run: openReview,
+    },
+    {
+      id: "templates",
+      icon: "fileText",
+      label: "Templates…",
+      description: "Manage note templates",
+      run: () => setTemplatesOpen(true),
+    },
+    {
+      id: "graph",
+      icon: "network",
+      label: "Graph view",
+      description: "Visualize how notes link together",
+      run: openGraph,
+    },
+    {
+      id: "flow",
+      icon: "flow",
+      label: "Flow view",
+      description: "See related notes as a top-to-bottom flow diagram",
+      run: openFlow,
+    },
+    {
+      id: "settings",
+      icon: "settings",
+      label: "Settings",
+      description: "Theme and appearance settings",
+      run: () => setSettingsOpen(true),
+    },
+    {
+      id: "choose-vault",
+      icon: "download",
+      label: "Choose vault folder…",
+      description: "Switch to a different vault",
+      run: chooseFolder,
+    },
+    {
+      id: "show-vault",
+      icon: "download",
+      label: "Show vault location",
+      description: "Reveal the vault's folder on disk",
+      run: showVault,
+    },
   ];
 
   return (
     <div className="flex h-screen bg-bg">
       <aside className="flex w-64 flex-none flex-col border-r-(length:--border-w) border-line bg-surface px-3.5 py-4">
-        <div className="mb-3">
-          <div className="truncate px-2 py-1.5 text-sm font-semibold text-ink">{vaultName}</div>
-          <div className="mt-1 flex flex-col gap-1">
-            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={chooseFolder}>
-              Choose vault folder…
-            </Button>
-            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={showVault}>
-              <DownloadIcon />
-              Show vault location
-            </Button>
-            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={() => setTemplatesOpen(true)}>
-              <FileTextIcon />
-              Templates…
-            </Button>
-            <Button variant="ghost" size="sm" className="w-full justify-start" onClick={createCanvas}>
-              <LayoutIcon />
-              New canvas…
-            </Button>
+        <div className="mb-3 border-b border-line-soft pb-3">
+          <div className="truncate px-2 py-1.5 text-sm font-semibold text-ink">
+            {vaultName}
+          </div>
+          <SidebarDisclosure title="Vault">
+            <div className="flex flex-col gap-0.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                onClick={chooseFolder}
+              >
+                Choose vault folder…
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
+                onClick={showVault}
+              >
+                <DownloadIcon />
+                Show vault location
+              </Button>
+            </div>
+          </SidebarDisclosure>
+        </div>
+
+        <div className="-mr-1.5 min-h-0 flex-1 overflow-y-auto pr-1.5">
+          <div className="flex flex-col gap-3">
+            <SidebarDisclosure title="Create">
+              <div className="flex flex-col gap-0.5">
+                <Button
+                  variant="primary"
+                  className="w-full justify-start"
+                  onClick={() => createNote()}
+                >
+                  <PlusIcon />
+                  {COPY.newNote}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={createCanvas}
+                >
+                  <LayoutIcon />
+                  New canvas…
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => setTemplatesOpen(true)}
+                >
+                  <FileTextIcon />
+                  Templates…
+                </Button>
+              </div>
+            </SidebarDisclosure>
+
+            <SidebarDisclosure title="Navigate">
+              <div className="flex flex-col gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => setSwitcherOpen(true)}
+                >
+                  <span className="flex w-full items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <SearchIcon />
+                      Jump to…
+                    </span>
+                    <Kbd>⌘K</Kbd>
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => openDaily(todayLocal())}
+                >
+                  <span className="flex w-full items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <CalendarIcon />
+                      Today
+                    </span>
+                    <Kbd>⌘J</Kbd>
+                  </span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={openReview}
+                >
+                  <span className="flex w-full items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <RepeatIcon />
+                      Review
+                    </span>
+                    {dueCount > 0 && (
+                      <span
+                        data-testid="review-due-count"
+                        className="font-mono text-[10px] text-accent-ink"
+                      >
+                        {dueCount}
+                      </span>
+                    )}
+                  </span>
+                </Button>
+              </div>
+            </SidebarDisclosure>
+
+            <SidebarDisclosure title="Views">
+              <div className="flex flex-col gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={openGraph}
+                >
+                  <NetworkIcon />
+                  Graph view
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={openFlow}
+                >
+                  <FlowIcon />
+                  Flow view
+                </Button>
+              </div>
+            </SidebarDisclosure>
+          </div>
+
+          {tags.length > 0 && (
+            <SidebarDisclosure title={`Tags (${tags.length})`} className="mt-3">
+              <div className="flex flex-wrap gap-1.5">
+                {tags.map((t) => (
+                  <Chip
+                    key={t.id}
+                    active={activeTag === t.name}
+                    onClick={() => toggleTag(t.name)}
+                  >
+                    #{t.name} <span className="opacity-60">{t.noteCount}</span>
+                  </Chip>
+                ))}
+              </div>
+            </SidebarDisclosure>
+          )}
+
+          {mapsOfContent.length > 0 && (
+            <SidebarDisclosure
+              title={COPY.mapsOfContent}
+              icon={<LayersIcon />}
+              className="mt-3"
+            >
+              <ul className="flex flex-col gap-1">
+                {mapsOfContent.map((n) => (
+                  <li key={n.id}>
+                    <button
+                      onClick={() => openNote(n.id)}
+                      className={`block w-full rounded-lg border-(length:--border-w) border-dashed px-2.5 py-1.5 text-left text-sm transition-colors ${
+                        n.id === selected?.id
+                          ? "border-accent bg-accent-soft text-accent-ink"
+                          : "border-line text-ink-muted hover:border-accent/50"
+                      }`}
+                    >
+                      {n.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </SidebarDisclosure>
+          )}
+
+          {canvases.length > 0 && (
+            <SidebarDisclosure
+              title="Canvases"
+              icon={<LayoutIcon />}
+              className="mt-3"
+            >
+              <ul className="flex flex-col gap-1">
+                {canvases.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      onClick={() => setOpenCanvasId(c.id)}
+                      className="block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-2"
+                    >
+                      {c.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </SidebarDisclosure>
+          )}
+
+          {dailyNotes.length > 0 && (
+            <SidebarDisclosure
+              title="Journal"
+              icon={<CalendarIcon />}
+              className="mt-3"
+            >
+              <ul className="flex flex-col gap-1" data-testid="journal-list">
+                {dailyNotes.map((n) => (
+                  <li key={n.id}>
+                    <button
+                      onClick={() => openNote(n.id)}
+                      className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
+                        n.id === selected?.id
+                          ? "bg-accent-soft text-accent-ink"
+                          : "text-ink-muted hover:bg-surface-2"
+                      }`}
+                    >
+                      {n.title}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </SidebarDisclosure>
+          )}
+
+          <div className="mt-3">
+            <SidebarDisclosure title={COPY.noteCount(notes.length, activeTag)}>
+              {activeTag && (
+                <div className="flex justify-end px-2 pb-1">
+                  <button
+                    onClick={() => setActiveTag(null)}
+                    className="text-xs text-ink-faint transition-colors hover:text-ink-muted"
+                  >
+                    Clear filter
+                  </button>
+                </div>
+              )}
+              <ul className="flex flex-col gap-0.5">
+                {notes.map((n) => (
+                  <li key={n.id}>
+                    <button
+                      onClick={() => openNote(n.id)}
+                      className={`flex w-full items-baseline gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors duration-150 ${
+                        selected?.id === n.id
+                          ? "bg-accent-soft text-accent-ink"
+                          : "text-ink hover:bg-surface-2"
+                      }`}
+                    >
+                      <span className="font-mono text-[11px] text-ink-faint">
+                        {n.zettelId}
+                      </span>
+                      <span className="truncate">{n.title}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </SidebarDisclosure>
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
-          <Button className="relative w-full justify-start" onClick={() => setSettingsOpen(true)}>
+        <div className="mt-3 shrink-0 border-t border-line-soft pt-3">
+          <Button
+            variant="ghost"
+            className="relative w-full justify-start"
+            onClick={() => setSettingsOpen(true)}
+          >
             <SettingsIcon />
             Settings
             {themeNotice && (
-              <span aria-label="Theme problem" className="absolute top-1/2 right-3 h-2 w-2 -translate-y-1/2 rounded-full bg-accent-2" />
+              <span
+                aria-label="Theme problem"
+                className="absolute top-1/2 right-3 h-2 w-2 -translate-y-1/2 rounded-full bg-accent-2"
+              />
             )}
           </Button>
-          <Button className="w-full" onClick={() => setSwitcherOpen(true)}>
-            <span className="flex w-full items-center justify-between">
-              <span className="flex items-center gap-2">
-                <SearchIcon />
-                Jump to…
-              </span>
-              <Kbd>⌘K</Kbd>
-            </span>
-          </Button>
-          <Button className="w-full justify-start" onClick={() => openDaily(todayLocal())}>
-            <span className="flex w-full items-center justify-between">
-              <span className="flex items-center gap-2">
-                <CalendarIcon />
-                Today
-              </span>
-              <Kbd>⌘J</Kbd>
-            </span>
-          </Button>
-          <Button className="w-full justify-start" onClick={openReview}>
-            <span className="flex w-full items-center justify-between">
-              <span className="flex items-center gap-2">
-                <RepeatIcon />
-                Review
-              </span>
-              {dueCount > 0 && (
-                <span data-testid="review-due-count" className="font-mono text-[10px] text-accent-ink">
-                  {dueCount}
-                </span>
-              )}
-            </span>
-          </Button>
-          <Button className="w-full justify-start" onClick={openGraph}>
-            <NetworkIcon />
-            Graph view
-          </Button>
-          <Button className="w-full justify-start" onClick={openFlow}>
-            <FlowIcon />
-            Flow view
-          </Button>
-          <Button variant="primary" className="w-full justify-start" onClick={() => createNote()}>
-            <PlusIcon />
-            {COPY.newNote}
-          </Button>
-        </div>
-
-        {tags.length > 0 && (
-          <div className="mt-4 flex flex-wrap gap-1.5">
-            {tags.map((t) => (
-              <Chip key={t.id} active={activeTag === t.name} onClick={() => toggleTag(t.name)}>
-                #{t.name} <span className="opacity-60">{t.noteCount}</span>
-              </Chip>
-            ))}
-          </div>
-        )}
-
-        {mapsOfContent.length > 0 && (
-          <div className="mt-4">
-            <SectionHeading compact icon={<LayersIcon />} className="mb-1.5">
-              {COPY.mapsOfContent}
-            </SectionHeading>
-            <ul className="flex flex-col gap-1">
-              {mapsOfContent.map((n) => (
-                <li key={n.id}>
-                  <button
-                    onClick={() => openNote(n.id)}
-                    className={`block w-full rounded-lg border-(length:--border-w) border-dashed px-2.5 py-1.5 text-left text-sm transition-colors ${
-                      n.id === selected?.id ? "border-accent bg-accent-soft text-accent-ink" : "border-line text-ink-muted hover:border-accent/50"
-                    }`}
-                  >
-                    {n.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {canvases.length > 0 && (
-          <div className="mt-4">
-            <SectionHeading compact icon={<LayoutIcon />} className="mb-1.5">
-              Canvases
-            </SectionHeading>
-            <ul className="flex flex-col gap-1">
-              {canvases.map((c) => (
-                <li key={c.id}>
-                  <button
-                    onClick={() => setOpenCanvasId(c.id)}
-                    className="block w-full truncate rounded-lg px-2.5 py-1.5 text-left text-sm text-ink transition-colors hover:bg-surface-2"
-                  >
-                    {c.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {dailyNotes.length > 0 && (
-          <div className="mt-4">
-            <SectionHeading compact icon={<CalendarIcon />} className="mb-1.5">
-              Journal
-            </SectionHeading>
-            <ul className="flex flex-col gap-1" data-testid="journal-list">
-              {dailyNotes.map((n) => (
-                <li key={n.id}>
-                  <button
-                    onClick={() => openNote(n.id)}
-                    className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${
-                      n.id === selected?.id ? "bg-accent-soft text-accent-ink" : "text-ink-muted hover:bg-surface-2"
-                    }`}
-                  >
-                    {n.title}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="mt-5 min-h-0 flex-1 overflow-y-auto">
-          <div className="mb-1.5 flex items-center justify-between px-2 font-mono text-[10px] font-medium tracking-wider text-ink-faint uppercase">
-            <span>{COPY.noteCount(notes.length, activeTag)}</span>
-            {activeTag && (
-              <button onClick={() => setActiveTag(null)} className="normal-case transition-colors hover:text-ink-muted">
-                clear
-              </button>
-            )}
-          </div>
-          <ul className="flex flex-col gap-0.5">
-            {notes.map((n) => (
-              <li key={n.id}>
-                <button
-                  onClick={() => openNote(n.id)}
-                  className={`flex w-full items-baseline gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors duration-150 ${
-                    selected?.id === n.id ? "bg-accent-soft text-accent-ink" : "text-ink hover:bg-surface-2"
-                  }`}
-                >
-                  <span className="font-mono text-[11px] text-ink-faint">{n.zettelId}</span>
-                  <span className="truncate">{n.title}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
         </div>
       </aside>
 
@@ -709,21 +1006,32 @@ function Vault() {
                   </select>
                   <ChevronDownIcon className="pointer-events-none absolute top-1/2 right-1.5 -translate-y-1/2 opacity-60" />
                 </div>
-                <TagPicker vaultTags={tags} assigned={selected.assignedTags} onNote={selected.tagNames} onChange={updateTags} />
-                <span className="font-mono text-xs text-ink-faint">{selected.zettelId}</span>
+                <TagPicker
+                  vaultTags={tags}
+                  assigned={selected.assignedTags}
+                  onNote={selected.tagNames}
+                  onChange={updateTags}
+                />
+                <span className="font-mono text-xs text-ink-faint">
+                  {selected.zettelId}
+                </span>
                 {selected.type === "daily" && selected.noteDate && (
                   <div className="flex items-center gap-0.5">
                     <IconButton
                       aria-label="Previous day"
                       title="Previous day"
-                      onClick={() => openDaily(shiftDate(selected.noteDate!, -1))}
+                      onClick={() =>
+                        openDaily(shiftDate(selected.noteDate!, -1))
+                      }
                     >
                       <ChevronLeftIcon />
                     </IconButton>
                     <IconButton
                       aria-label="Next day"
                       title="Next day"
-                      onClick={() => openDaily(shiftDate(selected.noteDate!, 1))}
+                      onClick={() =>
+                        openDaily(shiftDate(selected.noteDate!, 1))
+                      }
                     >
                       <ChevronRightIcon />
                     </IconButton>
@@ -745,12 +1053,19 @@ function Vault() {
                   <SaveStatusIndicator status={saveStatus} />
                   {templates.length > 0 && (
                     <span className="relative ml-2">
-                      <IconButton aria-label="Insert template" title="Insert template" onClick={() => setTemplateMenuOpen((o) => !o)}>
+                      <IconButton
+                        aria-label="Insert template"
+                        title="Insert template"
+                        onClick={() => setTemplateMenuOpen((o) => !o)}
+                      >
                         <FileTextIcon />
                       </IconButton>
                       {templateMenuOpen && (
                         <>
-                          <div className="fixed inset-0 z-10" onClick={() => setTemplateMenuOpen(false)} />
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => setTemplateMenuOpen(false)}
+                          />
                           <div className="absolute top-full right-0 z-20 mt-1.5 w-52 rounded-xl border-(length:--border-w) border-line bg-surface p-1.5 shadow-lg">
                             {templates.map((t) => (
                               <button
@@ -767,14 +1082,26 @@ function Vault() {
                     </span>
                   )}
                   <IconButton
-                    aria-label={selected.reviewDue ? "Remove from review queue" : "Add to review queue"}
-                    title={selected.reviewDue ? "Remove from review queue" : "Add to review queue"}
+                    aria-label={
+                      selected.reviewDue
+                        ? "Remove from review queue"
+                        : "Add to review queue"
+                    }
+                    title={
+                      selected.reviewDue
+                        ? "Remove from review queue"
+                        : "Add to review queue"
+                    }
                     onClick={toggleReviewQueue}
                     className={`${templates.length > 0 ? "" : "ml-2"} ${selected.reviewDue ? "text-accent-ink" : ""}`}
                   >
                     <RepeatIcon />
                   </IconButton>
-                  <IconButton aria-label="Version history" title="Version history" onClick={() => setHistoryOpen(true)}>
+                  <IconButton
+                    aria-label="Version history"
+                    title="Version history"
+                    onClick={() => setHistoryOpen(true)}
+                  >
                     <HistoryIcon />
                   </IconButton>
                   <IconButton
@@ -784,7 +1111,12 @@ function Vault() {
                   >
                     <PaperclipIcon />
                   </IconButton>
-                  <IconButton aria-label="Delete note" title="Delete note" onClick={() => setConfirmingDelete(true)} className="hover:text-danger">
+                  <IconButton
+                    aria-label="Delete note"
+                    title="Delete note"
+                    onClick={() => setConfirmingDelete(true)}
+                    className="hover:text-danger"
+                  >
                     <TrashIcon />
                   </IconButton>
                 </span>
@@ -804,15 +1136,23 @@ function Vault() {
                 onChange={updateContent}
                 onNavigateLink={navigateToTitle}
                 onTagClick={toggleTag}
-                noteTitles={notes.filter((n) => n.id !== selected.id).map((n) => n.title)}
+                noteTitles={notes
+                  .filter((n) => n.id !== selected.id)
+                  .map((n) => n.title)}
               />
 
               {attachmentError && (
-                <p role="alert" className="mt-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
+                <p
+                  role="alert"
+                  className="mt-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger"
+                >
                   {attachmentError}
                 </p>
               )}
-              <Attachments attachments={selected.attachments} onRemove={removeAttachment} />
+              <Attachments
+                attachments={selected.attachments}
+                onRemove={removeAttachment}
+              />
             </div>
           ) : (
             <EmptyState onCreate={() => createNote()} />
@@ -821,8 +1161,13 @@ function Vault() {
 
         {selected && (
           <aside className="w-72 flex-none overflow-y-auto border-l-(length:--border-w) border-line bg-surface px-5 py-6">
-            <SectionHeading icon={selected.type === "structure" ? <LayersIcon /> : <NetworkIcon />}>
-              {selected.type === "structure" ? "Contents" : "Links"} ({selected.contents.length})
+            <SectionHeading
+              icon={
+                selected.type === "structure" ? <LayersIcon /> : <NetworkIcon />
+              }
+            >
+              {selected.type === "structure" ? "Contents" : "Links"} (
+              {selected.contents.length})
             </SectionHeading>
             <ul className="mb-6 flex flex-col gap-2">
               {selected.contents.map((item, i) => (
@@ -847,7 +1192,11 @@ function Vault() {
             <ul className="flex flex-col gap-2">
               {selected.backlinks.map((b) => (
                 <li key={b.noteId}>
-                  <NoteLink zettelId={b.zettelId} title={b.title} onClick={() => openNote(b.noteId)} />
+                  <NoteLink
+                    zettelId={b.zettelId}
+                    title={b.title}
+                    onClick={() => openNote(b.noteId)}
+                  />
                 </li>
               ))}
               {selected.backlinks.length === 0 && (
@@ -863,7 +1212,9 @@ function Vault() {
       {switcherOpen && (
         <QuickSwitcher
           recentNotes={notes}
-          onSearch={(query) => vaultClient.search(query) as Promise<SearchResultItem[]>}
+          onSearch={(query) =>
+            vaultClient.search(query) as Promise<SearchResultItem[]>
+          }
           onSelect={(id) => {
             setSwitcherOpen(false);
             openNote(id);
@@ -895,12 +1246,26 @@ function Vault() {
           noteId={selected.id}
           currentContent={selected.content}
           onClose={() => setHistoryOpen(false)}
-          onListVersions={(noteId) => vaultClient.listNoteVersions(noteId) as Promise<{ id: string; createdAt: string; title: string }[]>}
-          onGetVersion={(noteId, versionId) => vaultClient.getNoteVersion(noteId, versionId) as Promise<{ title: string; content: string }>}
+          onListVersions={(noteId) =>
+            vaultClient.listNoteVersions(noteId) as Promise<
+              { id: string; createdAt: string; title: string }[]
+            >
+          }
+          onGetVersion={(noteId, versionId) =>
+            vaultClient.getNoteVersion(noteId, versionId) as Promise<{
+              title: string;
+              content: string;
+            }>
+          }
           onRestore={async (noteId, versionId) => {
             await flushPending();
-            const restored = (await vaultClient.restoreNoteVersion(noteId, versionId)) as { id: string };
-            setSelected((await vaultClient.getNoteById(restored.id)) as NoteDetail);
+            const restored = (await vaultClient.restoreNoteVersion(
+              noteId,
+              versionId,
+            )) as { id: string };
+            setSelected(
+              (await vaultClient.getNoteById(restored.id)) as NoteDetail,
+            );
             setEditorNonce((n) => n + 1);
             refreshNotes(activeTag);
           }}
@@ -944,6 +1309,7 @@ function Vault() {
         <FlowView
           nodes={flowData.nodes}
           edges={flowData.edges}
+          storageKey={vaultPath}
           onSelectNode={(id) => {
             setFlowData(null);
             openNote(id);
@@ -972,9 +1338,16 @@ function Vault() {
             setOpenCanvasId(null);
             openNote(id);
           }}
-          onLoad={(id) => vaultClient.getCanvas(id) as Promise<{ title: string; cards: CanvasCard[] }>}
+          onLoad={(id) =>
+            vaultClient.getCanvas(id) as Promise<{
+              title: string;
+              cards: CanvasCard[];
+            }>
+          }
           onSave={(input) => vaultClient.updateCanvas(input) as Promise<void>}
-          onSearchNotes={(query) => vaultClient.search(query) as Promise<SearchResultItem[]>}
+          onSearchNotes={(query) =>
+            vaultClient.search(query) as Promise<SearchResultItem[]>
+          }
           onCreateNote={createNoteForCanvas}
         />
       )}

@@ -41,7 +41,7 @@ This is an **npm workspaces monorepo**:
 - `apps/mobile` — 📱 React Native (Expo) app — same `packages/local-engine`, via an Expo file-system adapter, no login
 - `packages/core` — 📦 shared types, schemas, and note/link logic used across apps
 - `packages/local-engine` — 💾 local-first vault engine powering both the desktop and mobile apps
-- `packages/themes` — 🎨 shared theme format, built-in themes (Memphis, Classic) and install/list/remove helpers used by both apps
+- `packages/themes` — 🎨 shared theme format, built-in themes (Classic, Memphis, SnowUI) and install/list/remove helpers used by both apps
 
 ## ⚙️ Requirements
 
@@ -68,7 +68,7 @@ npm run dev:mobile    # 📱 Expo app — fully local, no login, no network
 
 ## 🎨 Themes
 
-Desktop and mobile share one theme format. A theme is a single **JSON file** — inert data, never code — that controls colours (light and dark), shape (border width, corner radius, an optional hard offset shadow) and font. Two themes ship built in: **Memphis** (the default) and **Classic** (the original slate-and-emerald look, thin borders, rounded corners).
+Desktop and mobile share one theme format. A theme is a single **JSON file** — inert data, never code — that controls colours (light and dark), shape (border width, corner radius, an optional hard offset shadow) and font. Three themes ship built in: **Classic** (the default — the original slate-and-emerald look, thin borders, rounded corners), **Memphis** and **SnowUI** (a quiet green, sage and cream palette with the same thin borders and rounded corners).
 
 **Memphis** is built on a five-colour palette, with heavy 3px borders, square corners and a blur-free teal offset shadow in both modes:
 
@@ -80,13 +80,13 @@ Desktop and mobile share one theme format. A theme is a single **JSON file** —
 | 🩵 | Teal | `#0cb2c0` | offset shadow, second accent in dark mode |
 | 🤍 | Cream | `#e8e6d9` | light-mode background, dark-mode text |
 
-Light mode is a cream ground with purple-black ink and borders; dark mode is a deep-purple ground with cream ink and yellow borders. The desktop app ships the same tokens as CSS fallbacks so the first paint is already Memphis (no flash before the saved theme loads); a unit test keeps them in sync with the theme definition. All UI colours come from the active theme — including the graph view — so nothing is hard-coded to one palette.
+Light mode is a cream ground with purple-black ink and borders; dark mode is a deep-purple ground with cream ink and yellow borders. The desktop app ships the default theme's tokens (Classic) as CSS fallbacks so the first paint is already themed (no flash before the saved theme loads); a unit test keeps them in sync with the theme definition. All UI colours come from the active theme — including the graph view — so nothing is hard-coded to one palette.
 
 **Switching and installing:** open **Settings** (the ⚙ in the desktop sidebar, or in the mobile vault header). Pick a theme, choose System / Light / Dark, and use **Install theme…** to import a `.json` file (or **Paste JSON**). Errors are shown inline with the offending field path.
 
-**Default:** Memphis is used when nothing is saved, and whenever the saved theme can't be loaded.
+**Default:** Classic is used when nothing is saved, and whenever the saved theme can't be loaded.
 
-**Where they live:** installed themes are saved in your vault as `<vault>/themes/<id>.json`, so they travel with it. There's no device-to-device sync yet — install the file on each device, or copy the vault folder. Your chosen theme and mode are stored in each app's own `settings.json`. If a saved theme can no longer be loaded, the app falls back to Memphis and flags it in Settings.
+**Where they live:** installed themes are saved in your vault as `<vault>/themes/<id>.json`, so they travel with it. There's no device-to-device sync yet — install the file on each device, or copy the vault folder. Your chosen theme and mode are stored in each app's own `settings.json`. If a saved theme can no longer be loaded, the app falls back to Classic and flags it in Settings.
 
 **Writing your own:**
 
@@ -108,7 +108,7 @@ Light mode is a cream ground with purple-black ink and borders; dark mode is a d
 - All 15 colour keys are required in each palette you provide, as `#rgb` or `#rrggbb`.
 - `borderWidth` 0–6, `radius` 0–24, `shadow` `x`/`y` 0–16 (`shadow` is optional).
 - `font` values are keywords: `sans`, `rounded-bold`, `serif`, `mono`.
-- `id` is 1–40 characters of `a-z`, `0-9`, `-`. `memphis` and `classic` are reserved. Imported files over 256 KB are rejected.
+- `id` is 1–40 characters of `a-z`, `0-9`, `-`. `memphis`, `classic` and `snowui` are reserved. Imported files over 256 KB are rejected.
 - Unknown keys are rejected, so typos surface as errors instead of being silently ignored.
 
 The design is in [docs/superpowers/specs/2026-09-19-installable-themes-design.md](./docs/superpowers/specs/2026-09-19-installable-themes-design.md).
@@ -129,7 +129,7 @@ npm run test                               # 🧪 unit tests
 npm run test:e2e -w @simplekasten/desktop  # 🎭 Playwright browser tests (desktop UI + themes)
 ```
 
-The Playwright suite (`apps/desktop/e2e`) runs the real renderer against a stubbed Electron bridge — no Electron process or real vault needed. It checks Memphis in light and dark, that it is the default (including a JavaScript-off first paint), that every colour painted on screen comes from the palette, and that Classic still works. First run: `npx playwright install chromium` inside `apps/desktop`. Screenshots and traces go to `test-results/` (gitignored).
+The Playwright suite (`apps/desktop/e2e`) runs the real renderer against a stubbed Electron bridge — no Electron process or real vault needed. It checks Memphis in light and dark, that Classic is the default (including a JavaScript-off first paint), and that every colour painted on screen comes from the palette. First run: `npx playwright install chromium` inside `apps/desktop`. Screenshots and traces go to `test-results/` (gitignored).
 
 ## 🖼️ App icon
 

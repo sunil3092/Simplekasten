@@ -1,29 +1,49 @@
 import { describe, expect, it } from "vitest";
-import { builtInThemes, classicTheme, DEFAULT_THEME_ID, defaultTheme, memphisTheme } from "./builtin";
+import {
+  builtInThemes,
+  classicTheme,
+  DEFAULT_THEME_ID,
+  defaultTheme,
+  memphisTheme,
+  snowUiTheme,
+} from "./builtin";
 import { RESERVED_THEME_IDS, themeSchema } from "./schema";
 import { resolveTheme } from "./resolve";
 
 describe("built-in themes", () => {
   it("are all valid against the schema", () => {
-    for (const theme of builtInThemes) expect(themeSchema.safeParse(theme).success).toBe(true);
+    for (const theme of builtInThemes)
+      expect(themeSchema.safeParse(theme).success).toBe(true);
   });
 
   it("use exactly the reserved ids", () => {
-    expect(builtInThemes.map((t) => t.id).sort()).toEqual([...RESERVED_THEME_IDS].sort());
+    expect(builtInThemes.map((t) => t.id).sort()).toEqual(
+      [...RESERVED_THEME_IDS].sort(),
+    );
   });
 
-  it("memphis is the default theme", () => {
-    expect(defaultTheme).toBe(memphisTheme);
-    expect(DEFAULT_THEME_ID).toBe("memphis");
-    expect(builtInThemes[0]).toBe(memphisTheme);
+  it("classic is the default theme", () => {
+    expect(defaultTheme).toBe(classicTheme);
+    expect(DEFAULT_THEME_ID).toBe("classic");
+    expect(builtInThemes[0]).toBe(classicTheme);
   });
 
   it("classic keeps the original slate palette", () => {
     expect(resolveTheme(classicTheme, "light").colors).toMatchObject({
-      bg: "#f8fafc", surface: "#ffffff", ink: "#0f172a", accent: "#059669", accent2: "#b45309", danger: "#dc2626",
+      bg: "#f8fafc",
+      surface: "#ffffff",
+      ink: "#0f172a",
+      accent: "#059669",
+      accent2: "#b45309",
+      danger: "#dc2626",
     });
     expect(resolveTheme(classicTheme, "dark").colors).toMatchObject({
-      bg: "#0b1120", surface: "#111827", ink: "#f1f5f9", accent: "#34d399", accent2: "#fbbf24", danger: "#f87171",
+      bg: "#0b1120",
+      surface: "#111827",
+      ink: "#f1f5f9",
+      accent: "#34d399",
+      accent2: "#fbbf24",
+      danger: "#f87171",
     });
   });
 
@@ -40,9 +60,32 @@ describe("built-in themes", () => {
   });
 
   it("memphis uses the purple/pink/yellow/teal/cream palette in both modes", () => {
-    expect(resolveTheme(memphisTheme, "light").colors).toMatchObject({ bg: "#e8e6d9", accent: "#f725a0" });
-    expect(resolveTheme(memphisTheme, "dark").colors).toMatchObject({
-      bg: "#1d0a2e", ink: "#e8e6d9", line: "#fad141", accent: "#f725a0", accent2: "#0cb2c0",
+    expect(resolveTheme(memphisTheme, "light").colors).toMatchObject({
+      bg: "#e8e6d9",
+      accent: "#f725a0",
     });
+    expect(resolveTheme(memphisTheme, "dark").colors).toMatchObject({
+      bg: "#1d0a2e",
+      ink: "#e8e6d9",
+      line: "#fad141",
+      accent: "#f725a0",
+      accent2: "#0cb2c0",
+    });
+  });
+
+  it("snowui uses the supplied palette with quiet professional geometry", () => {
+    expect(snowUiTheme.id).toBe("snowui");
+    expect(resolveTheme(snowUiTheme, "light").colors).toMatchObject({
+      bg: "#f4eed7",
+      line: "#c7d4cc",
+      accent: "#23764a",
+      danger: "#ca2525",
+    });
+    expect(resolveTheme(snowUiTheme, "dark").colors).toMatchObject({
+      bg: "#171e1a",
+      ink: "#f4eed7",
+    });
+    expect(snowUiTheme.shape).toEqual({ borderWidth: 1, radius: 8 });
+    expect(snowUiTheme.shape.shadow).toBeUndefined();
   });
 });
