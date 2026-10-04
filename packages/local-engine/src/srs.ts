@@ -34,13 +34,3 @@ export function addDays(date: string, days: number): string {
   const [y, m, d] = date.split("-").map(Number);
   return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
-
-/**
- * Today as "YYYY-MM-DD" on this device's own clock — the day the user would
- * call today, which a UTC date gets wrong for part of every day.
- */
-export function localToday(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}

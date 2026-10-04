@@ -23,6 +23,7 @@ import {
   updateTemplate,
   addToReviewQueue,
   listDueForReview,
+  listReviewInbox,
   removeFromReviewQueue,
   submitReview,
   listNoteVersions,
@@ -518,34 +519,61 @@ describe("attachments", () => {
   });
 
   describe("review queue", () => {
-    describe("new notes", () => {
-      // Local time, like the clock on the user's device.
-      beforeEach(() => vi.useFakeTimers({ now: new Date(2026, 9, 4, 23, 30), toFake: ["Date"] }));
+    describe("the inbox", () => {
+      // createdAt comes from the clock, and two notes made in the same
+      // millisecond would have no order to assert on.
+      beforeEach(() => vi.useFakeTimers({ now: new Date("2026-10-01T09:00:00Z"), toFake: ["Date"] }));
       afterEach(() => vi.useRealTimers());
 
-      it("queues a new fleeting note for review, due the day it was made", async () => {
-        const fs = createMemoryFs();
-        const explicit = await createNote(fs, { title: "Passing thought", content: "", type: "fleeting" });
-        const defaulted = await createNote(fs, { title: "Another", content: "" });
+      async function createLater(fs: ReturnType<typeof createMemoryFs>, input: Parameters<typeof createNote>[1]) {
+        vi.advanceTimersByTime(60_000);
+        return createNote(fs, input);
+      }
 
-        expect(explicit).toMatchObject({ reviewDue: "2026-10-04", reviewEase: 2.5, reviewInterval: 0, reviewReps: 0 });
-        expect(defaulted.reviewDue).toBe("2026-10-04");
-        expect((await listDueForReview(fs, "2026-10-04")).map((n) => n.id).sort()).toEqual([explicit.id, defaulted.id].sort());
+      it("lists fleeting notes only, oldest first", async () => {
+        const fs = createMemoryFs();
+        const first = await createLater(fs, { title: "First thought", content: "" });
+        await createLater(fs, { title: "Settled", content: "", type: "permanent" });
+        const second = await createLater(fs, { title: "Second thought", content: "", type: "fleeting" });
+        await createLater(fs, { title: "A book", content: "", type: "literature" });
+        await createLater(fs, { title: "Index", content: "", type: "structure" });
+        await getOrCreateDailyNote(fs, "2026-10-01");
+
+        expect((await listReviewInbox(fs)).map((n) => n.id)).toEqual([first.id, second.id]);
       });
 
-      it("leaves new notes of every other type out of the queue", async () => {
+      it("keeps its order when an older note is edited", async () => {
         const fs = createMemoryFs();
-        for (const type of ["literature", "permanent", "structure"] as const) {
-          expect((await createNote(fs, { title: type, content: "", type })).reviewDue, type).toBeNull();
-        }
-        expect((await getOrCreateDailyNote(fs, "2026-10-04")).reviewDue).toBeNull();
-        expect(await listDueForReview(fs, "2026-10-04")).toEqual([]);
+        const first = await createLater(fs, { title: "First", content: "" });
+        const second = await createLater(fs, { title: "Second", content: "" });
+        vi.advanceTimersByTime(60_000);
+        await updateNote(fs, { id: first.id, content: "edited later" });
+
+        expect((await listReviewInbox(fs)).map((n) => n.id)).toEqual([first.id, second.id]);
       });
 
-      it("does not queue a note that only becomes fleeting later", async () => {
+      it("drops a note once it is given another type, and takes one that becomes fleeting", async () => {
         const fs = createMemoryFs();
-        const note = await createNote(fs, { title: "Settled", content: "", type: "permanent" });
-        expect((await updateNote(fs, { id: note.id, type: "fleeting" })).reviewDue).toBeNull();
+        const thought = await createLater(fs, { title: "Thought", content: "" });
+        const settled = await createLater(fs, { title: "Settled", content: "", type: "permanent" });
+
+        await updateNote(fs, { id: thought.id, type: "permanent" });
+        expect(await listReviewInbox(fs)).toEqual([]);
+
+        await updateNote(fs, { id: settled.id, type: "fleeting" });
+        expect((await listReviewInbox(fs)).map((n) => n.id)).toEqual([settled.id]);
+      });
+
+      it("leaves out deleted notes", async () => {
+        const fs = createMemoryFs();
+        const thought = await createLater(fs, { title: "Thought", content: "" });
+        await deleteNote(fs, thought.id);
+        expect(await listReviewInbox(fs)).toEqual([]);
+      });
+
+      it("does not put a new note on the spaced-repetition schedule", async () => {
+        const fs = createMemoryFs();
+        expect((await createLater(fs, { title: "Thought", content: "" })).reviewDue).toBeNull();
       });
     });
 
