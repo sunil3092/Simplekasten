@@ -329,6 +329,18 @@ describe("attachments", () => {
       expect(await listNotes(fs)).toHaveLength(2);
     });
 
+    it("tags every daily note as a journal entry without the tag being assigned", async () => {
+      const fs = createMemoryFs();
+      const daily = await getOrCreateDailyNote(fs, "2026-09-22");
+      await createNote(fs, { title: "Ordinary", content: "" });
+
+      const detail = await getNoteById(fs, daily.id);
+      expect(detail?.tagNames).toEqual(["journalentry"]);
+      expect(detail?.assignedTags).toEqual([]);
+      expect(await listTags(fs)).toEqual([expect.objectContaining({ name: "journalentry", noteCount: 1 })]);
+      expect((await listNotes(fs, "journalentry")).map((n) => n.id)).toEqual([daily.id]);
+    });
+
     it("assigns daily notes a zettelId from the normal sequence, not a separate namespace", async () => {
       const fs = createMemoryFs();
       await createNote(fs, { title: "Ordinary", content: "" });

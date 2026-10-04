@@ -4,7 +4,7 @@ import { stubBridge } from "./bridge";
 // Fixture: "Atomic Habits" has #habits in its text and no assigned tags;
 // "Systems" has the assigned tag "method" (see bridge.ts).
 test("tag dropdown assigns, creates and unassigns tags; #hashtags are locked", async ({ page }) => {
-  await stubBridge(page, { theme: "memphis", themeMode: "light" });
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
   await page.goto("/");
   await page.getByRole("button", { name: /Atomic Habits/ }).first().click();
 
@@ -43,4 +43,18 @@ test("tag dropdown assigns, creates and unassigns tags; #hashtags are locked", a
   await expect(trigger).toContainText("2");
   // And the sidebar's tag chips pick up the new tag.
   await expect(page.locator("aside").first().getByRole("button", { name: /#reading/ })).toBeVisible();
+});
+
+test("typing # in the editor suggests existing tags", async ({ page }) => {
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
+  await page.goto("/");
+  await page.getByRole("button", { name: /Atomic Habits/ }).first().click();
+  const editor = page.locator("main .cm-content");
+  await editor.click();
+  await page.keyboard.press("Control+End");
+  await page.keyboard.type(" #me");
+  await expect(page.locator(".cm-tooltip-autocomplete")).toContainText("method");
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Enter");
+  await expect(editor).toContainText("#method");
 });

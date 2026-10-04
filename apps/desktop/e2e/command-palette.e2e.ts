@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { stubBridge } from "./bridge";
 
 test.beforeEach(async ({ page }) => {
-  await stubBridge(page, { theme: "memphis", themeMode: "light" });
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
   await page.goto("/");
 });
 

@@ -2,13 +2,14 @@ import { expect, test } from "@playwright/test";
 import { stubBridge } from "./bridge";
 
 test.beforeEach(async ({ page }) => {
-  await stubBridge(page, { theme: "memphis", themeMode: "light" });
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
   await page.goto("/");
 });
 
 test("creating a canvas opens it, and it appears in the sidebar", async ({ page }) => {
-  page.once("dialog", (dialog) => dialog.accept("Project layout"));
   await page.getByRole("button", { name: "New canvas…" }).click();
+  await page.getByRole("textbox", { name: "New canvas" }).fill("Project layout");
+  await page.getByRole("button", { name: "Create" }).click();
 
   const canvas = page.getByTestId("canvas-view");
   await expect(canvas).toBeVisible();
@@ -20,8 +21,9 @@ test("creating a canvas opens it, and it appears in the sidebar", async ({ page 
 });
 
 test("adding a note card and a text card, then reopening the canvas keeps them", async ({ page }) => {
-  page.once("dialog", (dialog) => dialog.accept("Board"));
   await page.getByRole("button", { name: "New canvas…" }).click();
+  await page.getByRole("textbox", { name: "New canvas" }).fill("Board");
+  await page.getByRole("button", { name: "Create" }).click();
   const canvas = page.getByTestId("canvas-view");
 
   await canvas.getByRole("button", { name: "Note card" }).click();
@@ -44,8 +46,9 @@ test("adding a note card and a text card, then reopening the canvas keeps them",
 });
 
 test("clicking a note card opens that note and closes the canvas", async ({ page }) => {
-  page.once("dialog", (dialog) => dialog.accept("Board"));
   await page.getByRole("button", { name: "New canvas…" }).click();
+  await page.getByRole("textbox", { name: "New canvas" }).fill("Board");
+  await page.getByRole("button", { name: "Create" }).click();
   const canvas = page.getByTestId("canvas-view");
 
   await canvas.getByRole("button", { name: "Note card" }).click();
@@ -58,8 +61,9 @@ test("clicking a note card opens that note and closes the canvas", async ({ page
 });
 
 test("removing a card deletes it", async ({ page }) => {
-  page.once("dialog", (dialog) => dialog.accept("Board"));
   await page.getByRole("button", { name: "New canvas…" }).click();
+  await page.getByRole("textbox", { name: "New canvas" }).fill("Board");
+  await page.getByRole("button", { name: "Create" }).click();
   const canvas = page.getByTestId("canvas-view");
 
   await canvas.getByRole("button", { name: "Text card" }).click();

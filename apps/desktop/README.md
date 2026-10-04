@@ -15,6 +15,19 @@ This starts the Next.js dev server on `localhost:3000` and opens it in a
 native Electron window once the dev server is ready. Requires a display —
 this won't render anything over a headless remote session.
 
+## Finding your way around
+
+- **Sidebar:** Create, Navigate, Views, Tags, Maps of Content, Canvases,
+  Journal and the note list each fold away from their heading. Settings
+  stays pinned at the bottom.
+- **Settings:** the vault folder (choose a folder, or reveal it on disk),
+  the theme, and light or dark mode.
+- **Views:** Graph view, Flow view (`docs/features/flow-view.md`) and
+  canvases (`docs/features/canvas.md`) open full-screen over the editor.
+- **No menu bar:** on Windows and Linux the File/Edit/View menu is removed.
+  In `npm run dev`, `F5`/`Ctrl+R` still reload and `F12`/`Ctrl+Shift+I`
+  still open DevTools. macOS keeps its system menu.
+
 ## Test
 
 ```
@@ -28,6 +41,21 @@ vault. Install the browser once with `npx playwright install chromium`. They
 start `npm run dev:renderer` themselves, or reuse one already on port 3000.
 Output goes to the repo-root `test-results/` — deliberately outside this
 folder, since Next's dev server watches it and would hot-reload mid-test.
+
+Electron doesn't implement `window.prompt()`, `confirm()` or `alert()` the
+way a browser does — `prompt()` shows nothing at all — and the browser tests
+can't catch that. Ask for input with `PromptDialog` or `ConfirmDialog` from
+`src/components/ui.tsx` instead.
+
+## Demo
+
+```
+npm run demo -w @simplekasten/desktop
+```
+
+Rebuilds `docs/demo/tour.gif`, the walkthrough in the root README, by driving
+the renderer through `demo/tour.demo.ts` and joining the screenshots. Run it
+after a UI change that makes the walkthrough out of date.
 
 ## Theming
 

@@ -3,7 +3,7 @@ import { stubBridge } from "./bridge";
 
 // Fixture starts with 2 ordinary notes, no daily notes (see bridge.ts).
 test.beforeEach(async ({ page }) => {
-  await stubBridge(page, { theme: "memphis", themeMode: "light" });
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
   await page.goto("/");
 });
 
@@ -29,7 +29,7 @@ test("Next day creates a new note, and the Journal section lists it", async ({ p
   await page.getByRole("button", { name: "Today" }).click();
 
   const sidebar = page.locator("aside").first();
-  await expect(sidebar.getByText("Journal")).toBeVisible();
+  await expect(sidebar.getByText("Journal", { exact: true })).toBeVisible();
   await expect(sidebar.getByText("3 notes")).toBeVisible();
   await expect(page.getByTestId("journal-list").locator("button")).toHaveCount(1);
 

@@ -3,7 +3,7 @@ import { stubBridge } from "./bridge";
 
 // Fixture starts with 2 ordinary notes, neither in the review queue (see bridge.ts).
 test.beforeEach(async ({ page }) => {
-  await stubBridge(page, { theme: "memphis", themeMode: "light" });
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
   await page.goto("/");
 });
 

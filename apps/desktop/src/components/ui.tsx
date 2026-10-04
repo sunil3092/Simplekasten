@@ -188,6 +188,55 @@ export function Modal({
   );
 }
 
+/**
+ * Asks for one line of text over the current screen. Used instead of
+ * window.prompt(), which Electron doesn't implement — there it shows nothing.
+ */
+export function PromptDialog({
+  title,
+  defaultValue,
+  confirmLabel,
+  onSubmit,
+  onCancel,
+}: {
+  title: string;
+  defaultValue: string;
+  confirmLabel: string;
+  onSubmit: (value: string) => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal onClose={onCancel} topClass="pt-[20vh]" label={title}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit(String(new FormData(e.currentTarget).get("value") ?? ""));
+        }}
+      >
+        <div className="px-5 pt-5 pb-4">
+          <h2 className="font-display mb-3 text-lg font-bold text-ink">{title}</h2>
+          <input
+            name="value"
+            aria-label={title}
+            defaultValue={defaultValue}
+            autoFocus
+            onFocus={(e) => e.currentTarget.select()}
+            className="w-full rounded-lg border-(length:--border-w) border-line bg-surface px-3 py-2 text-sm text-ink outline-none focus:border-accent"
+          />
+        </div>
+        <div className="flex justify-end gap-2 border-t-(length:--border-w) border-line-soft px-5 py-3">
+          <Button variant="ghost" type="button" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit">
+            {confirmLabel}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 /** A yes/no question over the current screen — used for destructive actions. */
 export function ConfirmDialog({
   title,

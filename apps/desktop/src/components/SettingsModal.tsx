@@ -18,7 +18,13 @@ function Swatch({ theme }: { theme: Theme }) {
   );
 }
 
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+interface VaultSettings {
+  path: string;
+  onChoose: () => void;
+  onShow: () => void;
+}
+
+export function SettingsModal({ onClose, vault }: { onClose: () => void; vault?: VaultSettings }) {
   const { themes, activeId, mode, notice, setTheme, setMode, installFromFile, installFromText, remove } = useTheme();
   const [pasting, setPasting] = useState(false);
   const [json, setJson] = useState("");
@@ -51,6 +57,21 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="max-h-[70vh] overflow-y-auto px-5 py-4">
+        {vault && (
+          <>
+            <SectionHeading className="mb-2">Vault</SectionHeading>
+            <p data-testid="vault-path" title={vault.path} className="mb-2 truncate font-mono text-xs text-ink-muted">
+              {vault.path}
+            </p>
+            <div className="mb-5 flex gap-2">
+              <Button onClick={vault.onChoose}>Choose vault folder…</Button>
+              <Button variant="ghost" onClick={vault.onShow}>
+                Show vault location
+              </Button>
+            </div>
+          </>
+        )}
+
         <SectionHeading className="mb-2">Theme</SectionHeading>
 
         {notice && (

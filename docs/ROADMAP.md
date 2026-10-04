@@ -15,8 +15,8 @@ the future home of an *opt-in* cross-device sync feature — not deleted, not
 live. The app was also renamed **Simplekasten**. This resolves gap #12
 below (it's done, not deferred) and adds a shipped feature this doc's
 original pass missed: **installable themes** (`packages/themes` — parse,
-resolve, and hot-swap community theme files; ships with Classic and
-Memphis). The gap table below is corrected accordingly; feature specs below
+resolve, and hot-swap community theme files; ships with Classic — the
+default — plus Memphis and SnowUI). The gap table below is corrected accordingly; feature specs below
 it now target the local-engine architecture.
 
 **Purpose of this doc:** persistent, resumable plan. If a session runs out of
@@ -35,8 +35,8 @@ bidirectional `[[wiki-links]]` + backlinks panel · note types
 platforms · auto-parsed `#hashtags` + tag filter · graph view (local
 neighborhood + whole vault, pan/pinch-zoom on mobile) · CodeMirror 6 editor
 (desktop) / native `[[` suggestions (mobile) · Maps of Content (structure
-notes as index pages) · installable/hot-swappable themes (Classic, Memphis,
-plus user-supplied theme files) · photo + voice-note attachments on both
+notes as index pages) · installable/hot-swappable themes (Classic by default, Memphis,
+SnowUI, plus user-supplied theme files) · photo + voice-note attachments on both
 platforms (desktop: file picker; mobile: camera/library/recording) · delete
 note with confirmation, both platforms · dark mode · a shared UI/copy/icon
 layer (`packages/core`) keeping desktop and mobile in visual and
@@ -100,9 +100,12 @@ separate `claude/flow-view-prototype` branch to demo the idea before
 committing to the full spec→engine→both-UIs→tests process every other
 shipped feature here went through; `flow-layout.ts` (the layered-DAG
 layout algorithm) and desktop-only `FlowView.tsx` were merged into `main`
-2026-10-04 once the direction was approved. It still needs a proper spec
-doc, mobile UI, and dedicated e2e coverage before it could be called
-shipped the way the features above are.
+2026-10-04 once the direction was approved. Later the same day it grew
+into a working surface on desktop: draggable cards with remembered
+positions, arrows routed around cards (`flow-routing.ts`), a tag search,
+a journal toggle, and in-place create/edit/retype/delete with link and tag
+suggestions. It now has a spec doc (`docs/features/flow-view.md`) and
+dedicated e2e coverage; only the mobile UI is still missing.
 
 ## Status
 
@@ -114,6 +117,7 @@ shipped the way the features above are.
 | Command palette | ✅ | n/a (UI-only) | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Version history | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-25 |
 | Canvas | ✅ | ✅ | ✅ | ✅ (view-only) | ✅ | ✅ 2026-09-25 |
+| Flow view | ✅ | ✅ | ✅ | ❌ not started | ✅ | Desktop only, 2026-10-04 |
 
 *(Update this table as work lands. This is the single source of truth for "where did we leave off." If a session ends mid-feature, leave a "Where this left off" note in that feature's spec doc with the exact next file/function to touch.)*
 

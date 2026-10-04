@@ -2,12 +2,25 @@ import type { Page } from "@playwright/test";
 
 /**
  * Stubs the Electron preload bridge (`window.simplekasten`) so the renderer
- * runs in a plain browser. Notes are in-memory fixtures; content writes are
- * no-ops, but deletes and attachment changes update the fixtures so specs
- * can see their effect.
+ * runs in a plain browser. Notes are in-memory fixtures; creates, edits,
+ * deletes and attachment changes update them so specs can see their effect.
  */
-export async function stubBridge(page: Page, settings: { theme: string; themeMode: "system" | "light" | "dark" }) {
-  await page.addInitScript((s) => {
+export interface SeedNote {
+  id: string;
+  zettelId: string;
+  title: string;
+  content: string;
+  type: string;
+  tags: string[];
+  noteDate?: string;
+}
+
+/**
+ * `seed` replaces the two default fixture notes — used by the README demo
+ * tour (see ../demo), which wants a fuller vault than the specs do.
+ */
+export async function stubBridge(page: Page, settings: { theme: string; themeMode: "system" | "light" | "dark" }, seed?: SeedNote[]) {
+  await page.addInitScript(({ s, seed }) => {
     const notes: {
       id: string;
       zettelId: string;
@@ -20,14 +33,15 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
       reviewEase?: number;
       reviewInterval?: number;
       reviewReps?: number;
-    }[] = [
+    }[] = seed ?? [
       { id: "a", zettelId: "1", title: "Atomic Habits", content: "Small changes compound. #habits", type: "fleeting", tags: [] },
       { id: "b", zettelId: "2", title: "Systems", content: "See [[Atomic Habits]].", type: "permanent", tags: ["method"] },
     ];
     let nextNote = 1;
-    // Mirrors the engine: a note's tags are its assigned tags plus #hashtags.
+    // Mirrors the engine: a note's tags are its assigned tags plus #hashtags,
+    // plus the built-in journal tag on daily notes.
     const tagsOf = (n: (typeof notes)[number]) =>
-      [...new Set([...n.tags, ...Array.from(n.content.matchAll(/(?<![#\w])#([a-zA-Z][\w/-]*)/g), (m) => m[1].toLowerCase())])].sort();
+      [...new Set([...n.tags, ...(n.type === "daily" ? ["journalentry"] : []), ...Array.from(n.content.matchAll(/(?<![#\w])#([a-zA-Z][\w/-]*)/g), (m) => m[1].toLowerCase())])].sort();
     const templates: { id: string; name: string; content: string; isDefaultForDailyNote: boolean }[] = [];
     let nextTemplate = 1;
     // "Atomic Habits" starts with one earlier version, as if it had been
@@ -58,9 +72,15 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
     const silence = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
     const detail = (id: string) => {
       const n = notes.find((x) => x.id === id)!;
-      const backlinks = id === "a" ? [{ noteId: "b", title: "Systems", zettelId: "2" }] : [];
-      const contents =
-        id === "b" ? [{ noteId: "a", title: "Atomic Habits", zettelId: "1", resolved: true }] : [];
+      // Like the engine: links resolve by title, case-insensitively.
+      const linkTitles = (x: (typeof notes)[number]) => Array.from(x.content.matchAll(/\[\[([^\]|]+)/g), (m) => m[1].trim());
+      const backlinks = notes
+        .filter((x) => x.id !== id && linkTitles(x).some((t) => t.toLowerCase() === n.title.toLowerCase()))
+        .map((x) => ({ noteId: x.id, title: x.title, zettelId: x.zettelId }));
+      const contents = linkTitles(n).map((title) => {
+        const target = notes.find((x) => x.title.toLowerCase() === title.toLowerCase());
+        return { noteId: target?.id ?? null, title: target?.title ?? title, zettelId: target?.zettelId ?? null, resolved: !!target };
+      });
       const own = attachments.filter((a) => a.noteId === id);
       return {
         ...n,
@@ -95,9 +115,16 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
         listNotes: async (tag?: string) =>
           notes.filter((n) => !tag || tagsOf(n).includes(tag)).map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type, updatedAt: stamp })),
         getNoteById: async (id: string) => detail(id),
-        createNote: async () => detail("a"),
-        updateNote: async (input: { id: string; tags?: string[] }) => {
+        createNote: async (input: { title: string; content: string; type?: string }) => {
+          const id = `new${nextNote++}`;
+          notes.push({ id, zettelId: String(notes.length + 1), title: input.title, content: input.content, type: input.type ?? "fleeting", tags: [] });
+          return detail(id);
+        },
+        updateNote: async (input: { id: string; title?: string; content?: string; type?: string; tags?: string[] }) => {
           const n = notes.find((x) => x.id === input.id)!;
+          if (input.title !== undefined) n.title = input.title;
+          if (input.content !== undefined) n.content = input.content;
+          if (input.type !== undefined) n.type = input.type;
           if (input.tags) n.tags = [...input.tags].sort();
           return detail(input.id);
         },
@@ -110,7 +137,12 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
         search: async () => [],
         getGraph: async () => ({
           nodes: notes.map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type })),
-          edges: [{ source: "b", target: "a" }],
+          // Like the engine: one edge per [[wiki-link]] that names an existing note.
+          edges: notes.flatMap((n) =>
+            Array.from(n.content.matchAll(/\[\[([^\]|]+)/g), (m) => notes.find((x) => x.title.toLowerCase() === m[1].trim().toLowerCase()))
+              .filter((target): target is (typeof notes)[number] => !!target && target.id !== n.id)
+              .map((target) => ({ source: n.id, target: target.id })),
+          ),
         }),
         listTags: async () => {
           const counts = new Map<string, number>();
@@ -243,5 +275,5 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
         },
       },
     };
-  }, settings);
+  }, { s: settings, seed });
 }

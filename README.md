@@ -13,6 +13,25 @@ Simplekasten is a **Zettelkasten**-based memory management app. It takes Niklas 
 | 🏷️ tag once, forget forever | 🔗 resurfaces connections between ideas |
 | 🔒 lock you into their format | 📤 exports to plain markdown, always |
 
+## 🎬 Quick tour
+
+![A ten-step walkthrough of the desktop app](./docs/demo/tour.gif)
+
+The walkthrough above runs through the desktop app. To follow along yourself:
+
+1. **Start it.** `npm install`, then `npm run dev:desktop`. The first launch opens an empty vault; **Settings → Vault → Choose vault folder…** points it at any folder you like.
+2. **Write a note.** **New note** creates one. Notes are Markdown, and they save as you type.
+3. **Link and tag as you write.** Type `[[` to link another note or `#` to reuse a tag; both suggest as you type. The panel on the right lists what the note links to and what links back.
+4. **Jump around.** `Ctrl/Cmd+K` opens the quick switcher. Type a title to open a note, or start with `>` to run a command.
+5. **Filter by tag.** Click a tag in the sidebar to narrow the note list. Every sidebar section folds away from its heading.
+6. **Keep a journal.** **Today** (`Ctrl/Cmd+J`) opens the day's journal note. Journal notes are tagged `#journalentry` automatically.
+7. **See the network.** **Graph view** shows the vault as linked dots.
+8. **Follow a line of thought.** **Flow view** lays the same notes out top to bottom by their links. Filter it by tag to follow one branch, drag cards by their header, and write, retype, create or delete notes right on the cards.
+9. **Review.** Add a note to the review queue from its header, and **Review** resurfaces it on a spaced schedule.
+10. **Make it yours.** **Settings** holds the vault folder, the theme, and light or dark mode.
+
+The GIF is generated from the real UI: `npm run demo -w @simplekasten/desktop` rebuilds it after a UI change.
+
 ## 🧭 How it fits together
 
 ```mermaid
@@ -68,23 +87,19 @@ npm run dev:mobile    # 📱 Expo app — fully local, no login, no network
 
 ## 🎨 Themes
 
-Desktop and mobile share one theme format. A theme is a single **JSON file** — inert data, never code — that controls colours (light and dark), shape (border width, corner radius, an optional hard offset shadow) and font. Three themes ship built in: **Classic** (the default — the original slate-and-emerald look, thin borders, rounded corners), **Memphis** and **SnowUI** (a quiet green, sage and cream palette with the same thin borders and rounded corners).
+Desktop and mobile share one theme format. A theme is a single **JSON file** — inert data, never code — that controls colours (light and dark), shape (border width, corner radius, an optional hard offset shadow) and font.
 
-**Memphis** is built on a five-colour palette, with heavy 3px borders, square corners and a blur-free teal offset shadow in both modes:
+Three themes ship built in:
 
-| | Colour | Hex | Where it shows up |
-|---|---|---|---|
-| 🟣 | Purple | `#672394` | link and hover colour (light), base of the ink and the dark background |
-| 🩷 | Pink | `#f725a0` | accent — primary buttons, selected note |
-| 🟡 | Yellow | `#fad141` | borders in dark mode, chips in light mode |
-| 🩵 | Teal | `#0cb2c0` | offset shadow, second accent in dark mode |
-| 🤍 | Cream | `#e8e6d9` | light-mode background, dark-mode text |
+| Theme | Look |
+|---|---|
+| **Classic** (default) | Slate and emerald, thin 1px borders, rounded corners, no hard shadow. |
+| **Memphis** | Purple, pink, yellow, teal and cream, with heavy 3px borders, square corners and a blur-free teal offset shadow. |
+| **SnowUI** | A quiet green, sage and cream palette with Classic's thin borders and rounded corners. |
 
-Light mode is a cream ground with purple-black ink and borders; dark mode is a deep-purple ground with cream ink and yellow borders. The desktop app ships the default theme's tokens (Classic) as CSS fallbacks so the first paint is already themed (no flash before the saved theme loads); a unit test keeps them in sync with the theme definition. All UI colours come from the active theme — including the graph view — so nothing is hard-coded to one palette.
+**Default:** Classic is used when nothing is saved, and whenever the saved theme can't be loaded. The desktop app also ships Classic's tokens as CSS fallbacks, so the first paint is already themed (no flash before the saved theme loads); a unit test keeps them in sync with the theme definition. All UI colours come from the active theme — including the graph and flow views — so nothing is hard-coded to one palette.
 
-**Switching and installing:** open **Settings** (the ⚙ in the desktop sidebar, or in the mobile vault header). Pick a theme, choose System / Light / Dark, and use **Install theme…** to import a `.json` file (or **Paste JSON**). Errors are shown inline with the offending field path.
-
-**Default:** Classic is used when nothing is saved, and whenever the saved theme can't be loaded.
+**Switching and installing:** open **Settings** (at the bottom of the desktop sidebar, or in the mobile vault header). Pick a theme, choose System / Light / Dark, and use **Install theme…** to import a `.json` file (or **Paste JSON**). Errors are shown inline with the offending field path.
 
 **Where they live:** installed themes are saved in your vault as `<vault>/themes/<id>.json`, so they travel with it. There's no device-to-device sync yet — install the file on each device, or copy the vault folder. Your chosen theme and mode are stored in each app's own `settings.json`. If a saved theme can no longer be loaded, the app falls back to Classic and flags it in Settings.
 
@@ -119,7 +134,15 @@ Link notes with `[[Note Title]]` (or `[[Note Title|alias]]`). Links resolve by t
 
 ## 🏷️ Tags
 
-Tags are optional. Write `#tag` anywhere in a note, or use the **Tags** dropdown in the note header (a sheet on mobile) to assign existing tags or create new ones without touching the text. Assigned tags are stored in the note's frontmatter as `tags:`, and only once a note has at least one. A note's tags are both kinds together: filtering, counts and the tag chips treat them the same. A tag that comes from a `#hashtag` shows as locked in the dropdown ("in text"), since removing it means editing the note. Tag names follow the hashtag rule: they start with a letter and use only letters, digits, `_`, `/` or `-`.
+Tags are optional. Write `#tag` anywhere in a note, or use the **Tags** dropdown in the note header (a sheet on mobile) to assign existing tags or create new ones without touching the text. Assigned tags are stored in the note's frontmatter as `tags:`, and only once a note has at least one. A note's tags are both kinds together: filtering, counts and the tag chips treat them the same. A tag that comes from a `#hashtag` shows as locked in the dropdown ("in text"), since removing it means editing the note. Tag names follow the hashtag rule: they start with a letter and use only letters, digits, `_`, `/` or `-`. They are stored in lowercase, so `#Idea` and `#idea` are the same tag.
+
+Typing `#` in the desktop editor suggests the tags the vault already has, so the same tag gets reused instead of a near-duplicate.
+
+**Journal notes** always carry the built-in `#journalentry` tag. It comes from the note being a journal (daily) note rather than from anything written or assigned, so it covers every journal entry, old and new, and shows as locked in the dropdown. Use it to pick journal entries out, in the note list or in Flow view.
+
+## 🌊 Flow view
+
+Flow view (desktop) reads the vault's links as a top-to-bottom diagram: a note that links to another sits above it, with an arrow down to the target. Cards arrange themselves and can be dragged by their header; arrows bend around cards rather than passing behind them. A tag search narrows the flow to the notes carrying any chosen tag (including **Untagged**), and a **Journal** toggle hides or shows journal entries. Notes are edited on the cards themselves, with the same `[[` and `#` suggestions as the main editor, and each card can change its note type, open in the editor, or be deleted. Details in [docs/features/flow-view.md](./docs/features/flow-view.md).
 
 ## ✅ Testing & checks
 
@@ -129,11 +152,11 @@ npm run test                               # 🧪 unit tests
 npm run test:e2e -w @simplekasten/desktop  # 🎭 Playwright browser tests (desktop UI + themes)
 ```
 
-The Playwright suite (`apps/desktop/e2e`) runs the real renderer against a stubbed Electron bridge — no Electron process or real vault needed. It checks Memphis in light and dark, that Classic is the default (including a JavaScript-off first paint), and that every colour painted on screen comes from the palette. First run: `npx playwright install chromium` inside `apps/desktop`. Screenshots and traces go to `test-results/` (gitignored).
+The Playwright suite (`apps/desktop/e2e`) runs the real renderer against a stubbed Electron bridge — no Electron process or real vault needed. It covers the sidebar, notes, links, tags, journal, templates, review, version history, canvas and flow view, and the themes: that Classic is the default (including a JavaScript-off first paint), and that under Memphis every colour painted on screen comes from the palette. First run: `npx playwright install chromium` inside `apps/desktop`. Screenshots and traces go to `test-results/` (gitignored).
 
 ## 🖼️ App icon
 
-The icon (two linked slips from the slip-box, on Memphis purple) is drawn once as SVG in `assets/icon/`, with a simplified version for 32px and below and a monochrome outline for Android themed icons. `npm run build:icons` renders every platform's file from those: desktop `icon.ico`, `icon.icns` and `icon.png`, and the mobile app icon, Android adaptive layers, splash and favicon. The outputs are committed, so re-run it only when the artwork changes.
+The icon (two linked slips from the slip-box, on a purple tile) is drawn once as SVG in `assets/icon/`, with a simplified version for 32px and below and a monochrome outline for Android themed icons. `npm run build:icons` renders every platform's file from those: desktop `icon.ico`, `icon.icns` and `icon.png`, and the mobile app icon, Android adaptive layers, splash and favicon. The outputs are committed, so re-run it only when the artwork changes.
 
 ## 📦 Build
 

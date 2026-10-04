@@ -4,7 +4,7 @@ import { stubBridge } from "./bridge";
 // "Atomic Habits" starts with one earlier version (see bridge.ts) whose
 // content included a line ("Start tiny.") the current note no longer has.
 test.beforeEach(async ({ page }) => {
-  await stubBridge(page, { theme: "memphis", themeMode: "light" });
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
   await page.goto("/");
 });
 

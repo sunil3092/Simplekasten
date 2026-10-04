@@ -17,7 +17,6 @@ import {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  DownloadIcon,
   FileTextIcon,
   FlowIcon,
   HashIcon,
@@ -49,6 +48,7 @@ import {
   IconButton,
   Kbd,
   NoteLink,
+  PromptDialog,
   SaveStatusIndicator,
   SectionHeading,
 } from "../components/ui";
@@ -173,6 +173,7 @@ function Vault() {
   const [editorNonce, setEditorNonce] = useState(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [namingCanvas, setNamingCanvas] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const { notice: themeNotice } = useTheme();
   const [graphData, setGraphData] = useState<GraphData | null>(null);
@@ -318,6 +319,8 @@ function Vault() {
     setSaveStatus("saved");
     refreshNotes(activeTag);
     refreshDailyNotes();
+    // A new daily note brings the journal tag with it.
+    refreshTags();
   }
 
   async function createTemplate(input: { name: string; content: string }) {
@@ -535,13 +538,57 @@ function Vault() {
     setFlowData((await vaultClient.getGraph()) as GraphData);
   }
 
+  // Re-reads links and notes for an open flow view. A save can still land
+  // just after the view closes; that must not bring it back.
+  async function refreshFlow() {
+    const graph = (await vaultClient.getGraph()) as GraphData;
+    setFlowData((current) => (current ? graph : current));
+  }
+
+  // Edits made on flow cards have to reach everything else that shows the
+  // note: the note list, the tag list, and the editor if it has it open.
+  async function saveNoteFromFlow(input: {
+    id: string;
+    title?: string;
+    content?: string;
+    type?: string;
+  }) {
+    await vaultClient.updateNote(input);
+    const fresh = (await vaultClient.getNoteById(input.id)) as NoteDetail;
+    refreshNotes(activeTag);
+    refreshTags();
+    // A type change can add or remove a journal entry or a map of content.
+    if (input.type !== undefined) refreshDailyNotes();
+    refreshFlow();
+    if (selected?.id === input.id) {
+      setSelected(fresh);
+      setEditorNonce((n) => n + 1);
+    }
+    return { tags: fresh.tagNames };
+  }
+
+  async function createNoteFromFlow() {
+    const note = await createNoteForCanvas("Untitled");
+    await refreshFlow();
+    return note;
+  }
+
+  async function deleteNoteFromFlow(id: string) {
+    await vaultClient.deleteNote(id);
+    if (selected?.id === id) setSelected(null);
+    refreshNotes(activeTag);
+    refreshTags();
+    refreshDailyNotes();
+    refreshDueCount();
+    await refreshFlow();
+  }
+
   async function showVault() {
     await showVaultLocation();
   }
 
-  async function createCanvas() {
-    const title = window.prompt("Canvas title", "Untitled canvas");
-    if (title === null) return;
+  async function createCanvas(title: string) {
+    setNamingCanvas(false);
     const canvas = (await vaultClient.createCanvas({
       title: title.trim() || "Untitled canvas",
     })) as { id: string };
@@ -713,27 +760,6 @@ function Vault() {
           <div className="truncate px-2 py-1.5 text-sm font-semibold text-ink">
             {vaultName}
           </div>
-          <SidebarDisclosure title="Vault">
-            <div className="flex flex-col gap-0.5">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-                onClick={chooseFolder}
-              >
-                Choose vault folder…
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full justify-start"
-                onClick={showVault}
-              >
-                <DownloadIcon />
-                Show vault location
-              </Button>
-            </div>
-          </SidebarDisclosure>
         </div>
 
         <div className="-mr-1.5 min-h-0 flex-1 overflow-y-auto pr-1.5">
@@ -752,7 +778,7 @@ function Vault() {
                   variant="ghost"
                   size="sm"
                   className="w-full justify-start"
-                  onClick={createCanvas}
+                  onClick={() => setNamingCanvas(true)}
                 >
                   <LayoutIcon />
                   New canvas…
@@ -1139,6 +1165,7 @@ function Vault() {
                 noteTitles={notes
                   .filter((n) => n.id !== selected.id)
                   .map((n) => n.title)}
+                tagNames={tags.map((t) => t.name)}
               />
 
               {attachmentError && (
@@ -1228,7 +1255,12 @@ function Vault() {
         />
       )}
 
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          vault={{ path: vaultPath, onChoose: chooseFolder, onShow: showVault }}
+        />
+      )}
 
       {templatesOpen && (
         <TemplatesModal
@@ -1269,6 +1301,16 @@ function Vault() {
             setEditorNonce((n) => n + 1);
             refreshNotes(activeTag);
           }}
+        />
+      )}
+
+      {namingCanvas && (
+        <PromptDialog
+          title="New canvas"
+          defaultValue="Untitled canvas"
+          confirmLabel="Create"
+          onSubmit={createCanvas}
+          onCancel={() => setNamingCanvas(false)}
         />
       )}
 
@@ -1317,12 +1359,15 @@ function Vault() {
           onClose={() => setFlowData(null)}
           onLoadNote={async (id) => {
             const note = (await vaultClient.getNoteById(id)) as NoteDetail;
-            return { title: note.title, content: note.content };
+            return {
+              title: note.title,
+              content: note.content,
+              tags: note.tagNames,
+            };
           }}
-          onSaveNote={async (input) => {
-            await vaultClient.updateNote(input);
-            refreshNotes(activeTag);
-          }}
+          onSaveNote={saveNoteFromFlow}
+          onCreateNote={createNoteFromFlow}
+          onDeleteNote={deleteNoteFromFlow}
         />
       )}
 

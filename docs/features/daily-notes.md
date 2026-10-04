@@ -143,3 +143,15 @@ without re-parsing the human-readable title) — populated in
 `getNoteById`. See `docs/ROADMAP.md`'s status table for verification
 details (115 unit tests, 15 desktop e2e tests, mobile typecheck + visual
 smoke test).
+
+## Later: the journal tag (2026-10-04)
+
+Every daily note carries the built-in tag `journalentry` (`JOURNAL_TAG` in
+`packages/core`). It is derived in `computeTags()` from the note's type
+rather than stored in frontmatter, so it applies to daily notes written
+before it existed, needs no migration, and disappears if a note's type is
+changed away from `daily`. `tagNames` includes it and `assignedTags` does
+not, so the tag dropdown shows it ticked but locked, like a tag that comes
+from a `#hashtag`. It appears in `listTags()` and works with
+`listNotes(tag)`. Flow view uses the note type to badge journal cards and
+to hide or show them (`docs/features/flow-view.md`).

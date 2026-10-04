@@ -179,9 +179,9 @@ deviation:
 - **Desktop**: `CanvasView.tsx` — a full-screen, hand-rolled pannable/
   zoomable corkboard (mouse-event pan/zoom, drag-by-header cards, a
   corner resize handle), a sidebar "Canvases" section, and "New canvas…"
-  using `window.prompt` for the title (same pragmatic native-dialog
-  precedent `showVaultLocation` already set, rather than building a modal
-  just for one text field). No connecting lines, per the v1 scope
+  asking for the title in an in-app dialog (`PromptDialog`). It first used
+  `window.prompt`, which Electron doesn't implement: the button did nothing
+  in the real app while the browser-based specs passed. Replaced 2026-10-04. No connecting lines, per the v1 scope
   decision. `canvas.e2e.ts` covers create/add-both-card-kinds/persist-on-
   reopen/open-note-from-card/remove-card. 30 desktop e2e specs total, all
   green. A screenshot confirmed drag actually repositions a card visually,

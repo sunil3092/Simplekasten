@@ -1,4 +1,4 @@
-import { extractHashtags, extractWikiLinkTitles, normalizeTagName } from "@simplekasten/core";
+import { extractHashtags, extractWikiLinkTitles, JOURNAL_TAG, normalizeTagName } from "@simplekasten/core";
 import { parseCanvasFile, serializeCanvasFile } from "./canvas-file";
 import { parseHistorySnapshot, serializeHistorySnapshot, type HistorySnapshot } from "./history-file";
 import { parseNoteFile, serializeNoteFile } from "./note-file";
@@ -83,11 +83,17 @@ function computeLinks(notes: VaultNote[]): LinkRef[] {
   return links;
 }
 
-/** tag name (lowercase) -> ids of notes with that tag, assigned or as a #hashtag. */
+/**
+ * tag name (lowercase) -> ids of notes with that tag: assigned, as a
+ * #hashtag, or — for journal notes — the built-in journal tag. That one is
+ * derived from the note's type rather than stored, so it covers journal
+ * notes written before the tag existed and can't be removed by accident.
+ */
 function computeTags(notes: VaultNote[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();
   for (const note of notes) {
-    for (const name of [...note.tags, ...extractHashtags(note.content)]) {
+    const implied = note.type === "daily" ? [JOURNAL_TAG] : [];
+    for (const name of [...note.tags, ...extractHashtags(note.content), ...implied]) {
       if (!map.has(name)) map.set(name, new Set());
       map.get(name)!.add(note.id);
     }

@@ -27,6 +27,14 @@ export function extractHashtags(content: string): string[] {
   return [...seen];
 }
 
+/**
+ * The tag every journal (daily) note carries without it being typed or
+ * assigned, so journal entries can always be picked out — or left out — by
+ * tag. Lowercase like every stored tag name: "#JournalEntry" in a note's text
+ * means the same tag.
+ */
+export const JOURNAL_TAG = "journalentry";
+
 const TAG_NAME_PATTERN = /^[a-z][\w/-]*$/;
 
 /**

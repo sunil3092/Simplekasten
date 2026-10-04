@@ -3,7 +3,7 @@ import { stubBridge } from "./bridge";
 
 // Fixture: "Systems" links to "Atomic Habits" via [[Atomic Habits]].
 test("links show in both directions and navigate", async ({ page }) => {
-  await stubBridge(page, { theme: "memphis", themeMode: "light" });
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
   await page.goto("/");
   const panel = page.locator("aside").last();
 

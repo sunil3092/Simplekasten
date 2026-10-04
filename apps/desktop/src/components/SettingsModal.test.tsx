@@ -11,10 +11,13 @@ import { SettingsModal } from "./SettingsModal";
 
 const sunset: Theme = { ...memphisTheme, id: "sunset", name: "Sunset" };
 
-function renderModal(overrides: Partial<ThemeContextValue> = {}) {
+function renderModal(
+  overrides: Partial<ThemeContextValue> = {},
+  vault?: { path: string; onChoose: () => void; onShow: () => void },
+) {
   const value: ThemeContextValue = {
     themes: [...builtInThemes, sunset],
-    activeId: "memphis",
+    activeId: "classic",
     mode: "system",
     resolved: resolveTheme(builtInThemes[0], "light"),
     notice: null,
@@ -32,7 +35,7 @@ function renderModal(overrides: Partial<ThemeContextValue> = {}) {
   const onClose = vi.fn();
   render(
     <ThemeContext.Provider value={value}>
-      <SettingsModal onClose={onClose} />
+      <SettingsModal onClose={onClose} vault={vault} />
     </ThemeContext.Provider>,
   );
   return { value, onClose };
@@ -41,16 +44,16 @@ function renderModal(overrides: Partial<ThemeContextValue> = {}) {
 describe("SettingsModal", () => {
   it("lists built-in and installed themes with the active one selected", () => {
     renderModal();
-    expect(screen.getByRole("radio", { name: /memphis/i })).toBeChecked();
-    expect(screen.getByRole("radio", { name: /classic/i })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: /classic/i })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /memphis/i })).not.toBeChecked();
     expect(screen.getByRole("radio", { name: /snowui/i })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /sunset/i })).toBeInTheDocument();
   });
 
   it("selects a theme", () => {
     const { value } = renderModal();
-    fireEvent.click(screen.getByRole("radio", { name: /classic/i }));
-    expect(value.setTheme).toHaveBeenCalledWith("classic");
+    fireEvent.click(screen.getByRole("radio", { name: /memphis/i }));
+    expect(value.setTheme).toHaveBeenCalledWith("memphis");
   });
 
   it("changes the mode", () => {
@@ -84,6 +87,16 @@ describe("SettingsModal", () => {
       ),
     );
     expect(value.installFromText).toHaveBeenCalledWith("{}");
+  });
+
+  it("shows the vault folder and lets it be changed or revealed", () => {
+    const vault = { path: "C:\\Notes\\My Vault", onChoose: vi.fn(), onShow: vi.fn() };
+    renderModal({}, vault);
+    expect(screen.getByTestId("vault-path")).toHaveTextContent("C:\\Notes\\My Vault");
+    fireEvent.click(screen.getByRole("button", { name: /choose vault folder/i }));
+    expect(vault.onChoose).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: /show vault location/i }));
+    expect(vault.onShow).toHaveBeenCalledOnce();
   });
 
   it("shows the fallback notice when present", () => {

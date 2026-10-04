@@ -3,7 +3,7 @@ import { stubBridge } from "./bridge";
 
 // Fixture: "Atomic Habits" has one photo and one voice note (see bridge.ts).
 test.beforeEach(async ({ page }) => {
-  await stubBridge(page, { theme: "memphis", themeMode: "light" });
+  await stubBridge(page, { theme: "classic", themeMode: "light" });
   await page.goto("/");
   await page.getByRole("button", { name: /Atomic Habits/ }).first().click();
 });

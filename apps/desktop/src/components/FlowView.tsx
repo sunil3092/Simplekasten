@@ -1,10 +1,13 @@
 "use client";
 
+import { JOURNAL_TAG } from "@simplekasten/core";
 import { layoutFlow, routeFlowEdge, type FlowPoint, type FlowRect } from "@simplekasten/local-engine";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../lib/ThemeProvider";
-import { noteTypeInfo } from "../lib/noteTypes";
-import { ExpandIcon, LayoutIcon, XIcon } from "./icons";
+import { NOTE_TYPES, noteTypeInfo } from "../lib/noteTypes";
+import { CalendarIcon, ChevronDownIcon, ExpandIcon, LayoutIcon, PlusIcon, SearchIcon, TrashIcon, XIcon } from "./icons";
+import { NoteEditor } from "./NoteEditor";
+import { ConfirmDialog } from "./ui";
 
 export interface FlowNode {
   id: string;
@@ -23,8 +26,11 @@ interface FlowViewProps {
   edges: FlowEdge[];
   onSelectNode: (id: string) => void;
   onClose: () => void;
-  onLoadNote: (id: string) => Promise<{ title: string; content: string }>;
-  onSaveNote: (input: { id: string; title?: string; content?: string }) => Promise<void>;
+  onLoadNote: (id: string) => Promise<{ title: string; content: string; tags?: string[] }>;
+  /** Resolves with the note's tags as saved, so the tag filter stays current. */
+  onSaveNote: (input: { id: string; title?: string; content?: string; type?: string }) => Promise<{ tags?: string[] } | void>;
+  onCreateNote: () => Promise<{ id: string }>;
+  onDeleteNote: (id: string) => Promise<void>;
   /** Identifies the vault, so each vault remembers its own card arrangement. */
   storageKey?: string;
 }
@@ -94,7 +100,133 @@ function roundedPath(points: FlowPoint[]): string {
   return `${d} L ${last.x} ${last.y}`;
 }
 
-export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSaveNote, storageKey = "" }: FlowViewProps) {
+// Filter value for notes carrying no tag at all. Not a valid tag name, so it
+// can never collide with a real one.
+const UNTAGGED = "\u0000untagged";
+
+interface TagOption {
+  value: string;
+  label: string;
+  count: number;
+}
+
+/** Tag search box: pick any number of tags; suggestions fill in as you type. */
+function TagFilter({ options, selected, onChange }: { options: TagOption[]; selected: string[]; onChange: (next: string[]) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const labelOf = (value: string) => options.find((o) => o.value === value)?.label ?? value;
+  const needle = query.trim().replace(/^#/, "").toLowerCase();
+  const suggestions = options.filter((o) => !selected.includes(o.value) && o.label.toLowerCase().includes(needle));
+  const active = Math.min(activeIndex, Math.max(suggestions.length - 1, 0));
+
+  function add(value: string) {
+    onChange([...selected, value]);
+    setQuery("");
+    setActiveIndex(0);
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      // Escape closes the suggestions, not the whole flow view.
+      e.stopPropagation();
+      setOpen(false);
+      inputRef.current?.blur();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setOpen(true);
+      setActiveIndex(Math.min(active + 1, suggestions.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex(Math.max(active - 1, 0));
+    } else if (e.key === "Enter") {
+      if (suggestions[active]) add(suggestions[active].value);
+    } else if (e.key === "Backspace" && query === "" && selected.length > 0) {
+      onChange(selected.slice(0, -1));
+    }
+  }
+
+  return (
+    <div className="relative w-full max-w-xl">
+      <div
+        onClick={() => inputRef.current?.focus()}
+        className="flex min-h-9 cursor-text flex-wrap items-center gap-1.5 rounded-lg border-(length:--border-w) border-line bg-surface px-2.5 py-1 focus-within:border-accent"
+      >
+        <SearchIcon className="flex-none text-ink-faint" />
+        {selected.map((value) => (
+          <span
+            key={value}
+            data-testid="flow-filter-chip"
+            className="flex items-center gap-1 rounded-full bg-accent-soft py-0.5 pr-1 pl-2 font-mono text-xs text-accent-ink"
+          >
+            {labelOf(value)}
+            <button
+              onClick={() => onChange(selected.filter((v) => v !== value))}
+              aria-label={`Remove ${labelOf(value)}`}
+              className="rounded-full p-0.5 hover:bg-surface"
+            >
+              <XIcon width={10} height={10} />
+            </button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          value={query}
+          role="combobox"
+          aria-label="Filter by tag"
+          aria-expanded={open}
+          aria-controls="flow-filter-options"
+          placeholder={selected.length === 0 ? "Filter by tag…" : "Add another tag…"}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+            setActiveIndex(0);
+          }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onKeyDown={onKeyDown}
+          className="min-w-24 flex-1 border-none bg-transparent py-0.5 text-sm text-ink outline-none placeholder:text-ink-faint"
+        />
+        {selected.length > 0 && (
+          <button onClick={() => onChange([])} className="flex-none text-xs text-ink-faint transition-colors hover:text-ink-muted">
+            Clear
+          </button>
+        )}
+      </div>
+      {open && (
+        <ul
+          id="flow-filter-options"
+          role="listbox"
+          className="absolute top-full right-0 left-0 z-20 mt-1.5 max-h-64 overflow-y-auto rounded-xl border-(length:--border-w) border-line bg-surface p-1.5 shadow-lg"
+        >
+          {suggestions.map((o, i) => (
+            <li key={o.value} role="option" aria-selected={i === active}>
+              <button
+                // Keeps focus in the input, so picking a tag doesn't close the list.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => add(o.value)}
+                onMouseEnter={() => setActiveIndex(i)}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left font-mono text-xs ${
+                  i === active ? "bg-accent-soft text-accent-ink" : "text-ink"
+                }`}
+              >
+                {o.label}
+                <span className="text-ink-faint">{o.count}</span>
+              </button>
+            </li>
+          ))}
+          {suggestions.length === 0 && (
+            <li className="px-2.5 py-1.5 text-xs text-ink-faint">{options.length === selected.length ? "Every tag is selected." : "No matching tag."}</li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSaveNote, onCreateNote, onDeleteNote, storageKey = "" }: FlowViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ x: 0, y: 60, scale: 1 });
   const viewRef = useRef(view);
@@ -103,6 +235,22 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
   const typeColor = (type: string) => colors[noteTypeInfo(type).graphColor];
 
   const [cardText, setCardText] = useState<Map<string, { title: string; content: string }>>(new Map());
+  // Each note's tags as last loaded or saved.
+  const [noteTags, setNoteTags] = useState<Map<string, string[]>>(new Map());
+  const [filterTags, setFilterTags] = useState<string[]>([]);
+  const [hideJournal, setHideJournal] = useState(false);
+  // A type just picked on a card, shown at once while the save and the
+  // refreshed `nodes` catch up.
+  const [pickedTypes, setPickedTypes] = useState<Map<string, string>>(new Map());
+  // The card being typed in stays on screen even if its tags stop matching
+  // the filter — otherwise retyping a #hashtag would whisk it away mid-edit.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const deletingRef = useRef(deletingId);
+  deletingRef.current = deletingId;
+  const mountedRef = useRef(true);
+  const loadedIdsRef = useRef(new Set<string>());
   const saveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const pendingSavesRef = useRef(new Map<string, { title: string; content: string }>());
 
@@ -112,30 +260,88 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
     saveTimersRef.current.delete(id);
     const pending = pendingSavesRef.current.get(id);
     pendingSavesRef.current.delete(id);
-    if (pending) onSaveNote({ id, ...pending });
+    if (!pending) return;
+    onSaveNote({ id, ...pending })
+      .then((saved) => applySavedTags(id, saved))
+      .catch(() => {
+        // The text stays in the card; the next edit retries the save.
+      });
   }
+
+  function applySavedTags(id: string, saved: { tags?: string[] } | void) {
+    const tags = saved?.tags;
+    if (tags && mountedRef.current) setNoteTags((prev) => new Map(prev).set(id, tags));
+  }
+
+  function changeType(id: string, type: string) {
+    // Text still waiting to be saved goes first, so the two writes can't cross.
+    flushSave(id);
+    setPickedTypes((prev) => new Map(prev).set(id, type));
+    onSaveNote({ id, type })
+      // The type decides the journal tag, so tags come back with it.
+      .then((saved) => applySavedTags(id, saved))
+      .catch(() => {
+        // Fall back to the type the vault still has.
+        if (mountedRef.current) {
+          setPickedTypes((prev) => {
+            const next = new Map(prev);
+            next.delete(id);
+            return next;
+          });
+        }
+      });
+  }
+
+  // Once `nodes` reports the picked type, the override has done its job.
+  useEffect(() => {
+    setPickedTypes((prev) => {
+      if (prev.size === 0) return prev;
+      const next = new Map(prev);
+      for (const n of nodes) if (next.get(n.id) === n.type) next.delete(n.id);
+      return next.size === prev.size ? prev : next;
+    });
+  }, [nodes]);
 
   function flushAllSaves() {
     for (const id of Array.from(pendingSavesRef.current.keys())) flushSave(id);
   }
 
   useEffect(() => {
-    let cancelled = false;
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // `nodes` is replaced after every save, create and delete. Only notes not
+  // seen before are fetched: reloading a card that is being typed in would
+  // overwrite the text under the cursor.
+  useEffect(() => {
+    const fresh = nodes.filter((n) => !loadedIdsRef.current.has(n.id));
+    if (fresh.length === 0) return;
+    for (const n of fresh) loadedIdsRef.current.add(n.id);
     Promise.all(
-      nodes.map(async (n) => {
+      fresh.map(async (n) => {
         try {
           const detail = await onLoadNote(n.id);
           return [n.id, detail] as const;
         } catch {
-          return [n.id, { title: n.title, content: "" }] as const;
+          return [n.id, { title: n.title, content: "", tags: [] as string[] }] as const;
         }
       }),
     ).then((entries) => {
-      if (!cancelled) setCardText(new Map(entries));
+      if (!mountedRef.current) return;
+      setCardText((prev) => {
+        const next = new Map(prev);
+        for (const [id, d] of entries) if (!next.has(id)) next.set(id, { title: d.title, content: d.content });
+        return next;
+      });
+      setNoteTags((prev) => {
+        const next = new Map(prev);
+        for (const [id, d] of entries) if (!next.has(id)) next.set(id, d.tags ?? []);
+        return next;
+      });
     });
-    return () => {
-      cancelled = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes]);
 
@@ -146,6 +352,9 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      // Escape first dismisses whatever is open on top — a card's suggestion
+      // list (the editor marks that as handled) or the delete confirmation.
+      if (e.defaultPrevented || deletingRef.current) return;
       if (e.key === "Escape") {
         flushAllSaves();
         onClose();
@@ -191,7 +400,97 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
     onSelectNode(id);
   }
 
-  const layout = useMemo(() => layoutFlow(nodes, edges), [nodes, edges]);
+  async function createCard() {
+    const { id } = await onCreateNote();
+    // Pinned as "being edited" so it shows even under a tag filter it doesn't match.
+    setEditingId(id);
+    setFocusId(id);
+  }
+
+  async function deleteCard(id: string) {
+    setDeletingId(null);
+    // An edit still waiting to be saved must not land after the delete.
+    const timer = saveTimersRef.current.get(id);
+    if (timer) clearTimeout(timer);
+    saveTimersRef.current.delete(id);
+    pendingSavesRef.current.delete(id);
+    await onDeleteNote(id);
+    if (!mountedRef.current) return;
+    setCardText((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+    setNoteTags((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+    if (movedRef.current.has(id)) {
+      const next = new Map(movedRef.current);
+      next.delete(id);
+      setMoved(next);
+      savePositions(storageKey, next);
+    }
+  }
+
+  // Ctrl/Cmd+click on a [[link]] in a card opens that note, like the main editor.
+  function followLink(title: string) {
+    const wanted = title.toLowerCase();
+    const target = nodes.find((n) => (cardText.get(n.id)?.title ?? n.title).toLowerCase() === wanted);
+    if (target) openInEditor(target.id);
+  }
+
+  // Put the cursor in a newly created card's title once the card is on screen.
+  useEffect(() => {
+    if (!focusId) return;
+    const input = containerRef.current?.querySelector<HTMLInputElement>(`[data-flow-card-id="${focusId}"] input`);
+    if (!input) return;
+    input.focus();
+    input.select();
+    setFocusId(null);
+  });
+
+  const tagOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    let untagged = 0;
+    for (const tags of noteTags.values()) {
+      if (tags.length === 0) untagged++;
+      for (const tag of tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+    const options: TagOption[] = Array.from(counts)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([tag, count]) => ({ value: tag, label: `#${tag}`, count }));
+    if (untagged > 0) options.push({ value: UNTAGGED, label: "Untagged", count: untagged });
+    return options;
+  }, [noteTags]);
+
+  // A note shows when it carries any of the chosen tags; arrows are kept
+  // only between notes that are both showing, so each tag reads as its own
+  // set of branches.
+  const journalCount = useMemo(() => nodes.filter((n) => n.type === "daily").length, [nodes]);
+
+  const visibleNodes = useMemo(() => {
+    if (filterTags.length === 0 && !hideJournal) return nodes;
+    return nodes.filter((n) => {
+      if (n.id === editingId) return true;
+      if (hideJournal && n.type === "daily") return false;
+      if (filterTags.length === 0) return true;
+      const tags = noteTags.get(n.id) ?? [];
+      return tags.length === 0 ? filterTags.includes(UNTAGGED) : tags.some((t) => filterTags.includes(t));
+    });
+  }, [nodes, noteTags, filterTags, hideJournal, editingId]);
+
+  // Asking for the journal tag by name overrides "hide journal" — otherwise
+  // the filter would promise journal entries and show none.
+  function changeFilter(next: string[]) {
+    if (next.includes(JOURNAL_TAG)) setHideJournal(false);
+    setFilterTags(next);
+  }
+
+  const allTagNames = useMemo(() => tagOptions.filter((o) => o.value !== UNTAGGED).map((o) => o.value), [tagOptions]);
+
+  const layout = useMemo(() => layoutFlow(visibleNodes, edges), [visibleNodes, edges]);
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
   const autoPositions = useMemo(() => {
@@ -319,13 +618,45 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
     });
   }
 
-  const presentTypes = useMemo(() => Array.from(new Set(nodes.map((n) => n.type))), [nodes]);
+  const presentTypes = useMemo(() => Array.from(new Set(visibleNodes.map((n) => n.type))), [visibleNodes]);
 
   return (
     <div className="animate-fade-in fixed inset-0 z-50 flex flex-col bg-bg" data-testid="flow-view">
-      <div className="flex items-center justify-between border-b-(length:--border-w) border-line px-5 py-3">
-        <h2 className="font-display text-lg font-bold text-ink">Flow view</h2>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-4 border-b-(length:--border-w) border-line px-5 py-3">
+        <h2 className="font-display flex-none text-lg font-bold text-ink">Flow view</h2>
+        <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
+          <TagFilter options={tagOptions} selected={filterTags} onChange={changeFilter} />
+          {journalCount > 0 && (
+            <button
+              onClick={() => {
+                if (!hideJournal) setFilterTags((current) => current.filter((t) => t !== JOURNAL_TAG));
+                setHideJournal(!hideJournal);
+              }}
+              aria-pressed={!hideJournal}
+              title={hideJournal ? "Journal entries are hidden — click to show them" : "This flow includes journal entries — click to hide them"}
+              data-testid="flow-journal-toggle"
+              className={`flex flex-none items-center gap-1.5 rounded-full border-(length:--border-w) px-2.5 py-1 font-mono text-xs transition-colors ${
+                hideJournal ? "border-line text-ink-faint line-through hover:text-ink-muted" : "border-accent bg-accent-soft text-accent-ink"
+              }`}
+            >
+              <CalendarIcon width={12} height={12} />
+              Journal {journalCount}
+            </button>
+          )}
+          {(filterTags.length > 0 || hideJournal) && (
+            <span data-testid="flow-filter-count" className="flex-none font-mono text-xs text-ink-faint">
+              {visibleNodes.length} of {nodes.length}
+            </span>
+          )}
+        </div>
+        <div className="flex flex-none items-center gap-2">
+          <button
+            onClick={createCard}
+            className="flex items-center gap-1.5 rounded-lg border-(length:--border-w) border-line px-3 py-1.5 text-sm text-ink-muted transition-colors hover:border-accent/50 hover:text-ink"
+          >
+            <PlusIcon />
+            New note
+          </button>
           <button
             onClick={autoArrange}
             disabled={moved.size === 0}
@@ -393,16 +724,23 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
                 const pos = positions.get(l.id);
                 if (!node || !pos) return null;
                 const text = cardText.get(l.id) ?? { title: node.title, content: "" };
+                const type = pickedTypes.get(l.id) ?? node.type;
 
                 return (
                   <div
                     key={l.id}
                     data-testid="flow-card"
+                    data-flow-card-id={l.id}
+                    onFocus={() => setEditingId(l.id)}
+                    onBlur={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget)) setEditingId((current) => (current === l.id ? null : current));
+                    }}
                     onMouseDown={(e) => e.stopPropagation()}
                     onMouseEnter={() => setHoveredId(l.id)}
                     onMouseLeave={() => setHoveredId((current) => (current === l.id ? null : current))}
-                    className="absolute flex flex-col overflow-hidden rounded-lg border-2 bg-surface shadow-lg"
-                    style={{ left: pos.x, top: pos.y, width: CARD_WIDTH, height: CARD_HEIGHT, borderColor: typeColor(node.type) }}
+                    // cursor-default: the canvas's grab cursor would otherwise show over the whole card.
+                    className="absolute flex cursor-default flex-col overflow-hidden rounded-lg border-2 bg-surface shadow-lg"
+                    style={{ left: pos.x, top: pos.y, width: CARD_WIDTH, height: CARD_HEIGHT, borderColor: typeColor(type) }}
                   >
                     <div
                       data-testid="flow-card-handle"
@@ -410,8 +748,34 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
                       onMouseDown={(e) => onCardHeaderMouseDown(e, l.id)}
                       className="flex cursor-grab items-center justify-between border-b-(length:--border-w) border-line-soft bg-surface-2 px-2 py-1 select-none active:cursor-grabbing"
                     >
-                      <span className="font-mono text-[10px] text-ink-faint">{node.zettelId}</span>
+                      <span className="flex items-center gap-2 font-mono text-[10px] text-ink-faint">
+                        {node.zettelId}
+                        {type === "daily" && (
+                          <span data-testid="flow-journal-badge" className="flex items-center gap-1 rounded-full bg-accent-soft px-1.5 py-px text-accent-ink">
+                            <CalendarIcon width={10} height={10} />
+                            Journal
+                          </span>
+                        )}
+                      </span>
                       <div className="flex items-center gap-0.5" onMouseDown={(e) => e.stopPropagation()}>
+                        <label className="relative mr-1 flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-ink-muted transition-colors hover:bg-surface hover:text-ink">
+                          <span className="h-2 w-2 flex-none rounded-full" style={{ backgroundColor: typeColor(type) }} />
+                          <select
+                            aria-label="Note type"
+                            title="Note type"
+                            value={type}
+                            onChange={(e) => changeType(l.id, e.target.value)}
+                            className="cursor-pointer appearance-none bg-transparent pr-3 font-mono text-[10px] font-medium tracking-wide uppercase outline-none"
+                          >
+                            {NOTE_TYPES.map((t) => (
+                              // Option lists are drawn by the OS, outside the theme, so they need their own colours.
+                              <option key={t.value} value={t.value} className="bg-surface text-ink">
+                                {t.label}
+                              </option>
+                            ))}
+                          </select>
+                          <ChevronDownIcon width={10} height={10} className="pointer-events-none absolute right-1 opacity-60" />
+                        </label>
                         <button
                           onClick={() => openInEditor(l.id)}
                           aria-label="Open in editor"
@@ -421,12 +785,12 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
                           <ExpandIcon width={12} height={12} />
                         </button>
                         <button
-                          onClick={() => (document.activeElement as HTMLElement | null)?.blur()}
-                          aria-label="Done editing"
-                          title="Done editing"
-                          className="rounded p-1 text-ink-faint transition-colors hover:bg-surface hover:text-ink"
+                          onClick={() => setDeletingId(l.id)}
+                          aria-label="Delete note"
+                          title="Delete note"
+                          className="rounded p-1 text-ink-faint transition-colors hover:bg-surface hover:text-danger"
                         >
-                          <XIcon width={12} height={12} />
+                          <TrashIcon width={12} height={12} />
                         </button>
                       </div>
                     </div>
@@ -436,17 +800,35 @@ export function FlowView({ nodes, edges, onSelectNode, onClose, onLoadNote, onSa
                       placeholder="Untitled"
                       className="font-display w-full border-none bg-transparent px-3 pt-2 text-base font-bold text-ink outline-none"
                     />
-                    <textarea
-                      value={text.content}
-                      onChange={(e) => onContentChange(l.id, e.target.value)}
-                      placeholder="Start writing…"
-                      className="min-h-0 flex-1 resize-none border-none bg-transparent px-3 pt-1 pb-2 text-xs leading-relaxed text-ink outline-none"
-                    />
+                    <div className="min-h-0 flex-1 px-3 pt-1 pb-2" data-testid="flow-card-body">
+                      {/* The editor owns its text once mounted, so it waits for the note to load. */}
+                      {cardText.has(l.id) && (
+                        <NoteEditor
+                          compact
+                          initialValue={text.content}
+                          onChange={(value) => onContentChange(l.id, value)}
+                          onNavigateLink={followLink}
+                          onTagClick={(tag) => changeFilter(filterTags.includes(tag) ? filterTags : [...filterTags, tag])}
+                          noteTitles={nodes.filter((n) => n.id !== l.id).map((n) => cardText.get(n.id)?.title ?? n.title)}
+                          tagNames={allTagNames}
+                        />
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </>
+        )}
+
+        {deletingId && (
+          <ConfirmDialog
+            title="Delete this note?"
+            body={`"${cardText.get(deletingId)?.title || "Untitled"}" will be deleted. Links to it from other notes will stop resolving.`}
+            confirmLabel="Delete"
+            onConfirm={() => deleteCard(deletingId)}
+            onCancel={() => setDeletingId(null)}
+          />
         )}
 
         {presentTypes.length > 0 && (
