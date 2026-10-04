@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld("simplekasten", {
     addToReviewQueue: (noteId, today) => ipcRenderer.invoke("vault:addToReviewQueue", noteId, today),
     removeFromReviewQueue: (noteId) => ipcRenderer.invoke("vault:removeFromReviewQueue", noteId),
     listDueForReview: (date) => ipcRenderer.invoke("vault:listDueForReview", date),
+    listReviewInbox: () => ipcRenderer.invoke("vault:listReviewInbox"),
     submitReview: (input) => ipcRenderer.invoke("vault:submitReview", input),
     listNoteVersions: (noteId) => ipcRenderer.invoke("vault:listNoteVersions", noteId),
     getNoteVersion: (noteId, versionId) => ipcRenderer.invoke("vault:getNoteVersion", noteId, versionId),

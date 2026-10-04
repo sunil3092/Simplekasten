@@ -8,7 +8,6 @@ import type {
   GraphData,
   NoteDetail,
   NoteListItem,
-  ReviewRating,
   TagItem,
   Template,
 } from "@simplekasten/local-engine";
@@ -118,10 +117,9 @@ function Vault() {
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
   const [canvases, setCanvases] = useState<CanvasListItem[]>([]);
   const [openCanvasId, setOpenCanvasId] = useState<string | null>(null);
-  const [dueCount, setDueCount] = useState(0);
-  // Non-null while a review session is open; holds the due notes fetched at
-  // session start so rating through the queue doesn't reshuffle mid-session
-  // if a note's due date happens to land on today from elsewhere.
+  const [reviewCount, setReviewCount] = useState(0);
+  // Non-null while Review is open; holds the fleeting notes fetched when it
+  // opened, so the "N of M" count stays put while notes are sorted out of it.
   const [reviewQueue, setReviewQueue] = useState<NoteListItem[] | null>(null);
   const [reviewIndex, setReviewIndex] = useState(0);
   const [reviewNote, setReviewNote] = useState<NoteDetail | null>(null);
@@ -191,10 +189,8 @@ function Vault() {
     setTemplates(await vaultClient.listTemplates());
   }
 
-  async function refreshDueCount() {
-    setDueCount(
-      (await vaultClient.listDueForReview(todayLocal())).length,
-    );
+  async function refreshReviewCount() {
+    setReviewCount((await vaultClient.listReviewInbox()).length);
   }
 
   async function refreshCanvases() {
@@ -206,7 +202,7 @@ function Vault() {
     refreshTags();
     refreshDailyNotes();
     refreshTemplates();
-    refreshDueCount();
+    refreshReviewCount();
     refreshCanvases();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -310,24 +306,12 @@ function Vault() {
     setEditorNonce((n) => n + 1);
   }
 
-  async function toggleReviewQueue() {
-    if (!selected) return;
-    if (selected.reviewDue)
-      await vaultClient.removeFromReviewQueue(selected.id);
-    else await vaultClient.addToReviewQueue(selected.id, todayLocal());
-    setSelected(await loadNote(selected.id));
-    refreshDueCount();
-  }
-
   async function openReview() {
-    const due = await vaultClient.listDueForReview(todayLocal());
-    setReviewQueue(due);
+    await flushPending();
+    const inbox = await vaultClient.listReviewInbox();
+    setReviewQueue(inbox);
     setReviewIndex(0);
-    setReviewNote(
-      due.length > 0
-        ? await loadNote(due[0].id)
-        : null,
-    );
+    setReviewNote(inbox.length > 0 ? await loadNote(inbox[0].id) : null);
   }
 
   function closeReview() {
@@ -335,13 +319,8 @@ function Vault() {
     setReviewNote(null);
   }
 
-  async function rateReviewNote(rating: ReviewRating) {
-    if (!reviewQueue || !reviewNote) return;
-    await vaultClient.submitReview({
-      noteId: reviewNote.id,
-      rating,
-      today: todayLocal(),
-    });
+  async function advanceReview() {
+    if (!reviewQueue) return;
     const nextIndex = reviewIndex + 1;
     setReviewIndex(nextIndex);
     setReviewNote(
@@ -349,9 +328,42 @@ function Vault() {
         ? await loadNote(reviewQueue[nextIndex].id)
         : null,
     );
-    refreshDueCount();
-    if (selected && selected.id === reviewNote.id)
-      setSelected(await loadNote(selected.id));
+  }
+
+  // What Review changes has to reach everything else showing the note: the
+  // note list, the tag list, the badge, and the editor if it has it open.
+  async function reloadSelectedIf(id: string) {
+    if (selected?.id !== id) return;
+    setSelected(await loadNote(id));
+    setEditorNonce((n) => n + 1);
+  }
+
+  async function saveReviewNote(input: {
+    id: string;
+    title: string;
+    content: string;
+  }) {
+    await vaultClient.updateNote(input);
+    refreshNotes(activeTag);
+    refreshTags();
+    await reloadSelectedIf(input.id);
+  }
+
+  async function setReviewNoteType(id: string, type: NoteType) {
+    await vaultClient.updateNote({ id, type });
+    refreshNotes(activeTag);
+    refreshReviewCount();
+    await reloadSelectedIf(id);
+    await advanceReview();
+  }
+
+  async function deleteReviewNote(id: string) {
+    await vaultClient.deleteNote(id);
+    if (selected?.id === id) setSelected(null);
+    refreshNotes(activeTag);
+    refreshTags();
+    refreshReviewCount();
+    await advanceReview();
   }
 
   async function flushPending() {
@@ -421,6 +433,7 @@ function Vault() {
     ).filter((n) => n.id !== deletedId);
     setNotes(remaining);
     refreshTags();
+    refreshReviewCount();
     if (remaining.length > 0) await openNote(remaining[0].id);
     else setSelected(null);
   }
@@ -510,7 +523,10 @@ function Vault() {
     refreshNotes(activeTag);
     refreshTags();
     // A type change can add or remove a journal entry or a map of content.
-    if (input.type !== undefined) refreshDailyNotes();
+    if (input.type !== undefined) {
+      refreshDailyNotes();
+      refreshReviewCount();
+    }
     refreshFlow();
     if (selected?.id === input.id) {
       setSelected(fresh);
@@ -527,7 +543,7 @@ function Vault() {
     // The note may arrive already carrying #hashtags.
     refreshTags();
     // A new fleeting note goes straight into the review queue.
-    refreshDueCount();
+    refreshReviewCount();
     await refreshFlow();
     return note;
   }
@@ -538,7 +554,7 @@ function Vault() {
     refreshNotes(activeTag);
     refreshTags();
     refreshDailyNotes();
-    refreshDueCount();
+    refreshReviewCount();
     await refreshFlow();
   }
 
@@ -578,7 +594,7 @@ function Vault() {
       refreshTags(),
       refreshDailyNotes(),
       refreshTemplates(),
-      refreshDueCount(),
+      refreshReviewCount(),
       refreshCanvases(),
     ]);
     setSettingsOpen(false);
@@ -607,7 +623,7 @@ function Vault() {
       type: "fleeting",
     });
     await refreshNotes();
-    refreshDueCount();
+    refreshReviewCount();
     return note;
   }
 
@@ -620,7 +636,7 @@ function Vault() {
       type: "fleeting",
     });
     await refreshNotes();
-    refreshDueCount();
+    refreshReviewCount();
     justCreatedIdRef.current = note.id;
     setSelected(await loadNote(note.id));
     setSaveStatus("saved");
@@ -684,6 +700,7 @@ function Vault() {
       content: next.content,
       type: next.type,
     });
+    refreshReviewCount();
   }
 
   // Every command here already exists as a handler above — this only makes
@@ -709,7 +726,7 @@ function Vault() {
       id: "review",
       icon: "repeat",
       label: "Review",
-      description: "Start a spaced-repetition review session",
+      description: COPY.reviewCommandDescription,
       run: openReview,
     },
     {
@@ -839,12 +856,12 @@ function Vault() {
                       <RepeatIcon />
                       Review
                     </span>
-                    {dueCount > 0 && (
+                    {reviewCount > 0 && (
                       <span
-                        data-testid="review-due-count"
+                        data-testid="review-count"
                         className="font-mono text-[10px] text-accent-ink"
                       >
-                        {dueCount}
+                        {reviewCount}
                       </span>
                     )}
                   </span>
@@ -1111,25 +1128,10 @@ function Vault() {
                     </span>
                   )}
                   <IconButton
-                    aria-label={
-                      selected.reviewDue
-                        ? "Remove from review queue"
-                        : "Add to review queue"
-                    }
-                    title={
-                      selected.reviewDue
-                        ? "Remove from review queue"
-                        : "Add to review queue"
-                    }
-                    onClick={toggleReviewQueue}
-                    className={`${templates.length > 0 ? "" : "ml-2"} ${selected.reviewDue ? "text-accent-ink" : ""}`}
-                  >
-                    <RepeatIcon />
-                  </IconButton>
-                  <IconButton
                     aria-label="Version history"
                     title="Version history"
                     onClick={() => setHistoryOpen(true)}
+                    className={templates.length > 0 ? "" : "ml-2"}
                   >
                     <HistoryIcon />
                   </IconButton>
@@ -1326,7 +1328,14 @@ function Vault() {
           note={reviewNote}
           current={Math.min(reviewIndex + 1, reviewQueue.length)}
           total={reviewQueue.length}
-          onRate={rateReviewNote}
+          noteTitles={notes
+            .filter((n) => n.id !== reviewNote?.id)
+            .map((n) => n.title)}
+          tagNames={tags.map((t) => t.name)}
+          onSave={saveReviewNote}
+          onSetType={setReviewNoteType}
+          onSkip={advanceReview}
+          onDelete={deleteReviewNote}
           onClose={closeReview}
         />
       )}

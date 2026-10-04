@@ -117,10 +117,7 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
         getNoteById: async (id: string) => detail(id),
         createNote: async (input: { title: string; content: string; type?: string }) => {
           const id = `new${nextNote++}`;
-          const type = input.type ?? "fleeting";
-          // Like the engine: a new fleeting note is queued for review, due today.
-          const reviewDue = type === "fleeting" ? new Date().toLocaleDateString("en-CA") : null;
-          notes.push({ id, zettelId: String(notes.length + 1), title: input.title, content: input.content, type, tags: [], reviewDue });
+          notes.push({ id, zettelId: String(notes.length + 1), title: input.title, content: input.content, type: input.type ?? "fleeting", tags: [] });
           return detail(id);
         },
         updateNote: async (input: { id: string; title?: string; content?: string; type?: string; tags?: string[] }) => {
@@ -232,6 +229,10 @@ export async function stubBridge(page: Page, settings: { theme: string; themeMod
             .slice()
             .sort((a, b) => (a.reviewDue as string).localeCompare(b.reviewDue as string))
             .map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type, updatedAt: stamp })),
+        // Like the engine: the inbox is every fleeting note, oldest first.
+        // The array is in creation order already.
+        listReviewInbox: async () =>
+          notes.filter((n) => n.type === "fleeting").map(({ id, zettelId, title, type }) => ({ id, zettelId, title, type, updatedAt: stamp })),
         submitReview: async (input: { noteId: string; rating: "again" | "hard" | "good" | "easy"; today: string }) => {
           const note = notes.find((n) => n.id === input.noteId)!;
           const interval = input.rating === "again" ? 1 : (note.reviewInterval ?? 0) + 3;

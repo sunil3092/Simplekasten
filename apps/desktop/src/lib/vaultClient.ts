@@ -56,6 +56,8 @@ export interface VaultBridge {
   addToReviewQueue: (noteId: string, today: string) => Promise<VaultNote>;
   removeFromReviewQueue: (noteId: string) => Promise<VaultNote>;
   listDueForReview: (date: string) => Promise<NoteListItem[]>;
+  /** Fleeting notes waiting to be sorted, oldest first. */
+  listReviewInbox: () => Promise<NoteListItem[]>;
   submitReview: (input: SubmitReviewInput) => Promise<VaultNote>;
   listNoteVersions: (noteId: string) => Promise<NoteVersion[]>;
   getNoteVersion: (noteId: string, versionId: string) => Promise<HistorySnapshot>;
@@ -122,6 +124,7 @@ export const vaultClient: VaultBridge = {
   addToReviewQueue: (noteId, today) => vault().addToReviewQueue(noteId, today),
   removeFromReviewQueue: (noteId) => vault().removeFromReviewQueue(noteId),
   listDueForReview: (date) => vault().listDueForReview(date),
+  listReviewInbox: () => vault().listReviewInbox(),
   submitReview: (input) => vault().submitReview(input),
   listNoteVersions: (noteId) => vault().listNoteVersions(noteId),
   getNoteVersion: (noteId, versionId) => vault().getNoteVersion(noteId, versionId),

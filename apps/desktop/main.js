@@ -122,6 +122,7 @@ function registerIpcHandlers() {
   ipcMain.handle("vault:addToReviewQueue", (_event, noteId, today) => localEngine.addToReviewQueue(currentAdapter(), noteId, today));
   ipcMain.handle("vault:removeFromReviewQueue", (_event, noteId) => localEngine.removeFromReviewQueue(currentAdapter(), noteId));
   ipcMain.handle("vault:listDueForReview", (_event, date) => localEngine.listDueForReview(currentAdapter(), date));
+  ipcMain.handle("vault:listReviewInbox", () => localEngine.listReviewInbox(currentAdapter()));
   ipcMain.handle("vault:submitReview", (_event, input) => localEngine.submitReview(currentAdapter(), input));
   ipcMain.handle("vault:listNoteVersions", (_event, noteId) => localEngine.listNoteVersions(currentAdapter(), noteId));
   ipcMain.handle("vault:getNoteVersion", (_event, noteId, versionId) => localEngine.getNoteVersion(currentAdapter(), noteId, versionId));
