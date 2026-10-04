@@ -42,7 +42,8 @@ editor (desktop) / native `[[` suggestions (mobile) · Maps of Content
 (Classic by default, Memphis, SnowUI, plus user-supplied theme files) ·
 photo + voice-note attachments on both platforms (desktop: file picker;
 mobile: camera/library/recording) · delete note with confirmation, both
-platforms · purge the whole vault behind two confirmations (desktop) · dark
+platforms · Review: a triage inbox that sorts fleeting notes into permanent,
+literature or structure notes, on both platforms · purge the whole vault behind two confirmations (desktop) · dark
 mode · a shared UI/copy/icon layer (`packages/core`) keeping desktop and
 mobile in visual and behavioural parity.
 
@@ -64,6 +65,7 @@ mobile in visual and behavioural parity.
 | 12 | ~~Local-first / offline sync~~ | Obsidian, Logseq | **Done** — see architecture note above | — |
 | 13 | **Real-time collaboration** (multiple people, one vault) | Roam, Notion | Low priority for a personal Zettelkasten tool | Very large |
 | 14 | **Flow view** (notes as top-to-bottom function-block-diagram cards, directional arrows for related notes, branching like a flowchart) | Requested directly by the user 2026-10-03; closest prior art is Miro/Whimsical flowcharts and Obsidian's "Excalibrain" plugin | Medium — a genuinely different read on the same link graph Graph view already has (hierarchical/layered instead of force-directed), good for seeing cause→effect or prerequisite chains rather than overall note clustering | Medium — needs a layered-DAG layout algorithm (Sugiyama-style: break cycles, longest-path layer assignment, barycenter ordering within a layer) plus a new renderer; no new engine data since it's the same nodes/edges `getGraph()` already returns |
+| 15 | **Flashcards** (spaced repetition over chosen notes) | RemNote, Anki, Obsidian plugin | Medium — the SM-2 engine code already exists (parked) | Medium — needs its own design: what becomes a card, and where it lives |
 
 ## Decision: what to build now
 
@@ -117,7 +119,8 @@ dedicated e2e coverage; only the mobile UI is still missing.
 |---|---|---|---|---|---|---|
 | Daily Notes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-22 |
 | Templates | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
-| Spaced repetition | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
+| Spaced repetition | ✅ | ✅ | ✅ | ✅ | ✅ | Parked 2026-10-04 (to return as Flashcards) |
+| Review (triage inbox) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-10-04 |
 | Command palette | ✅ | n/a (UI-only) | ✅ | ✅ | ✅ | ✅ 2026-09-23 |
 | Version history | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ 2026-09-25 |
 | Canvas | ✅ | ✅ | ✅ | ✅ (view-only) | ✅ | ✅ 2026-09-25 |

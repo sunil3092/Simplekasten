@@ -1,6 +1,8 @@
 # Feature: Spaced Repetition (review queue)
 
-**Status:** shipped 2026-09-23.
+**Status:** parked 2026-10-04. The engine code and note fields described
+here are still in the repo, but no screen reaches them: Review now sorts
+fleeting notes (`review.md`). This will return, redesigned, as Flashcards.
 **Why:** the actual point of a slip-box is resurfacing old notes at the
 moment they're useful — Luhmann's system worked because he kept walking
 the archive, not just adding to it. Every mature PKM tool now has some
@@ -14,16 +16,8 @@ independent capability, unlike Daily Notes/Templates which fed each other.
 
 Any note can be added to the review queue — not just `permanent` notes.
 Restricting by type would be arbitrary (a `literature` note or a
-`structure` MoC can just as easily be worth resurfacing), so there's no
-"type" gate on what may be queued.
-
-**Updated 2026-10-04:** a new `fleeting` note is queued automatically, due
-the day it is made — `createNote` sets `reviewDue` to the device's local
-date. A fleeting note is a thought still to be worked out, and left opt-in
-it was only ever seen again by luck. This happens at creation only: a note
-whose type is changed to `fleeting` later is not queued, and one changed
-away from `fleeting` stays queued until removed. Every other type remains
-opt-in, and notes that existed before this change were not queued.
+`structure` MoC can just as easily be worth resurfacing) and the queue is
+opt-in per note either way, so there's no "type" gate to design around.
 
 ## Algorithm
 
