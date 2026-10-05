@@ -2,6 +2,7 @@
   "name": "@simplekasten/desktop",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "main": "main.js",
   "scripts": {
     "seed:dev": "node scripts/seed-dev-vault.js",

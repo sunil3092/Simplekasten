@@ -2,6 +2,7 @@
   "name": "@simplekasten/local-engine",
   "version": "0.1.0",
   "private": true,
+  "license": "PolyForm-Noncommercial-1.0.0",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {

@@ -211,6 +211,14 @@ That produces the release `v0.2.0` with a Windows installer (`.exe`) and macOS d
 
 The installers are not code-signed, so Windows SmartScreen and macOS Gatekeeper ask for confirmation on first launch; the release notes explain how to get past that. The macOS app carries an ad-hoc signature (`apps/desktop/scripts/adhoc-sign.js`), which Apple silicon Macs need before they will start an app at all.
 
+## 📄 Licence
+
+Simplekasten is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, change and share it for any noncommercial purpose: personal use, study, hobby projects, and use by charities, schools and public bodies all count. Commercial use is not allowed without separate permission from the author.
+
+Copies you pass on must include the licence (or its URL) and the `Required Notice:` line at the top of the [LICENSE](LICENSE) file. This is not an open-source licence in the OSI sense, because it restricts commercial use.
+
+The app icon is covered separately: see the credit under "App icon" above.
+
 ---
 
 🧠 Built for people who'd rather *think* with their notes than just *store* them.
